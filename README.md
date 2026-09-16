@@ -234,9 +234,11 @@ whoop-dashboard/
 ├── ai_context.py             # full history → compact tables for the AI model
 ├── env_config.py             # .env loader + atomic file writes
 ├── refresh.sh                # pull + build in one step
+├── CLAUDE.md                 # conventions for AI coding agents
 ├── native_app/               # macOS app (main.swift, build.sh, icon)
 ├── scripts/
-│   └── generate_demo_data.py # synthetic WHOOP export for demo + tests
+│   ├── generate_demo_data.py # synthetic WHOOP export for demo + tests
+│   └── privacy_scan.py       # blocks commits containing personal data
 ├── tests/                    # unit tests (no network, no secrets)
 └── docs/screenshots/
 ```
@@ -276,6 +278,16 @@ vitals, brand-new accounts), the privacy of the AI context, and the chat backend
 request format, conversation handling, input validation, and error messages.
 GitHub Actions runs it on Python 3.9 and 3.12 and compiles the macOS app on every
 push.
+
+Before publishing changes, run the privacy scan — it fails if any tracked file contains
+a value from your `.env`, your WHOOP tokens, identifiers from your own WHOOP export, or a
+home-directory path:
+
+```bash
+python3 scripts/privacy_scan.py
+```
+
+`CLAUDE.md` documents the codebase conventions for AI coding agents.
 
 ## Limitations
 
