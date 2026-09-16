@@ -191,21 +191,25 @@ Everything is computed from your own history. Thresholds adapt to you.
 
 | Metric | Definition | Flags at |
 |---|---|---|
-| **Readiness** | 7-day HRV (ln RMSSD) and resting HR, 3-night sleep performance — each vs your previous 60 days, equal weights (see [below](#how-readiness-is-calculated)) | Peak 63+ (½ SD above normal) · Recovery under 38 (½ SD below) |
+| **Readiness** | 7-day HRV (ln RMSSD) and resting HR, 3-night sleep performance — each vs your previous 60 days, equal weights (see [below](#how-readiness-is-calculated)) | Above normal 63+ (½ SD above) · below normal under 38 · Recovery under 38 (½ SD below) |
 | **Load ratio (ACWR)** | Last-7-day average strain ÷ last-28-day average | Safe 0.8–1.3 · Caution 1.3–1.5 · High > 1.5 |
 | **Training variety** | Foster monotony (weekly mean ÷ SD of daily strain) × weekly load | This week above 80% of your last 16 weeks |
 | **Fatigue signal** | Each night's HRV, resting HR, and breathing rate vs your previous 30 nights | Outside ±1.5 standard deviations (shown in the app as plain limits, e.g. "flags at 16.4+ /min") |
 | **Rest day** | A day in your bottom 15% of strain | 7+ days without one |
 | **Sport recovery cost** | Average next-morning recovery after days whose hardest session was that sport, vs your overall average | Sports with 8+ sessions |
 
-**Day badge — checked in order, first match wins**
+**Readiness describes your body. The day badge decides what to do.**
+
+Readiness only ever says *below normal*, *normal*, or *above normal*. The badge is the
+single call for the day — it's checked in order, the first match wins, and when a rule
+outranks readiness the app says so (e.g. *"This overrides your readiness (43, normal)"*).
 
 1. **Red flag** — a fatigue signal in the last 14 days, *or* all three of: 7+ days
    since rest, a week harder than 80% of recent weeks, and ACWR above 1.3.
-2. **Recovery** — readiness below your rest threshold, *or* today's strain already
-   above your 7-day average.
-3. **Peak** — readiness at or above your push threshold.
-4. **Grind** — everything in between.
+2. **Recovery** — readiness below normal, *or* today's strain already above your
+   7-day average.
+3. **Peak** — readiness above normal.
+4. **Grind** — readiness normal.
 
 ### How readiness is calculated
 
@@ -219,7 +223,7 @@ trend inside, above, or below your own normal?**
 | 2. Compare to *your* normal | Baseline = your rolling values over the 60 days before this week. Normal range = baseline mean ± 0.5 SD | ±0.5 SD is the "smallest worthwhile change" these trials use to choose hard vs easy days (mean ± 0.5 × SD, following Plews et al., 2012 — see [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Trials used a ~4-week baseline; 60 days is a steadier choice for everyday life |
 | 3. Add resting HR and sleep | Each input expressed in SD units (resting HR flipped: lower = better), capped at ±3 | Adding resting HR (and well-being) to HRV gave the largest gains in a 2025 cyclist trial ([Alfonso et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12485039/)) |
 | 4. Combine | Equal-weight average → score = 50 + 25 × average, 0–100 | No study has validated specific weights; equal weights are the robust default when none exist ([Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making)) |
-| 5. Decide | 63+ (≥ +0.5 SD) → Peak · 38–62 → Grind · under 38 → Recovery | Same above / within / below-SWC rule the trials used to prescribe intensity |
+| 5. Classify | 63+ (≥ +0.5 SD) above normal · 38–62 normal · under 38 below normal — feeds the day badge | Same above / within / below-SWC rule the trials used to prescribe intensity |
 
 **What it deliberately leaves out**
 - **Training load (ACWR).** Its ability to predict injury is disputed

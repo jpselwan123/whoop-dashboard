@@ -91,6 +91,8 @@
   .dt-row.good .v{color:var(--good);}
   .dt-row.current .k,.dt-row.current .v{color:var(--ink);font-weight:600;}
   .dt-row.current .k::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle;}
+  .rp-call{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:11px;color:var(--ink-muted);}
+  .rp-call .day-type{flex-shrink:0;white-space:nowrap;cursor:default;}
   .rp-note{font-size:10.5px;color:var(--ink-faint);margin-top:10px;line-height:1.5;}
   .dt-rule{border-bottom:1px solid var(--border);}
   .dt-rule:last-child{border-bottom:none;}
@@ -678,17 +680,21 @@ function percentile(vals, p){
 }
 // Readiness is computed in build_dashboard.py (build_readiness) from 7-day HRV and resting
 // HR trends and 3-night sleep, each vs the person's own 60-day normal (HRV-guided training
-// method; equal weights). 50 = normal, 63+ = Peak, under 38 = Recovery. Until there's
+// method; equal weights). 50 = normal, 63+ = above normal, under 38 = below. Until there's
 // enough history for a baseline (~5 weeks), the page falls back to WHOOP recovery zones.
 function thresholds(){
   const t = DATA.readiness && DATA.readiness.thresholds;
-  return t ? { pushTh: t.peak, restTh: t.recovery } : { pushTh: 67, restTh: 34 };
+  return t ? { pushTh: t.above, restTh: t.below } : { pushTh: 67, restTh: 34 };
+}
+function readinessBand(calc){
+  if(calc.fallback) return '';
+  return calc.state === 'push' ? 'above normal' : calc.state === 'rest' ? 'below normal' : 'normal';
 }
 function computeReadiness(){
   const L = DATA.latest, R = DATA.readiness;
   const strainRatio = DATA.avg30.strain ? DATA.avg7_strain / DATA.avg30.strain : 1; // context for copy/tips only
   if(R){
-    const state = R.state === 'peak' ? 'push' : R.state === 'recovery' ? 'rest' : 'moderate';
+    const state = R.state === 'above' ? 'push' : R.state === 'below' ? 'rest' : 'moderate';
     return { readiness: R.score, state, strainRatio, fallback: false };
   }
   const r = L.recovery_score;
@@ -755,12 +761,14 @@ function renderDecision(){
     if(overloadCombo) parts.push(`${rest.days_since} days since your last rest day, a concentrated training week, and ACWR in ${acwrZoneLabel}`);
     const joined = parts.length > 1 ? `${parts[0]}, and ${parts[1]}` : parts[0];
     why = joined.charAt(0).toUpperCase() + joined.slice(1) + ' — worth backing off today.';
+    if(!calc.fallback && state !== 'rest') why += ` This overrides your readiness (<b>${readiness}</b>, ${readinessBand(calc)}).`;
     if(alreadyTrainedHard) why += ' You\'ve also already trained hard today, so no need for another session.';
   } else if(alreadyTrainedHard){
     c = 'var(--good)'; bg = 'var(--good-bg)'; pillText = 'Done for today';
     badgeCls = 'recovery'; badgeLabel = 'Recovery';
     headline = 'Done for today — recover.';
     why = `Today's strain is already <b>${fmt1(snap.strain_so_far)}</b>, above your 7-day average of <b>${fmt1(DATA.avg7_strain)}</b>. No need for another session — let recovery do its job tonight.`;
+    if(!calc.fallback && state !== 'rest') why += ` This overrides your readiness (<b>${readiness}</b>, ${readinessBand(calc)}).`;
   } else {
     const colors = stateColorVars(state);
     c = colors.c; bg = colors.bg;
@@ -779,7 +787,7 @@ function renderDecision(){
   $('decisionHeadline').textContent = headline;
   $('decisionWhy').innerHTML = why;
   countUp($('orbNum'), readiness, v => String(Math.round(v)));
-  $('orbCap').textContent = calc.fallback ? 'Recovery' : 'Readiness';
+  $('orbCap').textContent = calc.fallback ? 'Recovery' : `Readiness · ${readinessBand(calc)}`;
   // readiness scale: marker on a 0–100 track split at this person's own thresholds
   $('readyScale').querySelector('.low').style.flex = String(ctrl.restTh);
   $('readyScale').querySelector('.mid').style.flex = String(Math.max(0, ctrl.pushTh - ctrl.restTh));
@@ -801,6 +809,8 @@ function renderDecision(){
   // real values next to their thresholds, not prose, so it's checkable
   window.__dayTypeInfo = {
     badgeLabel, readiness, pushTh: ctrl.pushTh, restTh: ctrl.restTh,
+    readinessBand: readinessBand(calc), readinessFallback: calc.fallback,
+    overridesReadiness: badgeCls === 'redflag' || (alreadyTrainedHard && state !== 'rest'),
     restDaysSince: rest ? rest.days_since : null,
     acwrValue: DATA.acwr.length ? DATA.acwr[DATA.acwr.length-1].v : null,
     acwrZone: acwrZoneLabel, monotonyPct, monotonyHighFlag,
@@ -1708,12 +1718,16 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
     const d = window.__dayTypeInfo;
     if(!d) return;
     title.textContent = d.badgeLabel;
-    $('dtSub').textContent = {
+    const base = {
       'Red flag': 'Back off today.',
       'Recovery': 'Go easy today.',
       'Peak': 'Good day to push.',
       'Grind': 'Normal training day.',
     }[d.badgeLabel] || '';
+    // the badge is the call; say so when it outranks readiness
+    $('dtSub').textContent = d.overridesReadiness && !d.readinessFallback
+      ? `${base} Outranks readiness (${Math.round(d.readiness)}, ${d.readinessBand}).`
+      : `${base} This is today's call.`;
 
     // body signals: real values next to the limit where they start to flag, both taken
     // from this person's own last 30 nights — no z-scores
@@ -1750,11 +1764,11 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
         <li class="or">or all three</li>
         <li><b>7+</b> days since rest · week harder than <b>80%+</b> · last 7 vs 28 above <b>1.3×</b></li>`},
       {label:'Recovery', cls:'recovery', body:`
-        <li>Readiness under <b>${d.restTh}</b></li>
+        <li>Readiness below normal (under <b>${d.restTh}</b>)</li>
         <li class="or">or</li>
         <li>Strain today above your 7-day avg (<b>${fmt1(d.avg7Strain)}</b>)</li>`},
-      {label:'Peak', cls:'peak', body:`<li>Readiness <b>${d.pushTh}+</b></li>`},
-      {label:'Grind', cls:'grind', body:`<li>Readiness <b>${d.restTh}–${d.pushTh - 1}</b></li>`},
+      {label:'Peak', cls:'peak', body:`<li>Readiness above normal (<b>${d.pushTh}+</b>)</li>`},
+      {label:'Grind', cls:'grind', body:`<li>Readiness normal (<b>${d.restTh}–${d.pushTh - 1}</b>)</li>`},
     ];
     // numbered because they're checked in order — the first one that matches wins
     return defs.map((r, i) => `<details class="dt-rule">
@@ -1807,10 +1821,15 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
     rows.push(c.rhr ? row('Resting HR · 7-day avg', `${one(c.rhr.value)} bpm`, band('rhr', one), off('rhr')) : row('Resting HR · 7-day avg', '—', 'not enough data', ''));
     rows.push(c.sleep ? row('Sleep · 3-night avg', `${one(c.sleep.value)}%`, band('sleep', one), off('sleep')) : row('Sleep · 3-night avg', '—', 'not enough data', ''));
     rows.push(`<div class="dt-section"><span>Score</span><span></span></div>`);
-    rows.push(row('Peak', `${R.thresholds.peak}+`, '', R.state === 'peak' ? 'current' : ''));
-    rows.push(row('Grind', `${R.thresholds.recovery}–${R.thresholds.peak - 1}`, '', R.state === 'grind' ? 'current' : ''));
-    rows.push(row('Recovery', `under ${R.thresholds.recovery}`, '', R.state === 'recovery' ? 'current' : ''));
-    rows.push(`<div class="rp-note">Equal-weight average of the three. Method from HRV-guided training studies.</div>`);
+    rows.push(row('Above normal', `${R.thresholds.above}+`, '', R.state === 'above' ? 'current' : ''));
+    rows.push(row('Normal', `${R.thresholds.below}–${R.thresholds.above - 1}`, '', R.state === 'normal' ? 'current' : ''));
+    rows.push(row('Below normal', `under ${R.thresholds.below}`, '', R.state === 'below' ? 'current' : ''));
+    const d = window.__dayTypeInfo;
+    if(d){
+      rows.push(`<div class="dt-section"><span>Today's call</span><span></span></div>`);
+      rows.push(`<div class="rp-call"><span class="day-type ${{'Red flag':'redflag','Recovery':'recovery','Peak':'peak','Grind':'grind'}[d.badgeLabel]}">${d.badgeLabel}</span><span>${d.overridesReadiness ? 'outranks readiness' : 'matches readiness'}</span></div>`);
+    }
+    rows.push(`<div class="rp-note">Readiness describes your body; the badge decides the day. Equal weights, HRV-guided training method.</div>`);
     $('rpRows').innerHTML = rows.join('');
   }
   function place(){

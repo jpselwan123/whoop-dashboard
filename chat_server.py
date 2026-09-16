@@ -54,7 +54,8 @@ numbers where it helps.
 Dashboard terms they may ask about:
 - Readiness (differs from recovery): 7-day rolling ln(RMSSD) HRV and resting HR plus 3-night \
 sleep performance, each vs the person's previous 60 days (normal = mean ± 0.5 SD), equal \
-weights, score = 50 + 25 × average (50 = normal). 63+ Peak, 38–62 Grind, under 38 Recovery. \
+weights, score = 50 + 25 × average (50 = normal). 63+ above normal, 38–62 normal, under 38 below \
+normal. Readiness describes the body; the day badge is the single call and can outrank it. \
 Inputs and normal ranges are in dashboard_summaries.readiness.
 - Badges, checked in order: Red flag (HRV, resting HR, or breathing rate outside their normal \
 range in the last 14 days — normal = their last 30 nights — OR all three of: 7+ days since a \

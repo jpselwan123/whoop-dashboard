@@ -20,7 +20,7 @@ class ReadinessTest(unittest.TestCase):
     def test_exactly_normal_scores_50(self):
         h, r, s, _ = self.flat(jitter=False)
         latest, series = bd.build_readiness(h, r, s)
-        self.assertEqual((latest['state'], latest['score']), ('grind', 50))
+        self.assertEqual((latest['state'], latest['score']), ('normal', 50))
 
     def test_typical_noise_spreads_across_states(self):
         h, r, s, _ = self.flat(n=300)
@@ -31,7 +31,7 @@ class ReadinessTest(unittest.TestCase):
     def test_thresholds_match_half_sd_rule(self):
         h, r, s, _ = self.flat(jitter=False)
         latest, _ = bd.build_readiness(h, r, s)
-        self.assertEqual(latest['thresholds'], {'peak': 63, 'recovery': 38})
+        self.assertEqual(latest['thresholds'], {'above': 63, 'below': 38})
 
     def test_suppressed_week_is_recovery(self):
         h, r, s, ds = self.flat()
@@ -40,7 +40,7 @@ class ReadinessTest(unittest.TestCase):
             r[d] *= 1.15     # resting HR up 15%
             s[d] *= 0.7      # sleep down
         latest, _ = bd.build_readiness(h, r, s)
-        self.assertEqual(latest['state'], 'recovery')
+        self.assertEqual(latest['state'], 'below')
         self.assertLess(latest['score'], 38)
         self.assertLess(latest['z']['rhr'], 0, "higher resting HR must lower readiness")
 
@@ -51,7 +51,7 @@ class ReadinessTest(unittest.TestCase):
             r[d] *= 0.9
             s[d] = min(100, s[d] * 1.15)
         latest, _ = bd.build_readiness(h, r, s)
-        self.assertEqual(latest['state'], 'peak')
+        self.assertEqual(latest['state'], 'above')
         self.assertGreaterEqual(latest['score'], 63)
 
     def test_state_and_score_agree_at_boundaries(self):
@@ -59,7 +59,7 @@ class ReadinessTest(unittest.TestCase):
         for p in series:
             self.assertTrue(0 <= p['v'] <= 100)
         s = latest['score']
-        expected = 'peak' if s >= 63 else 'recovery' if s < 38 else 'grind'
+        expected = 'above' if s >= 63 else 'below' if s < 38 else 'normal'
         self.assertEqual(latest['state'], expected)
 
     def test_needs_a_baseline(self):
@@ -78,7 +78,7 @@ class ReadinessTest(unittest.TestCase):
         h, r, s, ds = self.flat(jitter=False)
         h[ds[-1]] *= 1.01             # a 1% wobble on perfectly flat history
         latest, _ = bd.build_readiness(h, r, s)
-        self.assertEqual(latest['state'], 'grind')
+        self.assertEqual(latest['state'], 'normal')
 
     def test_normal_band_is_reported_in_real_units(self):
         h, r, s, _ = self.flat()

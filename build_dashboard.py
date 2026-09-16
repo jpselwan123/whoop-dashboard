@@ -178,7 +178,7 @@ def build_anomalies(hrv_by_day, rhr_by_day, rr_by_day):
 #      clipped to ±3, and combined with equal (unit) weights — no study has validated
 #      specific weights, and unit weighting is the robust default (Dawes 1979).
 #   4. Score = 50 + 25 × mean, clamped 0–100: 50 = exactly your normal. At or above
-#      +0.5 SD (63+) = Peak, below −0.5 SD (<38) = Recovery, in between = Grind —
+#      +0.5 SD (63+) = above normal, below −0.5 SD (<38) = below normal, in between = normal —
 #      the same "within / above / below SWC" rule the trials used to prescribe intensity.
 READY_WINDOWS = {'hrv': 7, 'rhr': 7, 'sleep': 3}
 READY_MIN_IN_WINDOW = {'hrv': 4, 'rhr': 4, 'sleep': 2}
@@ -250,13 +250,14 @@ def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day):
             continue
         composite = mean(zs.values())
         score = max(0, min(100, math.floor(50 + 25 * composite + 0.5)))   # half-up, never banker's rounding
-        state = 'peak' if composite >= READY_SWC else 'recovery' if composite < -READY_SWC else 'grind'
+        # readiness only describes the body; the day badge (page) decides what to do
+        state = 'above' if composite >= READY_SWC else 'below' if composite < -READY_SWC else 'normal'
         series.append({'date': d, 'v': score})
         latest = {'date': d, 'score': score, 'state': state, 'z': {k: round(v, 2) for k, v in zs.items()},
                   'components': parts}
     if latest is None:
         return None, []
-    latest['thresholds'] = {'peak': math.floor(50 + 25 * READY_SWC + 0.5), 'recovery': math.floor(50 - 25 * READY_SWC + 0.5)}
+    latest['thresholds'] = {'above': math.floor(50 + 25 * READY_SWC + 0.5), 'below': math.floor(50 - 25 * READY_SWC + 0.5)}
     return latest, series
 
 
