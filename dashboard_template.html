@@ -133,16 +133,41 @@
 
   .hero{
     background:var(--surface); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow);
-    padding:28px 24px 22px; display:grid; grid-template-columns:1fr minmax(220px,280px) 1fr;
-    align-items:center; gap:18px;
+    padding:26px 28px 16px; display:grid; grid-template-columns:1fr minmax(220px,260px) 1fr;
+    align-items:center; column-gap:24px; row-gap:14px;
   }
-  @media (max-width:680px){.hero{grid-template-columns:1fr;}}
-  .flank{display:flex;flex-direction:column;gap:14px;}
-  .flank-item{display:flex;flex-direction:column;gap:3px;}
-  .flank-item .label{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-muted);}
-  .flank-item .value{font-family:"Archivo",sans-serif;font-weight:800;font-size:26px;letter-spacing:-0.01em;}
-  .flank-item .sub{font-size:12px;color:var(--ink-faint);}
-  .flank-item.right{align-items:flex-end;text-align:right;}
+  .flank{display:flex;flex-direction:column;gap:18px;min-width:0;}
+  .stat{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .flank.right .stat{align-items:flex-end;text-align:right;}
+  .stat .label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink-muted);white-space:nowrap;}
+  .stat .row{display:flex;align-items:baseline;gap:8px;}
+  .flank.right .stat .row{flex-direction:row-reverse;}
+  .stat .value{font-family:"Archivo",sans-serif;font-weight:800;font-size:26px;line-height:1.15;letter-spacing:-0.01em;white-space:nowrap;}
+  .stat .value small{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;color:var(--ink-faint);margin-left:3px;letter-spacing:0;}
+  .stat .delta{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;white-space:nowrap;color:var(--ink-faint);}
+  .stat .delta.good{color:var(--good);}
+  .stat .delta.bad{color:var(--critical);}
+  .stat .spark{display:block;width:112px;height:18px;margin-top:3px;color:var(--ink-faint);overflow:visible;}
+  .stat .spark .avg{stroke:var(--border-strong);}
+  .stat .spark .dot{fill:var(--accent);}
+  .ready-scale{width:180px;}
+  .rs-track{position:relative;display:flex;gap:2px;height:4px;}
+  .rs-seg{height:100%;border-radius:2px;opacity:.55;}
+  .rs-seg.low{background:var(--critical);} .rs-seg.mid{background:var(--warn);} .rs-seg.high{background:var(--good);}
+  .rs-marker{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px var(--surface);transition:left .6s cubic-bezier(.2,.7,.2,1);}
+  .rs-ticks{position:relative;height:14px;margin-top:5px;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);}
+  .rs-ticks span{position:absolute;transform:translateX(-50%);}
+  .hero-legend{grid-column:1 / -1;display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;
+    padding-top:12px;border-top:1px solid var(--border);font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);}
+  .hero-legend b{font-weight:600;font-size:9px;} .hero-legend .up{color:var(--good);} .hero-legend .down{color:var(--critical);margin-left:1px;}
+  .hero-legend svg{vertical-align:middle;margin-right:3px;}
+  .hero-legend .sep{opacity:.6;}
+  @media (max-width:680px){
+    .hero{grid-template-columns:1fr 1fr;padding:22px 18px 14px;column-gap:14px;}
+    .hero .orb-col{grid-column:1 / -1;order:-1;}
+    .stat .value{font-size:23px;}
+    .stat .spark{width:100%;max-width:112px;}
+  }
   .orb-col{display:flex;flex-direction:column;align-items:center;gap:8px;}
   .orb-stage{position:relative;width:220px;height:220px;}
   .orb-stage canvas{position:absolute;inset:0;width:100%;height:100%;}
@@ -401,21 +426,20 @@
     <div class="why" id="decisionWhy"></div>
   </section>
 
-  <section class="hero">
-    <div class="flank">
-      <div class="flank-item"><div class="label">Recovery score</div><div class="value tnum" id="statRecovery">—</div><div class="sub" id="statRecoverySub">30d avg —</div></div>
-      <div class="flank-item"><div class="label">Strain, 7d avg</div><div class="value tnum" id="statStrain">—</div><div class="sub" id="statStrainSub">30d avg —</div></div>
-    </div>
+  <section class="hero" id="heroCard">
+    <div class="flank" id="flankBody"></div>
     <div class="orb-col">
       <div class="orb-stage">
         <canvas id="orb" width="440" height="440"></canvas>
         <div class="orb-readout"><div class="num tnum" id="orbNum">—</div><div class="cap">Readiness</div></div>
       </div>
+      <div class="ready-scale" id="readyScale" aria-hidden="true">
+        <div class="rs-track"><span class="rs-seg low"></span><span class="rs-seg mid"></span><span class="rs-seg high"></span><span class="rs-marker" id="rsMarker"></span></div>
+        <div class="rs-ticks"><span id="rsLow">—</span><span id="rsHigh">—</span></div>
+      </div>
     </div>
-    <div class="flank">
-      <div class="flank-item right"><div class="label">Sleep performance</div><div class="value tnum" id="statSleep">—</div><div class="sub" id="statSleepSub">30d avg —</div></div>
-      <div class="flank-item right"><div class="label">Sleep debt</div><div class="value tnum" id="statDebt">—</div><div class="sub" id="statDebtSub">30d avg —</div></div>
-    </div>
+    <div class="flank right" id="flankLoad"></div>
+    <div class="hero-legend"><span><b class="up">▲</b><b class="down">▼</b> vs your 30-day average</span><span class="sep">·</span><span><svg width="18" height="8" viewBox="0 0 18 8"><polyline points="1,6 6,3 11,5 17,1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg> last 14 days</span></div>
   </section>
 
   <section class="card" id="rightNowCard">
@@ -773,7 +797,17 @@ function renderDecision(){
   $('statePill').textContent = pillText;
   $('decisionHeadline').textContent = headline;
   $('decisionWhy').innerHTML = why;
-  $('orbNum').textContent = Math.round(readiness);
+  countUp($('orbNum'), readiness, v => String(Math.round(v)));
+  // readiness scale: marker on a 0–100 track split at this person's own thresholds
+  $('readyScale').querySelector('.low').style.flex = String(ctrl.restTh);
+  $('readyScale').querySelector('.mid').style.flex = String(Math.max(0, ctrl.pushTh - ctrl.restTh));
+  $('readyScale').querySelector('.high').style.flex = String(Math.max(0, 100 - ctrl.pushTh));
+  $('rsMarker').style.left = clamp(readiness, 0, 100) + '%';
+  // keep the two tick labels at least ~22px apart on the 180px track so they never overlap
+  const gap = 12, mid = (ctrl.restTh + ctrl.pushTh) / 2;
+  const lowPos = Math.min(ctrl.restTh, mid - gap / 2), highPos = Math.max(ctrl.pushTh, mid + gap / 2);
+  $('rsLow').style.left = lowPos + '%'; $('rsLow').textContent = ctrl.restTh;
+  $('rsHigh').style.left = highPos + '%'; $('rsHigh').textContent = ctrl.pushTh;
   drawOrb(readiness);
   renderSuggestions(state, calc, alreadyTrainedHard, overloadCombo, rest);
 
@@ -843,21 +877,94 @@ function renderSuggestions(state, calc, alreadyTrainedHard, overloadCombo, rest)
   tTxt.innerHTML = '<b>Recovery tips:</b><br>' + tips.slice(0,3).map(t=>'· '+t).join('<br>');
 }
 
+// One-time count-up on first paint. The final value is written first, so if animation
+// frames never run (hidden window, reduced motion, an error) the real number is already shown.
+let firstPaint = true;
+function countUp(el, target, format){
+  el.textContent = format(target);
+  if(!firstPaint || reduceMotionPref() || !isFinite(target)) return;
+  const t0 = performance.now(), dur = 750;
+  const step = (now)=>{
+    const k = Math.min(1, (now - t0) / dur), eased = 1 - Math.pow(1 - k, 3);
+    el.textContent = format(target * eased);
+    if(k < 1) requestAnimationFrame(step); else el.textContent = format(target);
+  };
+  requestAnimationFrame(step);
+}
+function reduceMotionPref(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+
+function sparkline(points, avg){
+  const vals = points.map(p => p.v).filter(v => v != null && isFinite(v));
+  if(vals.length < 2) return '';
+  const W = 112, H = 18, lo = Math.min(...vals, avg ?? Infinity), hi = Math.max(...vals, avg ?? -Infinity);
+  const span = hi - lo || 1;
+  const x = i => (i / (vals.length - 1)) * W, y = v => H - 1 - ((v - lo) / span) * (H - 2);
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const avgLine = avg != null ? `<line class="avg" x1="0" x2="${W}" y1="${y(avg).toFixed(1)}" y2="${y(avg).toFixed(1)}" stroke-width="1" stroke-dasharray="2 3"/>` : '';
+  const last = vals[vals.length - 1];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${avgLine}<polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><circle class="dot" cx="${x(vals.length-1).toFixed(1)}" cy="${y(last).toFixed(1)}" r="2.2"/></svg>`;
+}
+
 function renderStats(){
-  const L = DATA.latest, A = DATA.avg30;
+  const L = DATA.latest, A = DATA.avg30, F = DATA.full_series;
   $('athleteName').textContent = DATA.profile.name;
   if(DATA.generated_at){
     $('lastRefreshed').textContent = 'last refreshed ' + new Date(DATA.generated_at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   }
-  $('statRecovery').textContent = Math.round(L.recovery_score);
-  $('statRecoverySub').textContent = `30d avg ${fmt1(A.recovery_score)}`;
-  $('statStrain').textContent = fmt1(DATA.avg7_strain);
-  $('statStrainSub').textContent = `30d avg ${fmt1(A.strain)}`;
-  $('statSleep').textContent = Math.round(L.sleep_performance_percentage) + '%';
-  $('statSleepSub').textContent = `30d avg ${fmt1(A.sleep_performance_percentage)}%`;
-  $('statDebt').textContent = fmtHM(L.sleep_debt_hours);
-  const debt30 = (DATA.full_series.sleep_debt || []).slice(-30).map(p => p.v).filter(v => v != null);
-  $('statDebtSub').textContent = debt30.length ? `30d avg ${fmtHM(debt30.reduce((a,b)=>a+b,0) / debt30.length)}` : '';
+  const snapNow = DATA.today_snapshot;
+  const lastN = (key, n) => {
+    let pts = F[key] || [];
+    // today's strain is still accumulating — plotting it would draw a fake dip at the end
+    if(key === 'strain' && snapNow && snapNow.in_progress && pts.length && pts[pts.length-1].date === snapNow.date) pts = pts.slice(0, -1);
+    return pts.slice(-n);
+  };
+  const meanOf = (arr) => { const v = arr.map(p => p.v).filter(x => x != null && isFinite(x)); return v.length ? v.reduce((a,b)=>a+b,0) / v.length : null; };
+  const int = v => String(Math.round(v));
+
+  // better: +1 = higher is better, -1 = lower is better, 0 = neutral (no good/bad color)
+  const stats = {
+    body: [
+      {label:'Recovery', value:L.recovery_score, avg:A.recovery_score, series:'recovery', fmt:int, dfmt:int, better:1, tol:2},
+      {label:'HRV', unit:'ms', value:L.hrv_rmssd_milli, avg:A.hrv_rmssd_milli, series:'hrv', fmt:int, dfmt:int, better:1, tol:2},
+      {label:'Resting HR', unit:'bpm', value:L.resting_heart_rate, avg:A.resting_heart_rate, series:'rhr', fmt:int, dfmt:int, better:-1, tol:1},
+    ],
+    load: [
+      {label:'Sleep', unit:'%', value:L.sleep_performance_percentage, avg:A.sleep_performance_percentage, series:'sleep_performance', fmt:int, dfmt:int, better:1, tol:2},
+      {label:'Sleep debt', value:L.sleep_debt_hours, avg:meanOf(lastN('sleep_debt', 30)), series:'sleep_debt', fmt:fmtHM, dfmt:fmtHM, better:-1, tol:0.1},
+      {label:'Strain · 7-day avg', value:DATA.avg7_strain, avg:A.strain, series:'strain', fmt:fmt1, dfmt:fmt1, better:0, tol:0.3},
+    ],
+  };
+
+  function statHTML(st, i){
+    const ok = st.value != null && isFinite(st.value);
+    let delta = '';
+    // a "vs 30-day average" only means something once there's a real baseline (2+ weeks)
+    if(ok && st.avg != null && isFinite(st.avg) && (F[st.series] || []).length >= 14){
+      const d = st.value - st.avg;
+      if(Math.abs(d) < st.tol){
+        delta = `<span class="delta" title="about your 30-day average">= avg</span>`;
+      } else {
+        const cls = st.better === 0 ? '' : ((d > 0) === (st.better > 0) ? 'good' : 'bad');
+        delta = `<span class="delta ${cls}">${d > 0 ? '▲' : '▼'}${st.dfmt(Math.abs(d))}</span>`;
+      }
+    }
+    return `<div class="stat"><div class="label">${st.label}</div>
+      <div class="row"><div class="value tnum" data-stat="${i}">${ok ? st.fmt(st.value) : '—'}${st.unit && ok ? `<small>${st.unit}</small>` : ''}</div>${delta}</div>
+      ${sparkline(lastN(st.series, 14), st.avg)}</div>`;
+  }
+  const all = [...stats.body, ...stats.load];
+  $('flankBody').innerHTML = stats.body.map((st, i) => statHTML(st, i)).join('');
+  $('flankLoad').innerHTML = stats.load.map((st, i) => statHTML(st, i + 3)).join('');
+
+  // count-up on the plain numbers (duration strings like "1h 50m" just appear)
+  document.querySelectorAll('#heroCard .value[data-stat]').forEach(el => {
+    const st = all[+el.dataset.stat];
+    if(st.value == null || !isFinite(st.value) || st.fmt === fmtHM) return;
+    const unit = el.querySelector('small');
+    const node = document.createTextNode('');
+    el.textContent = ''; el.appendChild(node); if(unit) el.appendChild(unit);
+    countUp({ set textContent(t){ node.nodeValue = t; } }, st.value, st.fmt);
+  });
 }
 
 /* ---------------- right now (today) ---------------- */
@@ -1629,6 +1736,7 @@ function renderAll(){
 }
 wireControls();
 renderAll();
+firstPaint = false;
 window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); renderMonthly(); renderWeekday(); renderACWR(); renderMonotony(); renderZoneDistribution(); });
 
 /* ================= day-type click panel ================= */
