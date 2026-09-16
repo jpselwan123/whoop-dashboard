@@ -53,7 +53,7 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
 - **Readiness — how ready you are to train today**, one 0–100 number that sets the
   day's answer: **Push · Train · Go easy · Rest**. It starts from your body's trend and is
   lowered when a warning sign or today's context calls for it.
-- **How? ›** (or click the orb) shows every input next to its normal range, anything
+- **Click the orb** to see every input next to its normal range, anything
   that lowered readiness today, and the four bands.
 - **Today's plan** — which kind of session fits today, based on how *you* have
   recovered from each sport before.

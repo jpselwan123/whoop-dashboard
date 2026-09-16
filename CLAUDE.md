@@ -44,7 +44,7 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   Go easy 25–37 · Rest <25 (`READY_BANDS`). Context only *lowers* it via caps (`READY_CAPS`: warning
   sign must be *confirmed* by `build_warning` — 2 of last 3 nights or 2+ vitals, still out last night — and caps
   37→24 graded; one-off nights are only "watching"; trained hard today / overload week ≤37) — never an "override" or a second verdict label.
-  One explanation panel (orb or How? ›).
+  One explanation panel (click the orb).
 - **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 7-day ln-RMSSD
   HRV + 7-day resting HR + 3-night sleep, each vs a 60-day personal baseline (±0.5 SD SWC), equal
   weights, 50 = normal (the body-trend score). No sliders. Changes to the model need a cited source and tests

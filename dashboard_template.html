@@ -127,9 +127,6 @@
     border-left:5px solid var(--state-color, var(--accent));
     position:relative;
   }
-  .how-btn{position:absolute;top:18px;right:20px;background:none;border:none;cursor:pointer;padding:4px 2px;
-    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:0.04em;color:var(--ink-faint);}
-  .how-btn:hover{color:var(--ink);}
   .decision h1{font-family:"Archivo", sans-serif;font-weight:800;font-size:clamp(21px, 3.6vw, 30px);line-height:1.22;margin:0;text-wrap:balance;letter-spacing:-0.01em;}
   .decision .why{font-size:14px;color:var(--ink-muted);line-height:1.55;max-width:64ch;}
   .decision .why b{color:var(--ink);font-weight:600;}
@@ -410,7 +407,6 @@
 
   <section class="decision" id="decisionCard">
     <span class="state-pill" id="statePill">—</span>
-    <button class="how-btn" id="howBtn" aria-haspopup="true" aria-label="How readiness is calculated">How? ›</button>
     <h1 id="decisionHeadline">Computing…</h1>
     <div class="why" id="decisionWhy"></div>
   </section>
@@ -593,7 +589,7 @@
   <footer>
     <div class="grp">
       <b>Measured vs. modeled</b>
-      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is the one model: how ready you are to train today — your 7-day HRV and resting HR and 3-night sleep vs your own last 60 days, lowered by warning signs or today's context. Click the orb or How? for the numbers.</span>
+      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is the one model: how ready you are to train today — your 7-day HRV and resting HR and 3-night sleep vs your own last 60 days, lowered by warning signs or today's context. Click the orb for the numbers.</span>
     </div>
     <div class="grp">
       <b>About the orb</b>
@@ -1670,11 +1666,11 @@ renderAll();
 firstPaint = false;
 window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); renderMonthly(); renderWeekday(); renderACWR(); renderMonotony(); renderZoneDistribution(); });
 
-/* ================= readiness panel (orb or "How? ›") ================= */
+/* ================= readiness panel (click the orb) ================= */
 // The one place that explains today: the body trend, anything that lowered it, and the bands.
 (function(){
   const panel = $('readyPanel');
-  const triggers = [$('orbStage'), $('howBtn')];
+  const triggers = [$('orbStage')];
   let anchor = null;
   const row = (k, v, lim, cls) =>
     `<div class="dt-row${cls?' '+cls:''}"><span class="k">${k}</span><span class="v tnum">${v}${lim?` <span class="lim">/ ${lim}</span>`:''}</span></div>`;
