@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;width:1024px;height:1024px;background:transparent;overflow:hidden;}
+  svg{display:block;}
+</style>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#171F1A"/>
+      <stop offset="100%" stop-color="#0A0E0B"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#AFC4F0" stop-opacity="0.95"/>
+      <stop offset="35%" stop-color="#7C9EE8" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#7C9EE8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="none" stroke="#2A3A30" stroke-width="2"/>
+
+  <circle cx="512" cy="512" r="300" fill="url(#glow)"/>
+
+  <g id="dots"></g>
+
+  <script>
+  (function(){
+    const svg = document.currentScript.closest('svg') || document.querySelector('svg');
+    const g = svg.getElementById('dots');
+    const n = 340;
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    const cx = 512, cy = 512, baseR = 320;
+    const angle = 0.65; // fixed "camera" rotation for a static icon
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const y = 1 - (i / (n - 1)) * 2;
+      const radius = Math.sqrt(1 - y * y);
+      const theta = golden * i;
+      const x = Math.cos(theta) * radius;
+      const z = Math.sin(theta) * radius;
+      const ca = Math.cos(angle), sa = Math.sin(angle);
+      pts.push({ x: x * ca - z * sa, y: y, z: x * sa + z * ca });
+    }
+    pts.sort((a, b) => a.z - b.z);
+    for (const p of pts) {
+      const depth = (p.z + 1) / 2;
+      const px = cx + p.x * baseR;
+      const py = cy + p.y * baseR;
+      const r = 3 + depth * 8.5;
+      const alpha = 0.22 + depth * 0.72;
+      const light = 62 + depth * 26;
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('cx', px.toFixed(1));
+      c.setAttribute('cy', py.toFixed(1));
+      c.setAttribute('r', r.toFixed(1));
+      c.setAttribute('fill', `hsla(221, 72%, ${light}%, ${alpha})`);
+      g.appendChild(c);
+    }
+  })();
+  </script>
+</svg>

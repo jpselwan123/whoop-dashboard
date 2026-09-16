@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Byte-compile
+        run: python -m compileall -q .
+      - name: Unit tests (synthetic data, fake AI provider — no secrets needed)
+        run: python -m unittest discover -s tests -t tests -v
+      - name: Build demo dashboard
+        run: |
+          python scripts/generate_demo_data.py demo
+          python build_dashboard.py demo
+
+  native-app:
+    name: Native macOS app compiles
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./native_app/build.sh

@@ -1,0 +1,30 @@
+# ---- secrets: never commit ----
+.env
+.env.*
+!.env.example
+whoop_tokens.json
+
+# ---- personal WHOOP data and everything derived from it ----
+whoop_data.json
+dashboard_data.json
+index.html
+*.tmp
+
+# ---- generated demo output (recreate with scripts/generate_demo_data.py) ----
+demo/
+
+# ---- native app build output ----
+native_app/build/
+native_app/*.o
+
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ---- OS / editors ----
+.DS_Store
+.vscode/
+.idea/
+.claude/
