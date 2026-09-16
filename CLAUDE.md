@@ -45,6 +45,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - Add a test for new metrics or server behavior; run tests + privacy scan before pushing.
 
 ## UI / product conventions
+- **Clean beats dense.** One number + one signal per stat; no mini-charts under numbers
+  (trends belong in the Trend explorer). When in doubt, remove.
 - **Data first, few words.** Show numbers with their thresholds/ranges ("9 / 7+"), not prose.
   No statistics jargon in the UI (no z-scores, "SD") — convert to plain units/limits.
 - Details open on **click**, not hover (must work on touch).

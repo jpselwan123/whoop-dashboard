@@ -58,8 +58,7 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
 - **Readiness score** blending recovery, sleep performance, recent load, and sleep
   debt, with a scale showing where today sits between *your* rest and push thresholds.
 - **Vitals at a glance** — recovery, HRV, resting HR, sleep, sleep debt, and 7-day
-  strain, each with its change vs your 30-day average (green = better, red = worse)
-  and a 14-day trend line.
+  strain, each with its change vs your 30-day average (green = better, red = worse).
 - **Today's plan** — which kind of session fits today, based on how *you* have
   recovered from each sport before.
 - **Fatigue signal** — flags nights when HRV, resting heart rate, or breathing rate
