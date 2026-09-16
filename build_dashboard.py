@@ -5,7 +5,7 @@ Or just run refresh.sh, which does both.
 
 Usage: python3 build_dashboard.py [data_dir]   (default: current directory)
 """
-import json, os
+import json, math, os
 from datetime import datetime, timedelta, timezone
 from statistics import mean, pstdev
 from collections import Counter, defaultdict
@@ -163,6 +163,101 @@ def build_anomalies(hrv_by_day, rhr_by_day, rr_by_day):
                           'hrv_low': round(m_hrv - 1.5 * sd_hrv), 'rhr_high': round(m_rhr + 1.5 * sd_rhr),
                           'rr_high': round(m_rr + 1.5 * sd_rr, 2)})
     return flags
+
+
+# ---- Readiness -------------------------------------------------------------------
+# Method, from HRV-guided training research (Javaloyes et al. 2019; the Carrasco-Poyatos
+# et al. 2020 trial protocol, which follows Plews et al. 2012 and Kiviniemi et al. 2007;
+# Alfonso et al. 2025 for adding resting HR). Sources and limits are listed in the README.
+#   1. Each marker is smoothed with a rolling average — 7 days for ln(RMSSD) HRV and
+#      resting HR (as in the trials), 3 nights for sleep performance (a design choice).
+#   2. It's compared with the person's own baseline: the rolling values over the 60 days
+#      before the current 7-day window (trials used ~4 weeks). "Normal" = baseline
+#      mean ± 0.5 SD, the smallest worthwhile change (SWC) used in those trials.
+#   3. Markers are expressed in SD units (resting HR sign-flipped so higher = better),
+#      clipped to ±3, and combined with equal (unit) weights — no study has validated
+#      specific weights, and unit weighting is the robust default (Dawes 1979).
+#   4. Score = 50 + 25 × mean, clamped 0–100: 50 = exactly your normal. At or above
+#      +0.5 SD (63+) = Peak, below −0.5 SD (<38) = Recovery, in between = Grind —
+#      the same "within / above / below SWC" rule the trials used to prescribe intensity.
+READY_WINDOWS = {'hrv': 7, 'rhr': 7, 'sleep': 3}
+READY_MIN_IN_WINDOW = {'hrv': 4, 'rhr': 4, 'sleep': 2}
+READY_BASELINE_DAYS = 60
+READY_MIN_BASELINE = 21
+READY_SWC = 0.5
+
+
+def _rolling_by_calendar(by_day, window, min_n, transform=lambda v: v):
+    """Rolling mean over calendar days (not records), so gaps in wear don't stretch a
+    '7-day' average across weeks. Returns {date: mean} where enough values exist."""
+    from datetime import date as _date
+    dates = sorted(by_day)
+    parsed = {d: _date.fromisoformat(d) for d in dates}
+    out = {}
+    start = 0
+    for i, d in enumerate(dates):
+        while (parsed[d] - parsed[dates[start]]).days >= window:
+            start += 1
+        vals = [transform(by_day[x]) for x in dates[start:i + 1]]
+        if len(vals) >= min_n:
+            out[d] = mean(vals)
+    return out
+
+
+def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day):
+    from datetime import date as _date
+    rolled = {
+        'hrv': _rolling_by_calendar({k: v for k, v in hrv_by_day.items() if v and v > 0},
+                                    READY_WINDOWS['hrv'], READY_MIN_IN_WINDOW['hrv'], math.log),
+        'rhr': _rolling_by_calendar(rhr_by_day, READY_WINDOWS['rhr'], READY_MIN_IN_WINDOW['rhr']),
+        'sleep': _rolling_by_calendar(sleep_perf_by_day, READY_WINDOWS['sleep'], READY_MIN_IN_WINDOW['sleep']),
+    }
+    sign = {'hrv': 1, 'rhr': -1, 'sleep': 1}
+
+    def baseline(marker, d):
+        end = _date.fromisoformat(d) - timedelta(days=READY_WINDOWS['hrv'])       # exclude current 7-day window
+        start = end - timedelta(days=READY_BASELINE_DAYS)
+        vals = [v for k, v in rolled[marker].items() if start < _date.fromisoformat(k) <= end]
+        if len(vals) < READY_MIN_BASELINE:
+            return None
+        m, sd = mean(vals), pstdev(vals)
+        # numerical floor: if someone's rolling values barely move, a near-zero SD would turn
+        # trivial wobbles into huge swings — never treat less than 1% of the mean as meaningful
+        sd = max(sd, 0.01 if marker == 'hrv' else 0.01 * abs(m))   # HRV is on a ln scale: 0.01 ≈ 1%
+        return (m, sd) if sd > 0 else None
+
+    series = []
+    latest = None
+    for d in sorted(rolled['hrv']):
+        zs, parts = {}, {}
+        for marker in ('hrv', 'rhr', 'sleep'):
+            if d not in rolled[marker]:
+                continue
+            b = baseline(marker, d)
+            if not b:
+                continue
+            m, sd = b
+            z = max(-3.0, min(3.0, sign[marker] * (rolled[marker][d] - m) / sd))
+            zs[marker] = z
+            lo, hi = m - READY_SWC * sd, m + READY_SWC * sd
+            if marker == 'hrv':   # back from ln(ms) to ms for display
+                parts[marker] = {'value': round(math.exp(rolled[marker][d])), 'normal': [round(math.exp(lo)), round(math.exp(hi))]}
+            elif marker == 'rhr':
+                parts[marker] = {'value': round(rolled[marker][d], 1), 'normal': [round(lo, 1), round(hi, 1)]}
+            else:
+                parts[marker] = {'value': round(rolled[marker][d], 1), 'normal': [round(lo, 1), round(hi, 1)]}
+        if 'hrv' not in zs:        # HRV is the evidence-backed core; no score without it
+            continue
+        composite = mean(zs.values())
+        score = max(0, min(100, math.floor(50 + 25 * composite + 0.5)))   # half-up, never banker's rounding
+        state = 'peak' if composite >= READY_SWC else 'recovery' if composite < -READY_SWC else 'grind'
+        series.append({'date': d, 'v': score})
+        latest = {'date': d, 'score': score, 'state': state, 'z': {k: round(v, 2) for k, v in zs.items()},
+                  'components': parts}
+    if latest is None:
+        return None, []
+    latest['thresholds'] = {'peak': math.floor(50 + 25 * READY_SWC + 0.5), 'recovery': math.floor(50 - 25 * READY_SWC + 0.5)}
+    return latest, series
 
 
 def build_sleep_composition(sleep, now):
@@ -449,6 +544,9 @@ def build_summary(d):
     rest_day_stat = build_rest_day_stat(cyc)
     today_snapshot = build_today_snapshot(cyc, wo)
     anomalies = build_anomalies(hrv_by_day, rhr_by_day, rr_by_day)
+    sleep_perf_by_day = {day(s['created_at']): s['score']['sleep_performance_percentage'] for s in sleep}
+    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day)
+    full['readiness'] = readiness_series
     cutoff_14d = (parse(latest_rec['created_at']) - timedelta(days=14)).date().isoformat()
     recent_anomalies = [a for a in anomalies if a['date'] >= cutoff_14d]
 
@@ -508,6 +606,7 @@ def build_summary(d):
         'date_range': [day(cyc[0]['created_at']), day(cyc[-1]['created_at'])],
         'body': d['body'],
         'full_series': full,
+        'readiness': readiness,
         'workout_log': workout_log,
         'monthly': monthly,
         'monthly_count_with_data': months_with_data,

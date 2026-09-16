@@ -52,8 +52,10 @@ numbers where it helps.
 - Not medical advice: for pain, illness, or worrying symptoms, suggest seeing a professional.
 
 Dashboard terms they may ask about:
-- Readiness: exactly their WHOOP recovery score (no custom weights). Push threshold = their \
-70th-percentile recovery, rest threshold = their 25th percentile.
+- Readiness (differs from recovery): 7-day rolling ln(RMSSD) HRV and resting HR plus 3-night \
+sleep performance, each vs the person's previous 60 days (normal = mean ± 0.5 SD), equal \
+weights, score = 50 + 25 × average (50 = normal). 63+ Peak, 38–62 Grind, under 38 Recovery. \
+Inputs and normal ranges are in dashboard_summaries.readiness.
 - Badges, checked in order: Red flag (HRV, resting HR, or breathing rate outside their normal \
 range in the last 14 days — normal = their last 30 nights — OR all three of: 7+ days since a \
 rest day, this week harder than 80%+ of recent weeks, and last-7-days vs last-28-days load \

@@ -55,9 +55,10 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
   can never contradict each other.
 - **Day badge** (Red flag · Recovery · Peak · Grind). Click it to see today's numbers
   next to the line where each one flags, and how every badge is decided.
-- **Readiness score** — your WHOOP recovery, unweighted and untweakable, on a scale
-  showing where today sits between *your* rest and push thresholds.
-- **Vitals at a glance** — HRV, resting HR, breathing rate, sleep, sleep debt, and 7-day
+- **Readiness score** — a research-based score from your 7-day HRV and resting-HR trends
+  and 3-night sleep, each compared with your own normal (50 = normal). Click the orb to
+  see every input next to its normal range.
+- **Vitals at a glance** — recovery, HRV, resting HR, sleep, sleep debt, and 7-day
   strain, each with its change vs your 30-day average (green = better, red = worse).
 - **Today's plan** — which kind of session fits today, based on how *you* have
   recovered from each sport before.
@@ -190,7 +191,7 @@ Everything is computed from your own history. Thresholds adapt to you.
 
 | Metric | Definition | Flags at |
 |---|---|---|
-| **Readiness** | Your WHOOP recovery score, unweighted (see [why](#why-readiness-is-recovery)) | Peak ≥ your 70th-percentile recovery · Recovery < your 25th percentile |
+| **Readiness** | 7-day HRV (ln RMSSD) and resting HR, 3-night sleep performance — each vs your previous 60 days, equal weights (see [below](#how-readiness-is-calculated)) | Peak 63+ (½ SD above normal) · Recovery under 38 (½ SD below) |
 | **Load ratio (ACWR)** | Last-7-day average strain ÷ last-28-day average | Safe 0.8–1.3 · Caution 1.3–1.5 · High > 1.5 |
 | **Training variety** | Foster monotony (weekly mean ÷ SD of daily strain) × weekly load | This week above 80% of your last 16 weeks |
 | **Fatigue signal** | Each night's HRV, resting HR, and breathing rate vs your previous 30 nights | Outside ±1.5 standard deviations (shown in the app as plain limits, e.g. "flags at 16.4+ /min") |
@@ -206,24 +207,34 @@ Everything is computed from your own history. Thresholds adapt to you.
 3. **Peak** — readiness at or above your push threshold.
 4. **Grind** — everything in between.
 
-### Why readiness is recovery
+### How readiness is calculated
 
-An earlier version blended recovery (45%), sleep performance (25%), 7-day vs 28-day
-strain (20%), and sleep debt (10%) behind adjustable sliders. We removed it because:
+Readiness and WHOOP recovery are different numbers. Recovery reacts to **last night**.
+Readiness asks the question HRV-guided training studies ask: **is your body's recent
+trend inside, above, or below your own normal?**
 
-- **No study has validated weights** for a composite like that. The best-supported daily
-  readiness signal is HRV against your own baseline
-  ([Manresa-Rocamora et al., 2021](https://pubmed.ncbi.nlm.nih.gov/34639599/)) — which is
-  what WHOOP recovery is built on, together with resting HR, breathing rate, and sleep
-  ([WHOOP](https://www.whoop.com/us/en/thelocker/how-does-whoop-recovery-work-101/)).
-- **Sleep performance was counted twice** — it's already inside recovery.
-- **The extra terms carried no signal.** Across ~600 days of real data, the 7-to-28-day
-  load ratio and sleep debt each correlated with next-day recovery at |r| < 0.06, and
-  the ratio's validity for injury prediction is disputed
-  ([Impellizzeri et al., 2020](https://www.researchgate.net/publication/341936245_AcuteChronic_Workload_Ratio_Conceptual_Issues_and_Fundamental_Pitfalls)).
+| Step | What happens | Evidence |
+|---|---|---|
+| 1. Smooth | 7-day rolling average of ln(RMSSD) HRV and of resting HR; 3-night average of sleep performance | The 7-day rolling ln RMSSD average is what HRV-guided training trials act on ([Javaloyes et al., 2019](https://pubmed.ncbi.nlm.nih.gov/29809080/); [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Sleep loss impairs performance ([Fullagar et al., 2015](https://pubmed.ncbi.nlm.nih.gov/25315456/); [Walsh et al., 2021](https://www.researchgate.net/publication/345351246_Sleep_and_the_athlete_narrative_review_and_2021_expert_consensus_recommendations)); the 3-night window is a design choice |
+| 2. Compare to *your* normal | Baseline = your rolling values over the 60 days before this week. Normal range = baseline mean ± 0.5 SD | ±0.5 SD is the "smallest worthwhile change" these trials use to choose hard vs easy days (mean ± 0.5 × SD, following Plews et al., 2012 — see [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Trials used a ~4-week baseline; 60 days is a steadier choice for everyday life |
+| 3. Add resting HR and sleep | Each input expressed in SD units (resting HR flipped: lower = better), capped at ±3 | Adding resting HR (and well-being) to HRV gave the largest gains in a 2025 cyclist trial ([Alfonso et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12485039/)) |
+| 4. Combine | Equal-weight average → score = 50 + 25 × average, 0–100 | No study has validated specific weights; equal weights are the robust default when none exist ([Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making)) |
+| 5. Decide | 63+ (≥ +0.5 SD) → Peak · 38–62 → Grind · under 38 → Recovery | Same above / within / below-SWC rule the trials used to prescribe intensity |
 
-So the number stays pure, and load, rest days, and body signals are shown as explicit
-**Red flag** rules — visible, checkable, and never hidden inside a weight.
+**What it deliberately leaves out**
+- **Training load (ACWR).** Its ability to predict injury is disputed
+  ([Impellizzeri et al., 2020](https://www.researchgate.net/publication/341936245_AcuteChronic_Workload_Ratio_Conceptual_Issues_and_Fundamental_Pitfalls)),
+  so load, rest days, and illness-type signals (breathing rate —
+  [Miller et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33301493/); resting HR —
+  [Radin et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33334565/)) raise an explicit **Red flag** instead.
+- **How you feel.** Self-reported well-being is the most sensitive marker of training
+  response ([Saw et al., 2016](https://pubmed.ncbi.nlm.nih.gov/26423706/)), but WHOOP's API
+  doesn't provide it.
+
+**Honest limits:** the method comes from endurance-athlete trials, WHOOP's HRV is measured
+during sleep rather than on waking, and the equal weights are a principled default rather
+than a validated optimum. Until you have about 5 weeks of data, the page falls back to
+WHOOP's recovery zones.
 
 ## Architecture
 

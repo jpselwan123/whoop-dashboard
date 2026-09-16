@@ -88,6 +88,10 @@
   .dt-row.flagged .k{color:var(--ink);}
   .dt-row.flagged .v{color:var(--warn);}
   .dt-row.flagged .k::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--warn);margin-right:6px;vertical-align:middle;}
+  .dt-row.good .v{color:var(--good);}
+  .dt-row.current .k,.dt-row.current .v{color:var(--ink);font-weight:600;}
+  .dt-row.current .k::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle;}
+  .rp-note{font-size:10.5px;color:var(--ink-faint);margin-top:10px;line-height:1.5;}
   .dt-rule{border-bottom:1px solid var(--border);}
   .dt-rule:last-child{border-bottom:none;}
   .dt-rule summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:7px 0;font-size:11.5px;font-weight:600;color:var(--ink);}
@@ -163,7 +167,7 @@
     .stat .value{font-size:23px;}
   }
   .orb-col{display:flex;flex-direction:column;align-items:center;gap:8px;}
-  .orb-stage{position:relative;width:220px;height:220px;}
+  .orb-stage{position:relative;width:220px;height:220px;cursor:pointer;border-radius:50%;}
   .orb-stage canvas{position:absolute;inset:0;width:100%;height:100%;}
   .orb-readout{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
   .orb-readout .num{font-family:"Archivo",sans-serif;font-weight:900;font-size:52px;line-height:1;letter-spacing:-0.02em;color:var(--ink);}
@@ -396,6 +400,12 @@
     <div id="dtRows"></div>
   </div>
 
+  <div class="daytype-panel" id="readyPanel">
+    <div class="dt-title">Readiness <span class="tnum" id="rpScore"></span></div>
+    <div class="dt-sub" id="rpSub"></div>
+    <div id="rpRows"></div>
+  </div>
+
   <div class="group-header"><span class="glabel">Daily</span><span class="grule"></span><span class="gcaption">today's call</span></div>
 
   <section class="decision" id="decisionCard">
@@ -407,9 +417,9 @@
   <section class="hero" id="heroCard">
     <div class="flank" id="flankBody"></div>
     <div class="orb-col">
-      <div class="orb-stage">
+      <div class="orb-stage" id="orbStage" role="button" tabindex="0" aria-haspopup="true" aria-label="How readiness is calculated">
         <canvas id="orb" width="440" height="440"></canvas>
-        <div class="orb-readout"><div class="num tnum" id="orbNum">—</div><div class="cap">Readiness</div></div>
+        <div class="orb-readout"><div class="num tnum" id="orbNum">—</div><div class="cap" id="orbCap">Readiness</div></div>
       </div>
       <div class="ready-scale" id="readyScale" aria-hidden="true">
         <div class="rs-track"><span class="rs-seg low"></span><span class="rs-seg mid"></span><span class="rs-seg high"></span><span class="rs-marker" id="rsMarker"></span></div>
@@ -582,7 +592,7 @@
   <footer>
     <div class="grp">
       <b>Measured vs. modeled</b>
-      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is your WHOOP recovery score, unweighted; the push and rest lines are your own 70th and 25th percentile. Training load, rest days and body signals don't change the number — they raise a Red flag instead.</span>
+      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is the one model: your 7-day HRV and resting HR and 3-night sleep, each compared with your own last 60 days and averaged with equal weights (the method used in HRV-guided training studies). 50 = your normal. Training load, rest days and body signals don't change it — they raise a Red flag instead. Click the orb for the numbers.</span>
     </div>
     <div class="grp">
       <b>About the orb</b>
@@ -666,50 +676,61 @@ function percentile(vals, p){
   if(f===c) return s[f];
   return s[f] + (s[c]-s[f])*(k-f);
 }
-// Readiness = WHOOP's own recovery score (HRV-driven, already folds in resting HR,
-// breathing rate and sleep). No custom weights: tested on real history, sleep
-// performance was double-counted and 7-vs-28-day load / sleep debt carried ~no
-// signal for next-day recovery (|r| < 0.06), so load and rest-day problems are
-// handled as explicit Red flag rules instead of being blended into the number.
-// Push/rest lines are this person's own 70th/25th recovery percentiles, recomputed
-// from the current data on every render (so a manual refresh updates them too).
+// Readiness is computed in build_dashboard.py (build_readiness) from 7-day HRV and resting
+// HR trends and 3-night sleep, each vs the person's own 60-day normal (HRV-guided training
+// method; equal weights). 50 = normal, 63+ = Peak, under 38 = Recovery. Until there's
+// enough history for a baseline (~5 weeks), the page falls back to WHOOP recovery zones.
 function thresholds(){
-  const all = DATA.full_series.recovery.map(p => p.v).filter(v => v != null);
-  if(!all.length) return { pushTh: 67, restTh: 34 };
-  return { pushTh: Math.round(percentile(all, 70)), restTh: Math.round(percentile(all, 25)) };
+  const t = DATA.readiness && DATA.readiness.thresholds;
+  return t ? { pushTh: t.peak, restTh: t.recovery } : { pushTh: 67, restTh: 34 };
 }
 function computeReadiness(){
-  const L = DATA.latest;
+  const L = DATA.latest, R = DATA.readiness;
   const strainRatio = DATA.avg30.strain ? DATA.avg7_strain / DATA.avg30.strain : 1; // context for copy/tips only
-  return { readiness: L.recovery_score, strainRatio };
-}
-function decisionState(readiness, ctrl){
-  if(readiness >= ctrl.pushTh) return 'push';
-  if(readiness >= ctrl.restTh) return 'moderate';
-  return 'rest';
+  if(R){
+    const state = R.state === 'peak' ? 'push' : R.state === 'recovery' ? 'rest' : 'moderate';
+    return { readiness: R.score, state, strainRatio, fallback: false };
+  }
+  const r = L.recovery_score;
+  return { readiness: r, state: r >= 67 ? 'push' : r >= 34 ? 'moderate' : 'rest', strainRatio, fallback: true };
 }
 function decisionCopy(state, readiness, ctrl, calc){
-  const L = DATA.latest;
+  const L = DATA.latest, R = DATA.readiness;
+  // Explain the call with the same inputs that produced it (never a different metric)
+  if(!R){
+    const r = Math.round(L.recovery_score);
+    if(state==='push') return { headline:`Push the hard session today.`, why:`Recovery is <b>${r}</b>. Readiness needs about 5 weeks of data, so today's call uses WHOOP's recovery zones.` };
+    if(state==='moderate') return { headline:`Train, but keep today controlled.`, why:`Recovery is <b>${r}</b>. Readiness needs about 5 weeks of data, so today's call uses WHOOP's recovery zones.` };
+    return { headline:`Ease off today.`, why:`Recovery is <b>${r}</b>. Readiness needs about 5 weeks of data, so today's call uses WHOOP's recovery zones.` };
+  }
+  const c = R.components, z = R.z, low = [], high = [];
+  const say = {
+    hrv: c.hrv && `7-day HRV ${c.hrv.value} ms (normal ${c.hrv.normal[0]}–${c.hrv.normal[1]})`,
+    rhr: c.rhr && `7-day resting HR ${c.rhr.value.toFixed(1)} bpm (normal ${c.rhr.normal[0].toFixed(1)}–${c.rhr.normal[1].toFixed(1)})`,
+    sleep: c.sleep && `3-night sleep ${Math.round(c.sleep.value)}% (normal ${Math.round(c.sleep.normal[0])}–${Math.round(c.sleep.normal[1])}%)`,
+  };
+  for(const m of ['hrv','rhr','sleep']){
+    if(z[m] == null || !say[m]) continue;
+    if(z[m] < -0.5) low.push(say[m]); else if(z[m] > 0.5) high.push(say[m]);
+  }
+  const list = arr => arr.length > 1 ? arr.slice(0,-1).join(', ') + ' and ' + arr[arr.length-1] : arr[0];
   if(state==='push'){
     return { headline:`Push the hard session today.`,
-      why:`Recovery is <b>${Math.round(L.recovery_score)}</b> and sleep performance is <b>${Math.round(L.sleep_performance_percentage)}%</b> — your body is ready.` };
+      why:`Readiness <b>${R.score}</b>, above your normal${high.length ? ': ' + list(high) : ''}.` };
   }
   if(state==='moderate'){
-    const reason = calc.strainRatio > 1.15 ? `you've been training harder than usual this week`
-      : L.sleep_debt_hours > 2.0 ? `sleep debt is a bit elevated`
-      : `recovery is middling, not great`;
+    const detail = low.length ? ` Watch: ${list(low)}.` : high.length ? ` Strong: ${list(high)}.` : ' All three inputs are within your normal range.';
     return { headline:`Train, but keep today controlled.`,
-      why:`Recovery is <b>${Math.round(L.recovery_score)}</b> — solid, but ${reason}. Good day for technique work rather than a max effort.` };
+      why:`Readiness <b>${R.score}</b>, within your normal range.${detail}` };
   }
-  const reason = L.sleep_debt_hours > 2.0 ? `sleep debt is adding up` : `training load has been heavy`;
   return { headline:`Ease off today.`,
-    why:`Recovery is <b>${Math.round(L.recovery_score)}</b>, on the low side for you, and ${reason}. A lighter day protects the rest of the week.` };
+    why:`Readiness <b>${R.score}</b>, below your normal${low.length ? ': ' + list(low) : ''}. A lighter day protects the rest of the week.` };
 }
 function renderDecision(){
   const ctrl = thresholds();
   const calc = computeReadiness();
   const readiness = calc.readiness;
-  const state = decisionState(readiness, ctrl);
+  const state = calc.state;
 
   const snap = DATA.today_snapshot;
   const snapIsToday = !!(snap && snap.date === todayLocalISO());
@@ -758,6 +779,7 @@ function renderDecision(){
   $('decisionHeadline').textContent = headline;
   $('decisionWhy').innerHTML = why;
   countUp($('orbNum'), readiness, v => String(Math.round(v)));
+  $('orbCap').textContent = calc.fallback ? 'Recovery' : 'Readiness';
   // readiness scale: marker on a 0–100 track split at this person's own thresholds
   $('readyScale').querySelector('.low').style.flex = String(ctrl.restTh);
   $('readyScale').querySelector('.mid').style.flex = String(Math.max(0, ctrl.pushTh - ctrl.restTh));
@@ -806,7 +828,7 @@ function renderSuggestions(state, calc, alreadyTrainedHard, overloadCombo, rest)
     sEl.className = 'signal warn';
     sTxt.innerHTML = fatigueFlagged
       ? `<b>Skip picking a sport today.</b> HRV, resting HR or breathing rate left your normal range recently — let it settle first.`
-      : `<b>Skip picking a sport today.</b> Readiness is below your own rest threshold — an easy day or full rest fits better than ranking sports by recovery cost.`;
+      : `<b>Skip picking a sport today.</b> Readiness is below your normal range — an easy day or full rest fits better than ranking sports by recovery cost.`;
   } else if(sports.length){
     if(state === 'push'){
       const hard = sports.filter(s=>s.delta<0).sort((a,b)=>b.n-a.n)[0] || sports[sports.length-1];
@@ -866,9 +888,9 @@ function renderStats(){
   // better: +1 = higher is better, -1 = lower is better, 0 = neutral (no good/bad color)
   const stats = {
     body: [
+      {label:'Recovery', value:L.recovery_score, avg:A.recovery_score, series:'recovery', fmt:int, dfmt:int, better:1, tol:2},
       {label:'HRV', unit:'ms', value:L.hrv_rmssd_milli, avg:A.hrv_rmssd_milli, series:'hrv', fmt:int, dfmt:int, better:1, tol:2},
       {label:'Resting HR', unit:'bpm', value:L.resting_heart_rate, avg:A.resting_heart_rate, series:'rhr', fmt:int, dfmt:int, better:-1, tol:1},
-      {label:'Breathing', unit:'/min', value:L.respiratory_rate, avg:meanOf(lastN('respiratory_rate', 30)), series:'respiratory_rate', fmt:fmt1, dfmt:fmt1, better:-1, tol:0.3},
     ],
     load: [
       {label:'Sleep', unit:'%', value:L.sleep_performance_percentage, avg:A.sleep_performance_percentage, series:'sleep_performance', fmt:int, dfmt:int, better:1, tol:2},
@@ -1239,7 +1261,8 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
 
 /* ================= trend explorer ================= */
 const METRICS = [
-  {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:'personal', bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
+  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:'readiness', bounds:[0,100], formula:'7-day HRV and resting HR + 3-night sleep vs your 60-day normal. 50 = normal.'},
+  {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
   {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:'sleep.score.sleep_performance_percentage — time asleep ÷ time needed.'},
   {key:'hrv', label:'HRV', unit:'ms', decimals:0, formula:'recovery.score.hrv_rmssd_milli — overnight HRV (RMSSD), /v2/recovery.'},
@@ -1293,7 +1316,7 @@ function renderExplorer(){
     <div class="es"><span class="k">Window high</span><span class="v tnum">${f(max)}${unit}</span></div>
   `;
 
-  const refLines = metricDef.refLines==='personal'
+  const refLines = metricDef.refLines==='readiness'
     ? (t => [{v:t.pushTh, color:'var(--good)'},{v:t.restTh, color:'var(--critical)'}])(thresholds())
     : metricDef.refLines;
   const fixedTicks = (metricDef.bounds && metricDef.bounds[0]===0 && metricDef.bounds[1]===100) ? [0,25,50,75,100] : null;
@@ -1755,6 +1778,57 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
   document.addEventListener('click', (e)=>{ if(panel.classList.contains('open') && !panel.contains(e.target)) close_(); });
   document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') close_(); });
   window.addEventListener('resize', ()=>{ if(panel.classList.contains('open')) place(); });
+})();
+
+/* ================= readiness click panel ================= */
+// Opens from the orb: each input as "value / your normal range", so the score is checkable.
+(function(){
+  const stage = $('orbStage'), panel = $('readyPanel');
+  const row = (k, v, lim, cls) =>
+    `<div class="dt-row${cls?' '+cls:''}"><span class="k">${k}</span><span class="v tnum">${v}${lim?` <span class="lim">/ ${lim}</span>`:''}</span></div>`;
+
+  function render(){
+    const R = DATA.readiness;
+    if(!R){
+      $('rpScore').textContent = '';
+      $('rpSub').textContent = 'Needs about 5 weeks of data to learn your normal. Showing WHOOP recovery until then.';
+      $('rpRows').innerHTML = '';
+      return;
+    }
+    $('rpScore').textContent = '· ' + R.score;
+    $('rpSub').textContent = '50 = your normal. Each input vs your last 60 days.';
+    const c = R.components, z = R.z;
+    // z is sign-aligned (higher = better): below the band is a warning, above it is good
+    const off = m => z[m] == null ? '' : z[m] < -0.5 ? 'flagged' : z[m] > 0.5 ? 'good' : '';
+    const band = (m, f) => c[m] ? `${f(c[m].normal[0])}–${f(c[m].normal[1])}` : '';
+    const one = v => (Math.round(v * 10) / 10).toFixed(1);
+    const rows = [`<div class="dt-section"><span>Input</span><span>value / normal</span></div>`];
+    rows.push(c.hrv ? row('HRV · 7-day avg', `${c.hrv.value} ms`, band('hrv', String), off('hrv')) : row('HRV · 7-day avg', '—', '', ''));
+    rows.push(c.rhr ? row('Resting HR · 7-day avg', `${one(c.rhr.value)} bpm`, band('rhr', one), off('rhr')) : row('Resting HR · 7-day avg', '—', 'not enough data', ''));
+    rows.push(c.sleep ? row('Sleep · 3-night avg', `${one(c.sleep.value)}%`, band('sleep', one), off('sleep')) : row('Sleep · 3-night avg', '—', 'not enough data', ''));
+    rows.push(`<div class="dt-section"><span>Score</span><span></span></div>`);
+    rows.push(row('Peak', `${R.thresholds.peak}+`, '', R.state === 'peak' ? 'current' : ''));
+    rows.push(row('Grind', `${R.thresholds.recovery}–${R.thresholds.peak - 1}`, '', R.state === 'grind' ? 'current' : ''));
+    rows.push(row('Recovery', `under ${R.thresholds.recovery}`, '', R.state === 'recovery' ? 'current' : ''));
+    rows.push(`<div class="rp-note">Equal-weight average of the three. Method from HRV-guided training studies.</div>`);
+    $('rpRows').innerHTML = rows.join('');
+  }
+  function place(){
+    const r = stage.getBoundingClientRect(), w = panel.offsetWidth || 320;
+    const left = Math.max(16, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 16));
+    const below = r.bottom + 8, spaceBelow = window.innerHeight - below - 16;
+    panel.style.left = left + 'px';
+    if(spaceBelow >= 260){ panel.style.top = below + 'px'; panel.style.maxHeight = spaceBelow + 'px'; }
+    else { panel.style.top = Math.max(16, r.top - 8 - Math.min(panel.scrollHeight, r.top - 24)) + 'px'; panel.style.maxHeight = (r.top - 24) + 'px'; }
+  }
+  const open_ = () => { render(); panel.classList.add('open'); place(); };
+  const close_ = () => panel.classList.remove('open');
+  stage.addEventListener('click', e => { e.stopPropagation(); panel.classList.contains('open') ? close_() : open_(); });
+  stage.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); stage.click(); } });
+  document.addEventListener('click', e => { if(panel.classList.contains('open') && !panel.contains(e.target)) close_(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') close_(); });
+  window.addEventListener('resize', () => { if(panel.classList.contains('open')) place(); });
+  window.addEventListener('scroll', () => { if(panel.classList.contains('open')) place(); }, {passive:true});
 })();
 
 /* ================= manual refresh ================= */

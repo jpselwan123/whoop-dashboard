@@ -42,9 +42,11 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - **Nothing automatic.** No timers/auto-refresh; data refreshes only via the button.
 - **One decision chain.** Badge, pill, and headline all come from `renderDecision()` — never
   compute them separately.
-- **Readiness = WHOOP recovery, unweighted.** No user-tunable weights or sliders. Other factors
-  (load, rest days, body signals) become explicit Red flag rules, never hidden weights. Any new
-  factor must show real predictive signal on data before it touches the decision.
+- **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 7-day ln-RMSSD
+  HRV + 7-day resting HR + 3-night sleep, each vs a 60-day personal baseline (±0.5 SD SWC), equal
+  weights, 50 = normal, 63+/38 cut-offs. No user-tunable weights or sliders. Load, rest days and
+  body signals stay explicit Red flag rules. Changes to the model need a cited source and tests
+  (`tests/test_readiness.py`); recovery keeps WHOOP zones 34/67.
 - Add a test for new metrics or server behavior; run tests + privacy scan before pushing.
 
 ## UI / product conventions
