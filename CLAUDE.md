@@ -44,7 +44,7 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   compute them separately.
 - **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 7-day ln-RMSSD
   HRV + 7-day resting HR + 3-night sleep, each vs a 60-day personal baseline (±0.5 SD SWC), equal
-  weights, 50 = normal, bands above (63+) / normal / below (<38) — never badge names. The day badge
+  weights, 50 = normal, bands above (63+) / normal / below (<38) — never badge names, and not shown on the orb (click for detail). The day badge
   is the only verdict; when a rule outranks readiness the UI must say so. No sliders. Load, rest days and
   body signals stay explicit Red flag rules. Changes to the model need a cited source and tests
   (`tests/test_readiness.py`); recovery keeps WHOOP zones 34/67.

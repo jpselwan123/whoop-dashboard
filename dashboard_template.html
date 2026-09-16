@@ -787,7 +787,7 @@ function renderDecision(){
   $('decisionHeadline').textContent = headline;
   $('decisionWhy').innerHTML = why;
   countUp($('orbNum'), readiness, v => String(Math.round(v)));
-  $('orbCap').textContent = calc.fallback ? 'Recovery' : `Readiness · ${readinessBand(calc)}`;
+  $('orbCap').textContent = calc.fallback ? 'Recovery' : 'Readiness';
   // readiness scale: marker on a 0–100 track split at this person's own thresholds
   $('readyScale').querySelector('.low').style.flex = String(ctrl.restTh);
   $('readyScale').querySelector('.mid').style.flex = String(Math.max(0, ctrl.pushTh - ctrl.restTh));
