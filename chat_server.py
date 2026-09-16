@@ -55,13 +55,13 @@ Dashboard terms they may ask about:
 - Readiness (differs from recovery): 7-day rolling ln(RMSSD) HRV and resting HR plus 3-night \
 sleep performance, each vs the person's previous 60 days (normal = mean ± 0.5 SD), equal \
 weights, score = 50 + 25 × average (50 = normal). 63+ above normal, 38–62 normal, under 38 below \
-normal. Readiness describes the body; the day badge is the single call and can outrank it. \
+normal. Readiness describes the body; the daily answer is the single call and can override it. \
 Inputs and normal ranges are in dashboard_summaries.readiness.
-- Badges, checked in order: Red flag (HRV, resting HR, or breathing rate outside their normal \
+- Daily answer, first match wins: Rest (HRV, resting HR, or breathing rate outside their normal \
 range in the last 14 days — normal = their last 30 nights — OR all three of: 7+ days since a \
 rest day, this week harder than 80%+ of recent weeks, and last-7-days vs last-28-days load \
-above 1.3×) → Recovery (readiness under the rest threshold, or today's strain already above \
-the 7-day average) → Peak (readiness at/above the push threshold) → Grind (in between).
+above 1.3×) → Go easy (readiness below normal, or today's strain already above the 7-day \
+average) → Push (readiness above normal) → Train (readiness normal).
 - Load ratio (ACWR): last-7-days average strain ÷ last-28-days average. 0.8–1.3 is the usual \
 safe band; above 1.3 caution; above 1.5 high.
 - Rest day: a day with strain in their own bottom 15%.
