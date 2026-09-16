@@ -42,7 +42,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - **Nothing automatic.** No timers/auto-refresh; data refreshes only via the button.
 - **Readiness is the answer.** One number (how ready to train today) → Push 63+ · Train 38–62 ·
   Go easy 25–37 · Rest <25 (`READY_BANDS`). Context only *lowers* it via caps (`READY_CAPS`: warning
-  sign ≤24; trained hard today / overload week ≤37) — never an "override" or a second verdict label.
+  sign must be *confirmed* by `build_warning` — 2 of last 3 nights or 2+ vitals, still out last night — and caps
+  37→24 graded; one-off nights are only "watching"; trained hard today / overload week ≤37) — never an "override" or a second verdict label.
   One explanation panel (orb or How? ›).
 - **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 7-day ln-RMSSD
   HRV + 7-day resting HR + 3-night sleep, each vs a 60-day personal baseline (±0.5 SD SWC), equal

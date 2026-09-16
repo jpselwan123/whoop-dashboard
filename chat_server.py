@@ -55,8 +55,10 @@ Dashboard terms they may ask about:
 - Readiness = how ready they are to train today (differs from recovery). Body trend: 7-day \
 rolling ln(RMSSD) HRV and resting HR plus 3-night sleep performance, each vs the previous 60 \
 days (normal = mean ± 0.5 SD), equal weights, 50 + 25 × average (50 = normal) — this is \
-dashboard_summaries.readiness.score. The page then lowers it: at most 24 if HRV, resting HR or \
-breathing rate left their normal range (last 30 nights) in the last 14 days; at most 37 if \
+dashboard_summaries.readiness.score. The page then lowers it: a confirmed warning (dashboard_summaries.warning — same vital past \
+1.5 SD vs the last 30 nights on 2 of the last 3 nights, or 2+ vitals on the same night, and \
+still out last night) caps it at warning.cap (37 just over the line → 24 far out); a one-off \
+night is only 'watching' and does not lower it. At most 37 if \
 today's strain is already above the 7-day average, or if 7+ days without rest AND this week \
 harder than 80% of recent weeks AND load ratio above 1.3× all hold. Answer from the final \
 number: 63+ Push, 38–62 Train, 25–37 Go easy, under 25 Rest.

@@ -165,6 +165,80 @@ def build_anomalies(hrv_by_day, rhr_by_day, rr_by_day):
     return flags
 
 
+# ---- Warning signs (confirmed + graded) -----------------------------------------------
+# A single night brushing the 1.5 SD line is common noise. A warning only lowers readiness
+# when it's confirmed — the same signal out of range on 2 of the last 3 nights, or 2+
+# signals out on the same night — and the most recent night is still out (once nights are
+# back to normal it stops counting). Multi-night persistence mirrors how wearable illness
+# detection works (Miller et al. 2020 used night-to-night respiratory-rate changes).
+# The cap is graded by how far past the line it is: just over → at most 37 (Go easy),
+# 1 SD further or more (2.5 SD from normal) → at most 24 (Rest). Unconfirmed = "watch".
+WARN_LINE = 1.5
+WARN_NIGHTS = 3
+WARN_CAP_MILD, WARN_CAP_SEVERE = 37, 24
+
+
+def _night_signals(hrv_by_day, rhr_by_day, rr_by_day, d, history_days):
+    """Each vital for night d vs the 30 nights before it, as plain units + SD distance."""
+    i = history_days.index(d)
+    if i < 30:
+        return None
+    window = history_days[i - 30:i]
+    out = []
+    for name, by_day, direction, unit, digits in (
+            ('HRV', hrv_by_day, -1, 'ms', 0), ('Resting HR', rhr_by_day, 1, 'bpm', 0),
+            ('Breathing rate', rr_by_day, 1, '/min', 1)):
+        hist = [by_day[w] for w in window]
+        m, sd = mean(hist), pstdev(hist)
+        if sd == 0:
+            continue
+        z = direction * (by_day[d] - m) / sd            # positive = worse
+        limit = m + direction * WARN_LINE * sd
+        out.append({'name': name, 'value': round(by_day[d], digits) if digits else round(by_day[d]),
+                    'limit': round(limit, digits) if digits else round(limit), 'unit': unit,
+                    'direction': 'low' if direction < 0 else 'high',
+                    'sd_past_line': round(z - WARN_LINE, 2), 'out': z >= WARN_LINE})
+    return out
+
+
+def build_warning(hrv_by_day, rhr_by_day, rr_by_day):
+    days = sorted(set(hrv_by_day) & set(rhr_by_day) & set(rr_by_day))
+    if len(days) < 31:
+        return None
+    from datetime import date as _date
+    latest = days[-1]
+    recent = [d for d in days[-WARN_NIGHTS:]
+              if (_date.fromisoformat(latest) - _date.fromisoformat(d)).days < WARN_NIGHTS]
+    nights = []
+    for d in recent:
+        sig = _night_signals(hrv_by_day, rhr_by_day, rr_by_day, d, days)
+        if sig is not None:
+            nights.append({'date': d, 'signals': sig})
+    if not nights or nights[-1]['date'] != latest:
+        return None
+    last = nights[-1]['signals']
+    out_last = [x for x in last if x['out']]
+    repeated = [x for x in out_last
+                if sum(1 for n in nights for y in n['signals'] if y['name'] == x['name'] and y['out']) >= 2]
+    multiple = len(out_last) >= 2
+    confirmed = bool(out_last) and (bool(repeated) or multiple)
+    cap = None
+    if confirmed:
+        drivers = out_last if multiple else repeated
+        severity = min(1.0, max(x['sd_past_line'] for x in drivers))      # 0 at the line → 1 at +1 SD
+        cap = round(WARN_CAP_MILD - (WARN_CAP_MILD - WARN_CAP_SEVERE) * severity)
+    return {
+        'date': latest,
+        'confirmed': confirmed,
+        'reason': ('multiple' if multiple else 'repeated') if confirmed else None,
+        'cap': cap,
+        'signals': out_last,                                                 # out of range on the latest night
+        'nights_out': {x['name']: sum(1 for n in nights for y in n['signals'] if y['name'] == x['name'] and y['out'])
+                       for x in out_last},
+        'nights_checked': len(nights),
+    }
+
+
 # ---- Readiness -------------------------------------------------------------------
 # Method, from HRV-guided training research (Javaloyes et al. 2019; the Carrasco-Poyatos
 # et al. 2020 trial protocol, which follows Plews et al. 2012 and Kiviniemi et al. 2007;
@@ -548,6 +622,7 @@ def build_summary(d):
     anomalies = build_anomalies(hrv_by_day, rhr_by_day, rr_by_day)
     sleep_perf_by_day = {day(s['created_at']): s['score']['sleep_performance_percentage'] for s in sleep}
     readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day)
+    warning = build_warning(hrv_by_day, rhr_by_day, rr_by_day)
     full['readiness'] = readiness_series
     cutoff_14d = (parse(latest_rec['created_at']) - timedelta(days=14)).date().isoformat()
     recent_anomalies = [a for a in anomalies if a['date'] >= cutoff_14d]
@@ -609,6 +684,7 @@ def build_summary(d):
         'body': d['body'],
         'full_series': full,
         'readiness': readiness,
+        'warning': warning,
         'workout_log': workout_log,
         'monthly': monthly,
         'monthly_count_with_data': months_with_data,

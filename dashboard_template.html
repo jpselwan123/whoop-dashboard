@@ -677,14 +677,15 @@ function percentile(vals, p){
 //   1. Body trend (build_readiness in build_dashboard.py): 7-day HRV and resting HR and
 //      3-night sleep vs your own last 60 days, equal weights, 50 = normal. Until ~5 weeks
 //      of data exist, WHOOP recovery stands in.
-//   2. Lowered (never raised) by today's context: a warning sign — HRV, resting HR or
-//      breathing rate outside normal in the last 14 days — caps it at 24; having already
-//      trained hard today, or 7+ days without rest + an unusually hard week + load ratio
-//      above 1.3 together, caps it at 37.
+//   2. Lowered (never raised) by today's context: a *confirmed* warning sign (build_warning:
+//      same vital out of range on 2 of the last 3 nights, or 2+ vitals out together, and
+//      still out last night) caps it between 37 and 24 depending on how far out it is;
+//      having already trained hard today, or 7+ days without rest + an unusually hard
+//      week + load ratio above 1.3 together, caps it at 37. A one-off night is only watched.
 //   3. Answer from the final number: 63+ Push (≥ +½ SD) · 38–62 Train · 25–37 Go easy
 //      (below −½ SD) · under 25 Rest (below −1 SD).
 const READY_BANDS = { push: 63, train: 38, easy: 25 };
-const READY_CAPS = { warning: 24, context: 37 };
+const READY_CAPS = { context: 37 };   // warning caps (37→24, graded) come from DATA.warning
 const ACTIONS = {
   push:  {label:'Push',    c:'var(--good)',     bg:'var(--good-bg)',     headline:'Ready to push.'},
   train: {label:'Train',   c:'var(--accent)',   bg:'var(--accent-soft)', headline:'Ready to train.'},
@@ -707,17 +708,17 @@ function computeReadiness(){
   const restOverdue = !!(rest && rest.days_since >= 7);
   const acwrElevated = acwrZoneLabel === 'Caution' || acwrZoneLabel === 'High risk';
   const overloadCombo = restOverdue && monotonyHighFlag && acwrElevated;
-  const fatigueFlagged = DATA.anomalies_recent.length > 0;
+  const W = DATA.warning;
+  const fatigueFlagged = !!(W && W.confirmed);
+  const sigText = x => `${x.name.charAt(0).toLowerCase() + x.name.slice(1)} ${x.value}${x.unit === 'ms' || x.unit === 'bpm' ? ' ' : ''}${x.unit} (flags at ${x.limit}${x.direction === 'low' ? ' or lower' : '+'})`;
+  const warnWhen = W ? (W.date === todayLocalISO() ? 'last night' : `on ${new Date(W.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}`) : '';
+  const watch = W && !W.confirmed ? W.signals : [];
 
   const caps = [];
   if(fatigueFlagged){
-    // name the actual signal(s) from the most recent flag, in plain units
-    const f = DATA.anomalies_recent[DATA.anomalies_recent.length-1], bits = [], has = f.hrv_low != null;
-    if(f.z_hrv <= -1.5) bits.push(`HRV ${Math.round(f.hrv)} ms${has ? ` (flags at ${f.hrv_low} or lower)` : ''}`);
-    if(f.z_rhr >= 1.5) bits.push(`resting HR ${Math.round(f.rhr)} bpm${has ? ` (flags at ${f.rhr_high}+)` : ''}`);
-    if(f.z_rr >= 1.5) bits.push(`breathing rate ${fmt1(f.rr)}/min${has ? ` (flags at ${fmt1(f.rr_high)}+)` : ''}`);
-    const when = f.date === todayLocalISO() ? 'last night' : `on ${new Date(f.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
-    caps.push({key:'warning', max:READY_CAPS.warning, text:`${bits.join(' and ') || 'a vital sign out of range'} ${when}`});
+    const parts = W.signals.map(x => sigText(x) + (W.reason === 'repeated' && W.nights_out[x.name] >= 2 ? ` on ${W.nights_out[x.name]} of the last ${W.nights_checked} nights` : ''));
+    const joined = parts.join(' and ') + (W.reason === 'multiple' ? ` ${warnWhen}` : '');
+    caps.push({key:'warning', max:W.cap, text:joined});
   }
   if(alreadyTrainedHard) caps.push({key:'trained', max:READY_CAPS.context, text:`today's strain (${fmt1(snap.strain_so_far)}) is already above your 7-day average (${fmt1(DATA.avg7_strain)})`});
   if(overloadCombo) caps.push({key:'overload', max:READY_CAPS.context, text:`${rest.days_since} days without rest, an unusually hard week and load ratio above 1.3×`});
@@ -726,7 +727,7 @@ function computeReadiness(){
   const lowering = caps.filter(c => c.max < base);           // only caps that actually changed the number
 
   return { readiness, base, action: actionFor(readiness), caps, lowering, fallback: !R, strainRatio,
-           snap, snapIsToday, alreadyTrainedHard, rest, overloadCombo, fatigueFlagged };
+           snap, snapIsToday, alreadyTrainedHard, rest, overloadCombo, fatigueFlagged, watch, warnWhen, sigText };
 }
 
 function decisionWhy(calc){
@@ -784,7 +785,7 @@ function renderDecision(){
 function renderSuggestions(state, calc, alreadyTrainedHard, overloadCombo, rest){
   const sports = DATA.sport_recovery_cost.sports; // sorted ascending by delta (most costly first)
   const sEl = $('sportSuggestSignal'), sTxt = $('sportSuggestText');
-  const fatigueFlagged = DATA.anomalies_recent.length > 0;
+  const fatigueFlagged = !!(DATA.warning && DATA.warning.confirmed);
 
   if(alreadyTrainedHard && overloadCombo){
     sEl.className = 'signal warn';
@@ -821,7 +822,7 @@ function renderSuggestions(state, calc, alreadyTrainedHard, overloadCombo, rest)
   if(!overloadCombo && calc.strainRatio > 1.15) tips.push(alreadyTrainedHard
     ? `Keep tomorrow light — you've trained harder than usual this week.`
     : `You're training harder than usual this week — favor technique or mobility over volume.`);
-  if(DATA.anomalies_recent.length) tips.push(`Body signals are outside your normal range — prioritize sleep tonight.`);
+  if(DATA.warning && DATA.warning.confirmed) tips.push(`Body signals are outside your normal range — prioritize sleep tonight.`);
   if(!overloadCombo && monotonyHighFlag) tips.push(`This week's load has been unusually concentrated with few easy days — build one in soon.`);
   if(tips.length === 0) tips.push(overloadCombo ? `Prioritize sleep tonight.` : `Nothing unusual in your numbers today — a normal week, stick to your plan.`);
   const tEl = $('tipsSignal'), tTxt = $('tipsText');
@@ -1312,7 +1313,9 @@ function renderTodaySignals(){
     aEl.className = 'signal ok';
     aTxt.innerHTML = `<b>No fatigue signal.</b> HRV, resting HR and breathing rate all stayed in your normal range for the last 14 days.`;
   } else {
-    aEl.className = 'signal warn';
+    const W = DATA.warning;
+    const confirmed = !!(W && W.confirmed);
+    aEl.className = confirmed ? 'signal warn' : 'signal';
     const f = flags[flags.length-1];
     const has = f.hrv_low != null;
     const parts = [];
@@ -1320,7 +1323,9 @@ function renderTodaySignals(){
     if(f.z_rhr >= 1.5) parts.push(`resting HR <b>${Math.round(f.rhr)} bpm</b>${has?` (flags at ${f.rhr_high}+)`:''}`);
     if(f.z_rr >= 1.5) parts.push(`breathing rate <b>${fmt1(f.rr)} /min</b>${has?` (flags at ${fmt1(f.rr_high)}+)`:''}`);
     const when = f.date === todayLocalISO() ? 'today' : 'on ' + fmtDate(f.date);
-    aTxt.innerHTML = `<b>Possible fatigue signal ${when}:</b> ${parts.join(', ')}. Limits come from your last 30 nights.`;
+    aTxt.innerHTML = confirmed
+      ? `<b>Fatigue signal ${when}:</b> ${parts.join(', ')}. Confirmed over several nights, so readiness is lowered.`
+      : `<b>Watching ${when}:</b> ${parts.join(', ')}. A single night — it lowers readiness only if it repeats.`;
   }
 
   const sEl = $('sportCostSignal'), sTxt = $('sportCostText');
@@ -1698,14 +1703,13 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
 
     if(calc.lowering.length){
       out.push(section('Lowered today', ''));
-      const f = DATA.anomalies_recent.length ? DATA.anomalies_recent[DATA.anomalies_recent.length-1] : null;
       for(const cap of calc.lowering){
-        if(cap.key === 'warning' && f){
-          const when = f.date === todayLocalISO() ? '' : ` · ${new Date(f.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
-          const has = f.hrv_low != null;
-          if(f.z_hrv <= -1.5) out.push(row(`HRV${when}`, `${Math.round(f.hrv)} ms`, has ? `≤${f.hrv_low}` : 'low', 'flagged'));
-          if(f.z_rhr >= 1.5) out.push(row(`Resting HR${when}`, `${Math.round(f.rhr)} bpm`, has ? `${f.rhr_high}+` : 'high', 'flagged'));
-          if(f.z_rr >= 1.5) out.push(row(`Breathing rate${when}`, `${fmt1(f.rr)}/min`, has ? `${fmt1(f.rr_high)}+` : 'high', 'flagged'));
+        if(cap.key === 'warning'){
+          const W = DATA.warning;
+          for(const x of W.signals){
+            const label = W.reason === 'repeated' ? `${x.name} · ${W.nights_out[x.name]} of ${W.nights_checked} nights` : `${x.name} · ${calc.warnWhen.replace(/^on /,'')}`;
+            out.push(row(label, `${x.value}${x.unit}`, `${x.limit}${x.direction === 'low' ? ' or less' : '+'}`, 'flagged'));
+          }
           out.push(row('Readiness at most', `${cap.max}`, '', 'current'));
         } else if(cap.key === 'trained'){
           out.push(row('Strain today', fmt1(calc.snap.strain_so_far), `avg ${fmt1(DATA.avg7_strain)}`, 'flagged'));
@@ -1720,13 +1724,19 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       }
     }
 
+    if(calc.watch.length){
+      out.push(section('Watching', ''));
+      for(const x of calc.watch) out.push(row(`${x.name} · ${calc.warnWhen.replace(/^on /,'')}`, `${x.value}${x.unit}`, `${x.limit}${x.direction === 'low' ? ' or less' : '+'}`, ''));
+      out.push(`<div class="rp-note" style="margin-top:4px">Lowers readiness only if it repeats or another signal joins it.</div>`);
+    }
+
     out.push(section("Today's answer", ''));
     const b = READY_BANDS, cur = calc.action;
     out.push(row('Push', `${b.push}+`, '', cur === 'push' ? 'current' : ''));
     out.push(row('Train', `${b.train}–${b.push - 1}`, '', cur === 'train' ? 'current' : ''));
     out.push(row('Go easy', `${b.easy}–${b.train - 1}`, '', cur === 'easy' ? 'current' : ''));
     out.push(row('Rest', `under ${b.easy}`, '', cur === 'rest' ? 'current' : ''));
-    out.push(`<div class="rp-note">A warning sign caps readiness at ${READY_CAPS.warning}; a hard session today or an overload week caps it at ${READY_CAPS.context}.</div>`);
+    out.push(`<div class="rp-note">A confirmed warning sign caps readiness at 37 to 24 depending on how far out it is; a hard session today or an overload week caps it at ${READY_CAPS.context}.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 

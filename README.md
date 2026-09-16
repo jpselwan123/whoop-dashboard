@@ -205,8 +205,12 @@ the day's label comes straight from it:
 
 It starts from your **body trend** (below) and can only be *lowered* by today's context:
 
-- **At most 24** — a warning sign: HRV, resting HR, or breathing rate outside your normal
-  in the last 14 days.
+- **At most 37 → 24** — a *confirmed* warning sign: the same vital (HRV, resting HR, or
+  breathing rate) past its line on 2 of the last 3 nights, or 2+ vitals past it on the same
+  night, and still past it last night. Just over the line → at most 37; a full SD further
+  or more → at most 24. A one-off night is only shown as *watching* — single nights brushing
+  the line are common noise, and wearable illness detection relies on changes across
+  several nights ([Miller et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33301493/)).
 - **At most 37** — you've already trained harder than your 7-day average today, *or* all
   three of 7+ days since rest, a week harder than 80% of recent weeks, and ACWR above 1.3.
 
@@ -222,7 +226,7 @@ your body's recent trend inside, above, or below your own normal?**
 | 2. Compare to *your* normal | Baseline = your rolling values over the 60 days before this week. Normal range = baseline mean ± 0.5 SD | ±0.5 SD is the "smallest worthwhile change" these trials use to choose hard vs easy days (mean ± 0.5 × SD, following Plews et al., 2012 — see [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Trials used a ~4-week baseline; 60 days is a steadier choice for everyday life |
 | 3. Add resting HR and sleep | Each input expressed in SD units (resting HR flipped: lower = better), capped at ±3 | Adding resting HR (and well-being) to HRV gave the largest gains in a 2025 cyclist trial ([Alfonso et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12485039/)) |
 | 4. Combine | Equal-weight average → score = 50 + 25 × average, 0–100 | No study has validated specific weights; equal weights are the robust default when none exist ([Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making)) |
-| 5. Bands | 63+ Push (≥ +0.5 SD) · 38–62 Train · 25–37 Go easy (< −0.5 SD) · under 25 Rest (< −1 SD) | ±0.5 SD is the trials' above / within / below rule; the −1 SD Rest line and the 24 / 37 caps are design choices |
+| 5. Bands | 63+ Push (≥ +0.5 SD) · 38–62 Train · 25–37 Go easy (< −0.5 SD) · under 25 Rest (< −1 SD) | ±0.5 SD is the trials' above / within / below rule; the −1 SD Rest line, the 2-of-3-nights rule, and the 37 / 24 caps are design choices |
 
 **What it deliberately leaves out**
 - **Training load (ACWR).** Its ability to predict injury is disputed
