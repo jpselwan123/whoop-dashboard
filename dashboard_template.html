@@ -414,7 +414,7 @@
     </div>
     <div class="flank">
       <div class="flank-item right"><div class="label">Sleep performance</div><div class="value tnum" id="statSleep">—</div><div class="sub" id="statSleepSub">30d avg —</div></div>
-      <div class="flank-item right"><div class="label">Sleep debt</div><div class="value tnum" id="statDebt">—</div><div class="sub" id="statDebtSub">from sleep_needed</div></div>
+      <div class="flank-item right"><div class="label">Sleep debt</div><div class="value tnum" id="statDebt">—</div><div class="sub" id="statDebtSub">30d avg —</div></div>
     </div>
   </section>
 
@@ -856,6 +856,8 @@ function renderStats(){
   $('statSleep').textContent = Math.round(L.sleep_performance_percentage) + '%';
   $('statSleepSub').textContent = `30d avg ${fmt1(A.sleep_performance_percentage)}%`;
   $('statDebt').textContent = fmtHM(L.sleep_debt_hours);
+  const debt30 = (DATA.full_series.sleep_debt || []).slice(-30).map(p => p.v).filter(v => v != null);
+  $('statDebtSub').textContent = debt30.length ? `30d avg ${fmtHM(debt30.reduce((a,b)=>a+b,0) / debt30.length)}` : '';
 }
 
 /* ---------------- right now (today) ---------------- */

@@ -6,7 +6,7 @@ as what whoop.py saves from the WHOOP API (v2), with physiologically plausible
 relationships baked in: hard days lower the next morning's HRV and recovery,
 short sleep does too, and a heavy final training block pushes the load ratio up.
 
-Usage: python3 scripts/generate_demo_data.py [out_dir] [--days N] [--seed S]
+Usage: python3 scripts/generate_demo_data.py [out_dir] [--days N] [--seed S] [--now ISO8601]
        (default out_dir: demo/, 420 days, seed 23)
 """
 import argparse, json, math, os, random, uuid
@@ -177,9 +177,11 @@ if __name__ == "__main__":
     ap.add_argument("out_dir", nargs="?", default="demo")
     ap.add_argument("--days", type=int, default=420)
     ap.add_argument("--seed", type=int, default=23)
+    ap.add_argument("--now", help="pretend current time, e.g. 2026-09-17T15:00:00Z (stable screenshots)")
     args = ap.parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
-    data = generate(args.days, args.seed)
+    now = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else None
+    data = generate(args.days, args.seed, now)
     path = os.path.join(args.out_dir, "whoop_data.json")
     with open(path, "w") as f:
         json.dump(data, f)
