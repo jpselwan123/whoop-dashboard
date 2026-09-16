@@ -50,15 +50,11 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
 ## Features
 
 ### Daily — today's call
-- **One answer for the day: Push · Train · Go easy · Rest**, with a short reason. It's
-  the only verdict on the page, so there's never a second label to reconcile.
-- **How? ›** on that card shows today's numbers next to the line where each one flags,
-  and the four rules in the order they're checked.
-- **Readiness score** — a research-based score from your 7-day HRV and resting-HR trends
-  and 3-night sleep, each compared with your own normal (50 = normal). Click the orb to
-  see every input next to its normal range.
-- **Vitals at a glance** — recovery, HRV, resting HR, sleep, sleep debt, and 7-day
-  strain, each with its change vs your 30-day average (green = better, red = worse).
+- **Readiness — how ready you are to train today**, one 0–100 number that sets the
+  day's answer: **Push · Train · Go easy · Rest**. It starts from your body's trend and is
+  lowered when a warning sign or today's context calls for it.
+- **How? ›** (or click the orb) shows every input next to its normal range, anything
+  that lowered readiness today, and the four bands.
 - **Today's plan** — which kind of session fits today, based on how *you* have
   recovered from each sport before.
 - **Fatigue signal** — flags nights when HRV, resting heart rate, or breathing rate
@@ -197,24 +193,28 @@ Everything is computed from your own history. Thresholds adapt to you.
 | **Rest day** | A day in your bottom 15% of strain | 7+ days without one |
 | **Sport recovery cost** | Average next-morning recovery after days whose hardest session was that sport, vs your overall average | Sports with 8+ sessions |
 
-**One answer, one number.** The card at the top is the only thing that tells you what
-to do. Readiness (the orb) is the main input to it — it describes your body, not the day.
+**Readiness is the answer.** It's one number for how ready you are to train today, and
+the day's label comes straight from it:
 
-Today's answer is the first rule that matches:
+| Readiness | Answer |
+|---|---|
+| 63+ | **Push** |
+| 38–62 | **Train** |
+| 25–37 | **Go easy** |
+| under 25 | **Rest** |
 
-1. **Rest** — a warning sign: HRV, resting HR, or breathing rate outside your normal in
-   the last 14 days, *or* all three of 7+ days since rest, a week harder than 80% of
-   recent weeks, and ACWR above 1.3. Overrides readiness, and says so.
-2. **Go easy** — readiness below normal (under 38), *or* today's strain is already above
-   your 7-day average.
-3. **Push** — readiness above normal (63+).
-4. **Train** — readiness normal (38–62).
+It starts from your **body trend** (below) and can only be *lowered* by today's context:
+
+- **At most 24** — a warning sign: HRV, resting HR, or breathing rate outside your normal
+  in the last 14 days.
+- **At most 37** — you've already trained harder than your 7-day average today, *or* all
+  three of 7+ days since rest, a week harder than 80% of recent weeks, and ACWR above 1.3.
 
 ### How readiness is calculated
 
 Readiness and WHOOP recovery are different numbers. Recovery reacts to **last night**.
-Readiness asks the question HRV-guided training studies ask: **is your body's recent
-trend inside, above, or below your own normal?**
+The body-trend part of readiness asks the question HRV-guided training studies ask: **is
+your body's recent trend inside, above, or below your own normal?**
 
 | Step | What happens | Evidence |
 |---|---|---|
@@ -222,14 +222,14 @@ trend inside, above, or below your own normal?**
 | 2. Compare to *your* normal | Baseline = your rolling values over the 60 days before this week. Normal range = baseline mean ± 0.5 SD | ±0.5 SD is the "smallest worthwhile change" these trials use to choose hard vs easy days (mean ± 0.5 × SD, following Plews et al., 2012 — see [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Trials used a ~4-week baseline; 60 days is a steadier choice for everyday life |
 | 3. Add resting HR and sleep | Each input expressed in SD units (resting HR flipped: lower = better), capped at ±3 | Adding resting HR (and well-being) to HRV gave the largest gains in a 2025 cyclist trial ([Alfonso et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12485039/)) |
 | 4. Combine | Equal-weight average → score = 50 + 25 × average, 0–100 | No study has validated specific weights; equal weights are the robust default when none exist ([Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making)) |
-| 5. Classify | 63+ (≥ +0.5 SD) above normal · 38–62 normal · under 38 below normal — feeds today's answer | Same above / within / below-SWC rule the trials used to prescribe intensity |
+| 5. Bands | 63+ Push (≥ +0.5 SD) · 38–62 Train · 25–37 Go easy (< −0.5 SD) · under 25 Rest (< −1 SD) | ±0.5 SD is the trials' above / within / below rule; the −1 SD Rest line and the 24 / 37 caps are design choices |
 
 **What it deliberately leaves out**
 - **Training load (ACWR).** Its ability to predict injury is disputed
   ([Impellizzeri et al., 2020](https://www.researchgate.net/publication/341936245_AcuteChronic_Workload_Ratio_Conceptual_Issues_and_Fundamental_Pitfalls)),
   so load, rest days, and illness-type signals (breathing rate —
   [Miller et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33301493/); resting HR —
-  [Radin et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33334565/)) turn today's answer to **Rest** instead.
+  [Radin et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33334565/)) lower readiness instead of being hidden inside it.
 - **How you feel.** Self-reported well-being is the most sensitive marker of training
   response ([Saw et al., 2016](https://pubmed.ncbi.nlm.nih.gov/26423706/)), but WHOOP's API
   doesn't provide it.

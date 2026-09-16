@@ -31,7 +31,7 @@ class ReadinessTest(unittest.TestCase):
     def test_thresholds_match_half_sd_rule(self):
         h, r, s, _ = self.flat(jitter=False)
         latest, _ = bd.build_readiness(h, r, s)
-        self.assertEqual(latest['thresholds'], {'above': 63, 'below': 38})
+        self.assertEqual(latest['thresholds'], {'above': 63, 'below': 38, 'rest': 25})
 
     def test_suppressed_week_is_recovery(self):
         h, r, s, ds = self.flat()

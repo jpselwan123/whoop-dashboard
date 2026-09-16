@@ -40,13 +40,13 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   `renderX()` kills everything after it in `renderAll()` — guard, don't assume.
 - **Visibility is never JS-gated.** Animations must fail open (content visible if JS breaks).
 - **Nothing automatic.** No timers/auto-refresh; data refreshes only via the button.
-- **One answer.** The daily answer (Push · Train · Go easy · Rest) + headline come only from
-  `renderDecision()`; no second verdict label anywhere (no header badge).
+- **Readiness is the answer.** One number (how ready to train today) → Push 63+ · Train 38–62 ·
+  Go easy 25–37 · Rest <25 (`READY_BANDS`). Context only *lowers* it via caps (`READY_CAPS`: warning
+  sign ≤24; trained hard today / overload week ≤37) — never an "override" or a second verdict label.
+  One explanation panel (orb or How? ›).
 - **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 7-day ln-RMSSD
   HRV + 7-day resting HR + 3-night sleep, each vs a 60-day personal baseline (±0.5 SD SWC), equal
-  weights, 50 = normal, bands above (63+) / normal / below (<38) — never action names, and not shown on the orb (click for detail). The daily answer
-  is the only verdict; when a rule overrides readiness the UI must say so. No sliders. Load, rest days and
-  body signals stay explicit Rest rules. Changes to the model need a cited source and tests
+  weights, 50 = normal (the body-trend score). No sliders. Changes to the model need a cited source and tests
   (`tests/test_readiness.py`); recovery keeps WHOOP zones 34/67.
 - Add a test for new metrics or server behavior; run tests + privacy scan before pushing.
 

@@ -257,7 +257,8 @@ def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day):
                   'components': parts}
     if latest is None:
         return None, []
-    latest['thresholds'] = {'above': math.floor(50 + 25 * READY_SWC + 0.5), 'below': math.floor(50 - 25 * READY_SWC + 0.5)}
+    # 'rest' = −1 SD (a design choice, stricter than the ±½ SD trial rule); keep in sync with READY_BANDS in the template
+    latest['thresholds'] = {'above': math.floor(50 + 25 * READY_SWC + 0.5), 'below': math.floor(50 - 25 * READY_SWC + 0.5), 'rest': 25}
     return latest, series
 
 

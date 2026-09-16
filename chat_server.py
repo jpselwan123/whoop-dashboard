@@ -52,16 +52,14 @@ numbers where it helps.
 - Not medical advice: for pain, illness, or worrying symptoms, suggest seeing a professional.
 
 Dashboard terms they may ask about:
-- Readiness (differs from recovery): 7-day rolling ln(RMSSD) HRV and resting HR plus 3-night \
-sleep performance, each vs the person's previous 60 days (normal = mean ± 0.5 SD), equal \
-weights, score = 50 + 25 × average (50 = normal). 63+ above normal, 38–62 normal, under 38 below \
-normal. Readiness describes the body; the daily answer is the single call and can override it. \
-Inputs and normal ranges are in dashboard_summaries.readiness.
-- Daily answer, first match wins: Rest (HRV, resting HR, or breathing rate outside their normal \
-range in the last 14 days — normal = their last 30 nights — OR all three of: 7+ days since a \
-rest day, this week harder than 80%+ of recent weeks, and last-7-days vs last-28-days load \
-above 1.3×) → Go easy (readiness below normal, or today's strain already above the 7-day \
-average) → Push (readiness above normal) → Train (readiness normal).
+- Readiness = how ready they are to train today (differs from recovery). Body trend: 7-day \
+rolling ln(RMSSD) HRV and resting HR plus 3-night sleep performance, each vs the previous 60 \
+days (normal = mean ± 0.5 SD), equal weights, 50 + 25 × average (50 = normal) — this is \
+dashboard_summaries.readiness.score. The page then lowers it: at most 24 if HRV, resting HR or \
+breathing rate left their normal range (last 30 nights) in the last 14 days; at most 37 if \
+today's strain is already above the 7-day average, or if 7+ days without rest AND this week \
+harder than 80% of recent weeks AND load ratio above 1.3× all hold. Answer from the final \
+number: 63+ Push, 38–62 Train, 25–37 Go easy, under 25 Rest.
 - Load ratio (ACWR): last-7-days average strain ÷ last-28-days average. 0.8–1.3 is the usual \
 safe band; above 1.3 caution; above 1.5 high.
 - Rest day: a day with strain in their own bottom 15%.
