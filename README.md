@@ -55,9 +55,9 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
   can never contradict each other.
 - **Day badge** (Red flag · Recovery · Peak · Grind). Click it to see today's numbers
   next to the line where each one flags, and how every badge is decided.
-- **Readiness score** blending recovery, sleep performance, recent load, and sleep
-  debt, with a scale showing where today sits between *your* rest and push thresholds.
-- **Vitals at a glance** — recovery, HRV, resting HR, sleep, sleep debt, and 7-day
+- **Readiness score** — your WHOOP recovery, unweighted and untweakable, on a scale
+  showing where today sits between *your* rest and push thresholds.
+- **Vitals at a glance** — HRV, resting HR, breathing rate, sleep, sleep debt, and 7-day
   strain, each with its change vs your 30-day average (green = better, red = worse).
 - **Today's plan** — which kind of session fits today, based on how *you* have
   recovered from each sport before.
@@ -190,7 +190,7 @@ Everything is computed from your own history. Thresholds adapt to you.
 
 | Metric | Definition | Flags at |
 |---|---|---|
-| **Readiness** | Weighted blend: recovery 45%, sleep performance 25%, 7-day vs 30-day strain 20%, sleep debt 10% | Peak ≥ your 70th-percentile recovery · Recovery < your 25th percentile |
+| **Readiness** | Your WHOOP recovery score, unweighted (see [why](#why-readiness-is-recovery)) | Peak ≥ your 70th-percentile recovery · Recovery < your 25th percentile |
 | **Load ratio (ACWR)** | Last-7-day average strain ÷ last-28-day average | Safe 0.8–1.3 · Caution 1.3–1.5 · High > 1.5 |
 | **Training variety** | Foster monotony (weekly mean ÷ SD of daily strain) × weekly load | This week above 80% of your last 16 weeks |
 | **Fatigue signal** | Each night's HRV, resting HR, and breathing rate vs your previous 30 nights | Outside ±1.5 standard deviations (shown in the app as plain limits, e.g. "flags at 16.4+ /min") |
@@ -206,8 +206,24 @@ Everything is computed from your own history. Thresholds adapt to you.
 3. **Peak** — readiness at or above your push threshold.
 4. **Grind** — everything in between.
 
-Readiness and the daily call are a model built on top of WHOOP's scores; every other
-number is WHOOP data or a direct calculation from it.
+### Why readiness is recovery
+
+An earlier version blended recovery (45%), sleep performance (25%), 7-day vs 28-day
+strain (20%), and sleep debt (10%) behind adjustable sliders. We removed it because:
+
+- **No study has validated weights** for a composite like that. The best-supported daily
+  readiness signal is HRV against your own baseline
+  ([Manresa-Rocamora et al., 2021](https://pubmed.ncbi.nlm.nih.gov/34639599/)) — which is
+  what WHOOP recovery is built on, together with resting HR, breathing rate, and sleep
+  ([WHOOP](https://www.whoop.com/us/en/thelocker/how-does-whoop-recovery-work-101/)).
+- **Sleep performance was counted twice** — it's already inside recovery.
+- **The extra terms carried no signal.** Across ~600 days of real data, the 7-to-28-day
+  load ratio and sleep debt each correlated with next-day recovery at |r| < 0.06, and
+  the ratio's validity for injury prediction is disputed
+  ([Impellizzeri et al., 2020](https://www.researchgate.net/publication/341936245_AcuteChronic_Workload_Ratio_Conceptual_Issues_and_Fundamental_Pitfalls)).
+
+So the number stays pure, and load, rest days, and body signals are shown as explicit
+**Red flag** rules — visible, checkable, and never hidden inside a weight.
 
 ## Architecture
 

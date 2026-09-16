@@ -42,6 +42,9 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - **Nothing automatic.** No timers/auto-refresh; data refreshes only via the button.
 - **One decision chain.** Badge, pill, and headline all come from `renderDecision()` — never
   compute them separately.
+- **Readiness = WHOOP recovery, unweighted.** No user-tunable weights or sliders. Other factors
+  (load, rest days, body signals) become explicit Red flag rules, never hidden weights. Any new
+  factor must show real predictive signal on data before it touches the decision.
 - Add a test for new metrics or server behavior; run tests + privacy scan before pushing.
 
 ## UI / product conventions

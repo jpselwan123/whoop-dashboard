@@ -169,22 +169,6 @@
   .orb-readout .num{font-family:"Archivo",sans-serif;font-weight:900;font-size:52px;line-height:1;letter-spacing:-0.02em;color:var(--ink);}
   .orb-readout .cap{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-muted);margin-top:4px;}
 
-  .controls{background:var(--surface-2);border:1px solid var(--border);border-radius:16px;padding:14px 22px;}
-  .controls summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;padding:4px 0;}
-  .controls summary::-webkit-details-marker{display:none;}
-  .controls summary::before{content:'›';display:inline-block;font-size:16px;color:var(--ink-faint);transition:transform .15s;transform:rotate(0deg);width:12px;}
-  .controls[open] summary::before{transform:rotate(90deg);}
-  .controls summary .hint{font-size:11.5px;color:var(--ink-faint);}
-  .controls .ctrl-body{padding-top:14px;display:flex;flex-direction:column;gap:14px;}
-  .controls .head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-  .controls h2{font-family:"Archivo",sans-serif;font-size:14.5px;font-weight:700;margin:0;letter-spacing:-0.01em;}
-  .controls .reset{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--accent);background:none;border:1px solid var(--border-strong);border-radius:100px;padding:4px 11px;cursor:pointer;}
-  .controls .reset:hover{border-color:var(--accent);}
-  .ctrl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px 22px;}
-  .ctrl{display:flex;flex-direction:column;gap:6px;}
-  .ctrl .row{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;}
-  .ctrl .row .name{color:var(--ink-muted);}
-  .ctrl .row .val{font-family:"IBM Plex Mono",monospace;color:var(--ink);font-weight:600;}
   input[type="range"]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:var(--border-strong);outline-offset:4px;}
   input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border-strong);cursor:pointer;}
   input[type="range"]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);cursor:pointer;}
@@ -445,22 +429,6 @@
     <div id="rightNowBody"></div>
   </section>
 
-  <details class="controls">
-    <summary><h2>Adjust the model</h2><span class="hint">weights, thresholds — rarely needed</span></summary>
-    <div class="ctrl-body">
-      <div class="head"><span></span><button class="reset" id="resetBtn">Reset to defaults</button></div>
-      <div class="ctrl-grid">
-        <div class="ctrl"><div class="row"><span class="name">Recovery weight</span><span class="val mono tnum" id="wRecoveryVal">45%</span></div><input type="range" id="wRecovery" min="0" max="100" value="45" step="5"></div>
-        <div class="ctrl"><div class="row"><span class="name">Sleep performance weight</span><span class="val mono tnum" id="wSleepVal">25%</span></div><input type="range" id="wSleep" min="0" max="100" value="25" step="5"></div>
-        <div class="ctrl"><div class="row"><span class="name">Strain-balance weight</span><span class="val mono tnum" id="wStrainVal">20%</span></div><input type="range" id="wStrain" min="0" max="100" value="20" step="5"></div>
-        <div class="ctrl"><div class="row"><span class="name">Debt-score weight</span><span class="val mono tnum" id="wDebtVal">10%</span></div><input type="range" id="wDebt" min="0" max="100" value="10" step="5"></div>
-        <div class="ctrl"><div class="row"><span class="name">Debt cap (hrs → score 0)</span><span class="val mono tnum" id="debtCapVal">2.1h</span></div><input type="range" id="debtCap" min="1" max="2.5" value="2.1" step="0.1"></div>
-        <div class="ctrl"><div class="row"><span class="name">Push threshold <span style="opacity:.6">(your 70th pct)</span></span><span class="val mono tnum" id="pushThVal">67</span></div><input type="range" id="pushTh" min="30" max="90" value="67" step="1"></div>
-        <div class="ctrl"><div class="row"><span class="name">Rest threshold <span style="opacity:.6">(your 25th pct)</span></span><span class="val mono tnum" id="restThVal">34</span></div><input type="range" id="restTh" min="5" max="60" value="34" step="1"></div>
-      </div>
-    </div>
-  </details>
-
   <section class="card">
     <div class="section-head"><h2>Today's plan</h2></div>
     <div class="section-sub">What to do today and why, built from your own patterns rather than a generic tip list.</div>
@@ -614,7 +582,7 @@
   <footer>
     <div class="grp">
       <b>Measured vs. modeled</b>
-      <span>Every chart, table and number on this page is your real WHOOP data, across <span id="totalDaysNote">—</span> — except the "Readiness" number and the daily call, which are a blend I built on top (weights are the sliders above). Recovery and sleep performance overlap somewhat since one feeds the other, so sleep is intentionally the smaller of the two weights. The debt term is small on purpose too — it's real, but it's a weak predictor for you specifically, worth revisiting in a few months once there's more data.</span>
+      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is your WHOOP recovery score, unweighted; the push and rest lines are your own 70th and 25th percentile. Training load, rest days and body signals don't change the number — they raise a Red flag instead.</span>
     </div>
     <div class="grp">
       <b>About the orb</b>
@@ -698,24 +666,22 @@ function percentile(vals, p){
   if(f===c) return s[f];
   return s[f] + (s[c]-s[f])*(k-f);
 }
-const RECOVERY_ALL = DATA.full_series.recovery.map(p=>p.v);
-const PCT_PUSH = Math.round(percentile(RECOVERY_ALL, 70));
-const PCT_REST = Math.round(percentile(RECOVERY_ALL, 25));
-
-function readCtrl(){
-  return { wRecovery:+$('wRecovery').value, wSleep:+$('wSleep').value, wStrain:+$('wStrain').value, wDebt:+$('wDebt').value,
-    debtCap:+$('debtCap').value, pushTh:+$('pushTh').value, restTh:+$('restTh').value };
+// Readiness = WHOOP's own recovery score (HRV-driven, already folds in resting HR,
+// breathing rate and sleep). No custom weights: tested on real history, sleep
+// performance was double-counted and 7-vs-28-day load / sleep debt carried ~no
+// signal for next-day recovery (|r| < 0.06), so load and rest-day problems are
+// handled as explicit Red flag rules instead of being blended into the number.
+// Push/rest lines are this person's own 70th/25th recovery percentiles, recomputed
+// from the current data on every render (so a manual refresh updates them too).
+function thresholds(){
+  const all = DATA.full_series.recovery.map(p => p.v).filter(v => v != null);
+  if(!all.length) return { pushTh: 67, restTh: 34 };
+  return { pushTh: Math.round(percentile(all, 70)), restTh: Math.round(percentile(all, 25)) };
 }
-function computeReadiness(ctrl){
+function computeReadiness(){
   const L = DATA.latest;
-  const strainRatio = DATA.avg7_strain / DATA.avg30.strain;
-  const strainScore = clamp(50 - (strainRatio-1) * 166.667, 0, 100);
-  const debtScore = clamp(100 * (1 - L.sleep_debt_hours/ctrl.debtCap), 0, 100);
-  const totalW = ctrl.wRecovery + ctrl.wSleep + ctrl.wStrain + ctrl.wDebt || 1;
-  const raw = ctrl.wRecovery*L.recovery_score + ctrl.wSleep*L.sleep_performance_percentage
-            + ctrl.wStrain*strainScore + ctrl.wDebt*debtScore;
-  const readiness = raw/totalW;
-  return { readiness, strainScore, strainRatio, debtScore };
+  const strainRatio = DATA.avg30.strain ? DATA.avg7_strain / DATA.avg30.strain : 1; // context for copy/tips only
+  return { readiness: L.recovery_score, strainRatio };
 }
 function decisionState(readiness, ctrl){
   if(readiness >= ctrl.pushTh) return 'push';
@@ -740,8 +706,8 @@ function decisionCopy(state, readiness, ctrl, calc){
     why:`Recovery is <b>${Math.round(L.recovery_score)}</b>, on the low side for you, and ${reason}. A lighter day protects the rest of the week.` };
 }
 function renderDecision(){
-  const ctrl = readCtrl();
-  const calc = computeReadiness(ctrl);
+  const ctrl = thresholds();
+  const calc = computeReadiness();
   const readiness = calc.readiness;
   const state = decisionState(readiness, ctrl);
 
@@ -900,9 +866,9 @@ function renderStats(){
   // better: +1 = higher is better, -1 = lower is better, 0 = neutral (no good/bad color)
   const stats = {
     body: [
-      {label:'Recovery', value:L.recovery_score, avg:A.recovery_score, series:'recovery', fmt:int, dfmt:int, better:1, tol:2},
       {label:'HRV', unit:'ms', value:L.hrv_rmssd_milli, avg:A.hrv_rmssd_milli, series:'hrv', fmt:int, dfmt:int, better:1, tol:2},
       {label:'Resting HR', unit:'bpm', value:L.resting_heart_rate, avg:A.resting_heart_rate, series:'rhr', fmt:int, dfmt:int, better:-1, tol:1},
+      {label:'Breathing', unit:'/min', value:L.respiratory_rate, avg:meanOf(lastN('respiratory_rate', 30)), series:'respiratory_rate', fmt:fmt1, dfmt:fmt1, better:-1, tol:0.3},
     ],
     load: [
       {label:'Sleep', unit:'%', value:L.sleep_performance_percentage, avg:A.sleep_performance_percentage, series:'sleep_performance', fmt:int, dfmt:int, better:1, tol:2},
@@ -1328,7 +1294,7 @@ function renderExplorer(){
   `;
 
   const refLines = metricDef.refLines==='personal'
-    ? [{v:+$('pushTh').value, color:'var(--good)'},{v:+$('restTh').value, color:'var(--critical)'}]
+    ? (t => [{v:t.pushTh, color:'var(--good)'},{v:t.restTh, color:'var(--critical)'}])(thresholds())
     : metricDef.refLines;
   const fixedTicks = (metricDef.bounds && metricDef.bounds[0]===0 && metricDef.bounds[1]===100) ? [0,25,50,75,100] : null;
   lineChart('explorerChartWrap','explorerTooltip', points, {color:'var(--accent)', unit:metricDef.unit, decimals:dec, refLines, valueFormatter:metricDef.formatter, bounds:metricDef.bounds, fixedTicks});
@@ -1682,14 +1648,6 @@ function renderCoverage(){
   $('totalDaysNote').textContent = `${DATA.n_days_total} days on record (${fmtDate(start)} → ${fmtDate(end)})`;
 }
 
-const DEFAULTS = {wRecovery:45, wSleep:25, wStrain:20, wDebt:10, debtCap:2.1, pushTh:PCT_PUSH, restTh:PCT_REST};
-function wireControls(){
-  const ids = ['wRecovery','wSleep','wStrain','wDebt','debtCap','pushTh','restTh'];
-  const labels = {wRecovery:v=>v+'%', wSleep:v=>v+'%', wStrain:v=>v+'%', wDebt:v=>v+'%', debtCap:v=>fmt1(v)+'h', pushTh:v=>v, restTh:v=>v};
-  for(const id of ids){ $(id).value = DEFAULTS[id]; $(id+'Val').textContent = labels[id](DEFAULTS[id]); }
-  for(const id of ids){ $(id).addEventListener('input', ()=>{ $(id+'Val').textContent = labels[id](+$(id).value); renderDecision(); if((id==='pushTh'||id==='restTh') && curMetric==='recovery') renderExplorer(); }); }
-  $('resetBtn').addEventListener('click', ()=>{ for(const id of ids){ $(id).value = DEFAULTS[id]; $(id+'Val').textContent = labels[id](DEFAULTS[id]); } renderDecision(); if(curMetric==='recovery') renderExplorer(); });
-}
 function renderAll(){
   renderStats();
   renderRightNow();
@@ -1709,7 +1667,6 @@ function renderAll(){
   renderCoverage();
   renderDecision();
 }
-wireControls();
 renderAll();
 firstPaint = false;
 window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); renderMonthly(); renderWeekday(); renderACWR(); renderMonotony(); renderZoneDistribution(); });
