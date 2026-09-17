@@ -64,18 +64,39 @@ def series_full(items, val_fn, rnd=1):
     return [{'date': dd, 'v': out[dd]} for dd in days]
 
 
+def _calendar_window(days, i, span):
+    """Indexes of the days (sorted ISO strings) within `span` calendar days before days[i]
+    (exclusive) — calendar days, not records, so a gap in wear never pulls in data from
+    months earlier."""
+    from datetime import date as _date
+    end = _date.fromisoformat(days[i])
+    j = i
+    while j > 0 and (end - _date.fromisoformat(days[j - 1])).days <= span:
+        j -= 1
+    return range(j, i)
+
+
+ACWR_MIN_DAYS = {'acute': 4, 'chronic': 21}   # days with data needed inside the 7 / 28-day windows
+
+
 def build_acwr(strain_by_day):
     """Acute:Chronic Workload Ratio — sports-science injury-risk metric, not in the WHOOP app.
-    Acute = trailing 7d avg strain, Chronic = trailing 28d avg strain."""
+    Acute = average strain over the last 7 calendar days, Chronic = last 28 calendar days
+    (both including the day itself); skipped when too few days have data."""
+    from datetime import date as _date
     days = sorted(strain_by_day.keys())
     out = []
     for i, d in enumerate(days):
-        if i < 27:
+        acute_idx = list(_calendar_window(days, i, 6)) + [i]
+        chronic_idx = list(_calendar_window(days, i, 27)) + [i]
+        if len(acute_idx) < ACWR_MIN_DAYS['acute'] or len(chronic_idx) < ACWR_MIN_DAYS['chronic']:
             continue
-        acute = mean(strain_by_day[days[j]] for j in range(i - 6, i + 1))
-        chronic = mean(strain_by_day[days[j]] for j in range(i - 27, i + 1))
+        if (_date.fromisoformat(d) - _date.fromisoformat(days[0])).days < 27:   # a full 28 days of history first
+            continue
+        chronic = mean(strain_by_day[days[j]] for j in chronic_idx)
         if chronic == 0:
             continue
+        acute = mean(strain_by_day[days[j]] for j in acute_idx)
         out.append({'date': d, 'v': round(acute / chronic, 2)})
     return out
 
@@ -104,7 +125,7 @@ def build_monotony(strain_by_day):
         monotony = round(m / sd, 2) if sd > 0 else None
         load = round(sum(vals), 1)
         load_strain = round(monotony * load, 0) if monotony else None
-        out.append({'week': wk, 'start': week_start[wk], 'monotony': monotony, 'load': load, 'load_strain': load_strain})
+        out.append({'week': wk, 'start': iso_week_monday(wk), 'monotony': monotony, 'load': load, 'load_strain': load_strain})
     return out
 
 
@@ -130,6 +151,12 @@ def build_sport_recovery_cost(wo, recovery_by_day):
     return {'overall_avg_recovery': round(overall_avg, 1), 'sports': results}
 
 
+# Fatigue flags and warning signs compare each night with the 30 calendar days before it,
+# and need at least 21 of those nights recorded (70% wear) to judge.
+BASELINE_NIGHTS = 30
+BASELINE_MIN_NIGHTS = 21
+
+
 def build_anomalies(hrv_by_day, rhr_by_day, rr_by_day):
     """Flag days where HRV, RHR or respiratory rate moved >1.5 SD from this athlete's
     own trailing 30-day baseline. HRV/RHR deviation is a standard overreaching signal
@@ -141,9 +168,9 @@ def build_anomalies(hrv_by_day, rhr_by_day, rr_by_day):
     days = sorted(set(hrv_by_day) & set(rhr_by_day) & set(rr_by_day))
     flags = []
     for i, d in enumerate(days):
-        if i < 30:
+        window = [days[j] for j in _calendar_window(days, i, BASELINE_NIGHTS)]
+        if len(window) < BASELINE_MIN_NIGHTS:
             continue
-        window = days[i - 30:i]
         hrv_hist = [hrv_by_day[w] for w in window]
         rhr_hist = [rhr_by_day[w] for w in window]
         rr_hist = [rr_by_day[w] for w in window]
@@ -181,9 +208,9 @@ WARN_CAP_MILD, WARN_CAP_SEVERE = 37, 24
 def _night_signals(hrv_by_day, rhr_by_day, rr_by_day, d, history_days):
     """Each vital for night d vs the 30 nights before it, as plain units + SD distance."""
     i = history_days.index(d)
-    if i < 30:
+    window = [history_days[j] for j in _calendar_window(history_days, i, BASELINE_NIGHTS)]
+    if len(window) < BASELINE_MIN_NIGHTS:
         return None
-    window = history_days[i - 30:i]
     out = []
     for name, by_day, direction, unit, digits in (
             ('HRV', hrv_by_day, -1, 'ms', 0), ('Resting HR', rhr_by_day, 1, 'bpm', 0),
@@ -203,7 +230,7 @@ def _night_signals(hrv_by_day, rhr_by_day, rr_by_day, d, history_days):
 
 def build_warning(hrv_by_day, rhr_by_day, rr_by_day):
     days = sorted(set(hrv_by_day) & set(rhr_by_day) & set(rr_by_day))
-    if len(days) < 31:
+    if len(days) < BASELINE_MIN_NIGHTS + 1:
         return None
     from datetime import date as _date
     latest = days[-1]
@@ -436,14 +463,14 @@ def build_sleep_composition(sleep, now):
         week_rem[key].append(stage['total_rem_sleep_time_milli'] / 3600000)
         week_sws[key].append(stage['total_slow_wave_sleep_time_milli'] / 3600000)
         week_light[key].append(stage['total_light_sleep_time_milli'] / 3600000)
-    weeks = sorted(week_rem.keys())[-8:]
+    weeks = last_n_iso_weeks(now.date(), 8)          # a week with no sleep recorded stays as a gap
     current_key = iso_week_key(now)
     return [{
         'week': wk,
         'start': iso_week_monday(wk),
-        'rem_h': round(mean(week_rem[wk]), 2),
-        'sws_h': round(mean(week_sws[wk]), 2),
-        'light_h': round(mean(week_light[wk]), 2),
+        'rem_h': round(mean(week_rem[wk]), 2) if week_rem.get(wk) else None,
+        'sws_h': round(mean(week_sws[wk]), 2) if week_sws.get(wk) else None,
+        'light_h': round(mean(week_light[wk]), 2) if week_light.get(wk) else None,
         'is_current': wk == current_key,
     } for wk in weeks]
 
@@ -452,11 +479,12 @@ def build_zone_distribution(wo, now):
     """Weekly time-in-heart-rate-zone breakdown from workout.score.zone_durations
     (WHOOP's own zone_zero..zone_five, each a band of % of max heart rate — WHOOP
     records this per workout but never aggregates it into a trend). Bucketed into
-    easy (zone 0-1), moderate (zone 2-3) and hard (zone 4-5) for a polarized-training
+    easy (zones 0-2), moderate (zone 3) and hard (zones 4-5) — the same split session_intensity
+    uses — for a polarized-training
     read: many endurance coaches use roughly 80% easy / 20% moderate-hard as a
     reference split, not a hard medical rule."""
-    ZONE_KEYS_EASY = ['zone_zero_milli', 'zone_one_milli']
-    ZONE_KEYS_MOD = ['zone_two_milli', 'zone_three_milli']
+    ZONE_KEYS_EASY = ['zone_zero_milli', 'zone_one_milli', 'zone_two_milli']
+    ZONE_KEYS_MOD = ['zone_three_milli']
     ZONE_KEYS_HARD = ['zone_four_milli', 'zone_five_milli']
 
     def bucket_hours(zd):
@@ -480,8 +508,8 @@ def build_zone_distribution(wo, now):
         all_time[1] += mod
         all_time[2] += hard
 
-    weeks = sorted(week_totals.keys())
     current_key = iso_week_key(now)
+    weeks = last_n_iso_weeks(now.date(), 8)          # every week, including ones without workouts
     weekly = [{'week': wk, 'start': iso_week_monday(wk),
                'easy_h': round(week_totals[wk][0], 2),
                'mod_h': round(week_totals[wk][1], 2),
@@ -533,8 +561,8 @@ def build_today_snapshot(cyc, wo):
     today = day(latest_cycle['created_at'])
     in_progress = latest_cycle.get('end') is None
 
-    ZONE_EASY = ['zone_zero_milli', 'zone_one_milli']
-    ZONE_MOD = ['zone_two_milli', 'zone_three_milli']
+    ZONE_EASY = ['zone_zero_milli', 'zone_one_milli', 'zone_two_milli']   # same split as the zone chart
+    ZONE_MOD = ['zone_three_milli']
     ZONE_HARD = ['zone_four_milli', 'zone_five_milli']
 
     todays_workouts = []
@@ -546,7 +574,6 @@ def build_today_snapshot(cyc, wo):
         zone_easy = sum((zd.get(k) or 0) for k in ZONE_EASY) / 60000
         zone_mod = sum((zd.get(k) or 0) for k in ZONE_MOD) / 60000
         zone_hard = sum((zd.get(k) or 0) for k in ZONE_HARD) / 60000
-        zone3 = (zd.get('zone_three_milli') or 0) / 60000
         todays_workouts.append({
             'sport': sport_label(w['sport_name']),
             'start': w['start'],
@@ -560,7 +587,7 @@ def build_today_snapshot(cyc, wo):
             'zone_easy_min': round(zone_easy),
             'zone_mod_min': round(zone_mod),
             'zone_hard_min': round(zone_hard),
-            'intensity': session_intensity(zone_hard, zone_hard + zone3, sc.get('strain')),
+            'intensity': session_intensity(zone_hard, zone_hard + zone_mod, sc.get('strain')),
         })
     todays_workouts.sort(key=lambda w: w['start'])
 
@@ -680,7 +707,7 @@ def build_summary(d):
     best_hrv = max(rec, key=lambda r: r['score']['hrv_rmssd_milli'])
     lowest_rhr = min(rec, key=lambda r: r['score']['resting_heart_rate'])
     biggest_strain_cyc = max(cyc, key=lambda c: c['score']['strain'])
-    longest_sleep = max(sleep, key=lambda s: s['score']['stage_summary']['total_in_bed_time_milli'])
+    longest_sleep = max(sleep, key=asleep_ms)   # time asleep, like the WHOOP app's "Hours of Sleep"
     biggest_strain_wo = max(wo, key=lambda w: w['score']['strain']) if wo else None
 
     streak = 0
@@ -727,7 +754,7 @@ def build_summary(d):
         'biggest_strain_day': {'v': round(biggest_strain_cyc['score']['strain'], 1), 'date': day(biggest_strain_cyc['created_at'])},
         'biggest_strain_workout': ({'v': round(biggest_strain_wo['score']['strain'], 1), 'date': day(biggest_strain_wo['created_at']), 'sport': sport_label(biggest_strain_wo['sport_name'])}
                                     if biggest_strain_wo else None),
-        'longest_sleep_h': {'v': round(longest_sleep['score']['stage_summary']['total_in_bed_time_milli'] / 3600000, 1), 'date': day(longest_sleep['created_at'])},
+        'longest_sleep_h': {'v': round(asleep_ms(longest_sleep) / 3600000, 3), 'date': day(longest_sleep['created_at'])},
         'current_green_streak_days': streak,
         'best_week_sessions': best_week_count,
         'total_kcal': round(total_kcal),

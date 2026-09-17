@@ -187,9 +187,9 @@ Everything is computed from your own history. Thresholds adapt to you.
 | Metric | Definition | Flags at |
 |---|---|---|
 | **Readiness** | Half last night, half recent trend (7-day HRV (ln RMSSD) and resting HR, 3-night sleep hours vs needed) — each vs your previous 60 days, equal weights (see [below](#how-readiness-is-calculated)) | Above normal 63+ (½ SD above) · below normal under 38 · Recovery under 38 (½ SD below) |
-| **Load ratio (ACWR)** | Last-7-day average strain ÷ last-28-day average | Safe 0.8–1.3 · Caution 1.3–1.5 · High > 1.5 |
+| **Load ratio (ACWR)** | Average strain over the last 7 calendar days ÷ last 28 (needs 21+ days of data in the window) | Safe 0.8–1.3 · Caution 1.3–1.5 · High > 1.5 |
 | **Training variety** | Foster monotony (weekly mean ÷ SD of daily strain) × weekly load | This week above 80% of your last 16 weeks |
-| **Fatigue signal** | Each night's HRV, resting HR, and breathing rate vs your previous 30 nights | Outside ±1.5 standard deviations (shown in the app as plain limits, e.g. "flags at 16.4+ /min") |
+| **Fatigue signal** | Each night's HRV, resting HR, and breathing rate vs the 30 days before it (needs 21+ nights recorded) | Outside ±1.5 standard deviations (shown in the app as plain limits, e.g. "flags at 16.4+ /min") |
 | **Rest day** | A day in your bottom 15% of strain | 7+ days without one |
 | **Sport recovery cost** | Average next-morning recovery after days whose hardest session was that sport, vs your overall average | Sports with 8+ sessions |
 
@@ -221,6 +221,8 @@ It starts from your **body score** (below) and can only be *lowered* by today's 
   | Easy | anything below moderate | no change |
   | Moderate | 20+ min in zones 3–5, or strain 10+ | at most 62 (no Push) |
   | Hard | 10+ min in zones 4–5, or strain 14+ — or today's total strain above your 7-day average | at most 37 |
+
+  The heart-rate zone chart uses the same split: zones 0–2 easy, zone 3 moderate, zones 4–5 hard.
 
   The strain lines are WHOOP's own scale (10–13.9 moderate, 14+ high); the minute lines and
   treating zone 3 / zones 4–5 as roughly "threshold" / "above threshold" are design choices.

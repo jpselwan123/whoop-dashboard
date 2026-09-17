@@ -78,6 +78,9 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - WHOOP `sleep_performance_percentage` = hours vs needed only until ~Oct 2025; after that it's WHOOP's blended
   score. The WHOOP app rounds sleep stages on the running total (light → deep → REM → awake) — `ai_context._stage_minutes`.
 - `whoop_data.json` lists are newest-first — sort before taking "latest".
+- Every rolling window is **calendar days**, never "last N records" (`_calendar_window`, `lastDays` in the
+  template) — the real export has a 7-month gap (Mar–Oct 2025). Weekly charts keep empty weeks as gaps.
+- Easy/moderate/hard = zones 0–2 / 3 / 4–5 everywhere (zone chart, session view, `session_intensity`).
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.
 
 ## Git

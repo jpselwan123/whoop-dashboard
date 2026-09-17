@@ -475,7 +475,7 @@
 
   <section class="card">
     <div class="section-head"><h2>Time in heart-rate zones</h2><span class="n" id="zoneTotal"></span></div>
-    <div class="section-sub">WHOOP records which of its 6 heart-rate zones every workout minute falls in but never totals it. Grouped here into easy (zones 0–1), moderate (2–3) and hard (4–5) — some endurance coaches use roughly 80% easy / 20% moderate-hard as a reference split, not a fixed rule.</div>
+    <div class="section-sub">WHOOP records which of its 6 heart-rate zones every workout minute falls in but never totals it. Grouped here into easy (zones 0–2), moderate (3) and hard (4–5), the same split that rates each session — some endurance coaches use roughly 80% easy / 20% moderate-hard as a reference split, not a fixed rule.</div>
     <div class="explorer-stats" id="zoneSplitRow"></div>
     <div class="chart-wrap" id="zoneChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="zoneTooltip"></div></div>
     <div class="legend">
@@ -643,7 +643,7 @@ const fmtHM = (hoursDecimal) => {
 };
 const weekRangeLabel = (startIso) => {
   const start = new Date(startIso+'T00:00:00');
-  const end = new Date(start.getTime() + 6*86400000);
+  const end = new Date(start); end.setDate(start.getDate() + 6);   // calendar days, safe across DST
   const sameMonth = start.getMonth() === end.getMonth();
   if(sameMonth){
     const month = start.toLocaleDateString(undefined,{month:'short'});
@@ -658,6 +658,15 @@ const todayLocalISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 };
 const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
+// Points from the last n calendar days of a {date, v} series (ending on its newest date) —
+// calendar days, not a count of records, so a gap in wear never stretches a "30D" window.
+const lastDays = (series, n) => {
+  if(!series || !series.length || !isFinite(n)) return series || [];
+  const end = new Date(series[series.length-1].date + 'T00:00:00Z');
+  end.setUTCDate(end.getUTCDate() - (n - 1));
+  const from = end.toISOString().slice(0,10);
+  return series.filter(p => p.date >= from);
+};
 const SVGNS = "http://www.w3.org/2000/svg";
 const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; };
 
@@ -864,7 +873,7 @@ function renderStats(){
   if(DATA.generated_at){
     $('lastRefreshed').textContent = 'last refreshed ' + new Date(DATA.generated_at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   }
-  const lastN = (key, n) => (F[key] || []).slice(-n);
+  const lastN = (key, n) => lastDays(F[key] || [], n);
   const meanOf = (arr) => { const v = arr.map(p => p.v).filter(x => x != null && isFinite(x)); return v.length ? v.reduce((a,b)=>a+b,0) / v.length : null; };
   const int = v => String(Math.round(v));
 
@@ -1233,7 +1242,8 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
     hit.addEventListener('mousemove', ()=>{
       const r = wrap.getBoundingClientRect();
       tooltip.style.left = ((bx+bwid/2)/W*100)+'%'; tooltip.style.top = '8%'; tooltip.style.opacity=1;
-      const parts = series.map((ser,si)=>`${labels[si]} ${fmt1(ser[i]||0)}h`).join(' · ');
+      const noData = series.every(ser => ser[i] == null);
+      const parts = noData ? 'no data' : series.map((ser,si)=>`${labels[si]} ${fmtHM(ser[i]||0)}`).join(' · ');
       tooltip.textContent = `${cat}${fade?' (partial week)':''} — ${parts}`;
     });
     hit.addEventListener('mouseleave', ()=>{ tooltip.style.opacity=0; });
@@ -1264,7 +1274,7 @@ function renderExplorer(){
   const metricDef = METRICS.find(m=>m.key===curMetric);
   const rangeDef = RANGES.find(r=>r.key===curRange);
   const full = DATA.full_series[curMetric];
-  const points = rangeDef.days===Infinity ? full : full.slice(-rangeDef.days);
+  const points = lastDays(full, rangeDef.days);
 
   $('metricTabs').innerHTML = '';
   METRICS.forEach(m=>{
@@ -1405,7 +1415,7 @@ function renderACWR(){
   badge.style.color = zone.c;
   badge.style.background = zone.bg;
 
-  const points = series.slice(-182);
+  const points = lastDays(series, 182);
   lineChart('acwrChartWrap','acwrTooltip', points, {color:'var(--accent)', decimals:2, niceTicks:true,
     bands:[
       {from:0, to:0.8, color:'var(--ink-faint)', opacity:0.08},
@@ -1420,7 +1430,7 @@ function renderACWR(){
 let monotonyHighFlag = false;
 let monotonyPct = null;
 function renderMonotony(){
-  const strain7 = DATA.full_series.strain.slice(-7);
+  const strain7 = lastDays(DATA.full_series.strain, 7);
   const cats = strain7.map(p => new Date(p.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}));
   barChart('last7ChartWrap','last7Tooltip', cats, strain7.map(p=>p.v), {color:'var(--accent)', decimals:1, highlightLast:true, width:760, height:130});
 
@@ -1432,10 +1442,17 @@ function renderMonotony(){
   monotonyHighFlag = pct >= 80;
   monotonyPct = pct;
   const flagEl = $('monotonyFlag');
+  if(!m.length){ flagEl.innerHTML = ''; return; }
+  // the newest week with 5+ days of data — often last week early in a new week, so name it
+  const judged = m[m.length-1];
+  const last = new Date(DATA.date_range[1]+'T00:00:00');
+  const thisMonday = new Date(last); thisMonday.setDate(last.getDate() - ((last.getDay() + 6) % 7));
+  const mondayISO = `${thisMonday.getFullYear()}-${String(thisMonday.getMonth()+1).padStart(2,'0')}-${String(thisMonday.getDate()).padStart(2,'0')}`;
+  const weekName = judged.start >= mondayISO ? 'This week' : `The week of ${weekRangeLabel(judged.start)}`;
   if(pct >= 80){
-    flagEl.innerHTML = `<div class="signal warn"><span class="dot"></span><span class="txt"><b>This week has been unusually hard-every-day for you</b> — more concentrated than ${pct}% of your recent weeks. Worth building in a genuinely easy day.</span></div>`;
+    flagEl.innerHTML = `<div class="signal warn"><span class="dot"></span><span class="txt"><b>${weekName} was unusually hard-every-day for you</b> — more concentrated than ${pct}% of your previous weeks. Worth building in a genuinely easy day.</span></div>`;
   } else {
-    flagEl.innerHTML = `<div class="signal ok"><span class="dot"></span><span class="txt">This week has a normal mix of harder and easier days for you — nothing unusual.</span></div>`;
+    flagEl.innerHTML = `<div class="signal ok"><span class="dot"></span><span class="txt">${weekName} had a normal mix of harder and easier days for you — nothing unusual.</span></div>`;
   }
 }
 
@@ -1586,8 +1603,8 @@ function renderRecords(){
     ['Lowest resting HR', R.lowest_rhr.v+' bpm', fmtDate(R.lowest_rhr.date)],
     ['Biggest strain day', R.biggest_strain_day.v, fmtDate(R.biggest_strain_day.date)],
     ...(R.biggest_strain_workout ? [['Biggest single session', R.biggest_strain_workout.v+' · '+R.biggest_strain_workout.sport, fmtDate(R.biggest_strain_workout.date)]] : []),
-    ['Longest sleep', R.longest_sleep_h.v+'h', fmtDate(R.longest_sleep_h.date)],
-    ['Current green streak', R.current_green_streak_days+' days', 'recovery ≥ 67'],
+    ['Longest sleep', fmtHM(R.longest_sleep_h.v), fmtDate(R.longest_sleep_h.date)],
+    ['Current green streak', R.current_green_streak_days+(R.current_green_streak_days === 1 ? ' day' : ' days'), 'recovery ≥ 67'],
     ...(R.best_week_sessions ? [['Best week', R.best_week_sessions+' sessions', 'in one calendar week']] : []),
     ['Total training time', R.total_training_hours+' hrs', `${DATA.total_workouts} sessions`],
     ['Total distance', R.total_dist_km+' km', 'GPS-tracked sports'],
