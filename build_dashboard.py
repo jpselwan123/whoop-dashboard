@@ -251,7 +251,11 @@ def build_warning(hrv_by_day, rhr_by_day, rr_by_day):
 #   3. Markers are expressed in SD units (resting HR sign-flipped so higher = better),
 #      clipped to ±3, and combined with equal (unit) weights — no study has validated
 #      specific weights, and unit weighting is the robust default (Dawes 1979).
-#   4. Score = 50 + 25 × mean, clamped 0–100: 50 = exactly your normal. At or above
+#   4. The same three markers from last night alone (vs the single nights of the previous
+#      60 days) form a second part; readiness = ½ last night + ½ trend (READY_WEIGHTS).
+#      Averages hide individual next-day responses (Schneider et al. 2019), single nights
+#      are noisy (Plews et al. 2012), so both count. No last-night HRV → trend only.
+#   5. Score = 50 + 25 × mean, clamped 0–100: 50 = exactly your normal. At or above
 #      +0.5 SD (63+) = above normal, below −0.5 SD (<38) = below normal, in between = normal —
 #      the same "within / above / below SWC" rule the trials used to prescribe intensity.
 READY_WINDOWS = {'hrv': 7, 'rhr': 7, 'sleep': 3}
@@ -259,6 +263,11 @@ READY_MIN_IN_WINDOW = {'hrv': 4, 'rhr': 4, 'sleep': 2}
 READY_BASELINE_DAYS = 60
 READY_MIN_BASELINE = 21
 READY_SWC = 0.5
+# Last night and the recent trend count equally. Single-day values keep individual next-day
+# responses visible (Schneider 2019; Kiviniemi 2007 guided training on each morning's HRV);
+# rolling averages cut single-night noise (Plews 2012; Javaloyes 2019). No study has validated
+# a split, so equal weights (Dawes 1979).
+READY_WEIGHTS = {'last_night': 0.5, 'trend': 0.5}
 
 
 def _rolling_by_calendar(by_day, window, min_n, transform=lambda v: v):
@@ -300,35 +309,60 @@ def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day):
         sd = max(sd, 0.01 if marker == 'hrv' else 0.01 * abs(m))   # HRV is on a ln scale: 0.01 ≈ 1%
         return (m, sd) if sd > 0 else None
 
-    series = []
-    latest = None
-    for d in sorted(rolled['hrv']):
+    raw = {
+        'hrv': {k: math.log(v) for k, v in hrv_by_day.items() if v and v > 0},
+        'rhr': {k: v for k, v in rhr_by_day.items() if v is not None},
+        'sleep': {k: v for k, v in sleep_perf_by_day.items() if v is not None},
+    }
+
+    def night_baseline(marker, d):
+        """Single nights over the 60 days before d (d itself excluded)."""
+        end = _date.fromisoformat(d)
+        start = end - timedelta(days=READY_BASELINE_DAYS)
+        vals = [v for k, v in raw[marker].items() if start <= _date.fromisoformat(k) < end]
+        if len(vals) < READY_MIN_BASELINE:
+            return None
+        m, sd = mean(vals), pstdev(vals)
+        sd = max(sd, 0.01 if marker == 'hrv' else 0.01 * abs(m))
+        return (m, sd) if sd > 0 else None
+
+    def part(values, base_fn, d):
         zs, parts = {}, {}
         for marker in ('hrv', 'rhr', 'sleep'):
-            if d not in rolled[marker]:
+            if d not in values[marker]:
                 continue
-            b = baseline(marker, d)
+            b = base_fn(marker, d)
             if not b:
                 continue
             m, sd = b
-            z = max(-3.0, min(3.0, sign[marker] * (rolled[marker][d] - m) / sd))
-            zs[marker] = z
+            v = values[marker][d]
+            zs[marker] = max(-3.0, min(3.0, sign[marker] * (v - m) / sd))
             lo, hi = m - READY_SWC * sd, m + READY_SWC * sd
             if marker == 'hrv':   # back from ln(ms) to ms for display
-                parts[marker] = {'value': round(math.exp(rolled[marker][d])), 'normal': [round(math.exp(lo)), round(math.exp(hi))]}
-            elif marker == 'rhr':
-                parts[marker] = {'value': round(rolled[marker][d], 1), 'normal': [round(lo, 1), round(hi, 1)]}
+                parts[marker] = {'value': round(math.exp(v)), 'normal': [round(math.exp(lo)), round(math.exp(hi))]}
             else:
-                parts[marker] = {'value': round(rolled[marker][d], 1), 'normal': [round(lo, 1), round(hi, 1)]}
+                parts[marker] = {'value': round(v, 1), 'normal': [round(lo, 1), round(hi, 1)]}
+        return zs, parts
+
+    to_score = lambda c: max(0, min(100, math.floor(50 + 25 * c + 0.5)))   # half-up, never banker's rounding
+    series = []
+    latest = None
+    for d in sorted(rolled['hrv']):
+        zs, parts = part(rolled, baseline, d)
         if 'hrv' not in zs:        # HRV is the evidence-backed core; no score without it
             continue
-        composite = mean(zs.values())
-        score = max(0, min(100, math.floor(50 + 25 * composite + 0.5)))   # half-up, never banker's rounding
-        # readiness only describes the body; the day badge (page) decides what to do
+        trend = mean(zs.values())
+        nz, nparts = part(raw, night_baseline, d)
+        night = mean(nz.values()) if 'hrv' in nz else None
+        composite = trend if night is None else READY_WEIGHTS['trend'] * trend + READY_WEIGHTS['last_night'] * night
+        score = to_score(composite)
         state = 'above' if composite >= READY_SWC else 'below' if composite < -READY_SWC else 'normal'
         series.append({'date': d, 'v': score})
-        latest = {'date': d, 'score': score, 'state': state, 'z': {k: round(v, 2) for k, v in zs.items()},
-                  'components': parts}
+        latest = {'date': d, 'score': score, 'state': state,
+                  'trend': {'score': to_score(trend), 'z': {k: round(v, 2) for k, v in zs.items()}, 'components': parts},
+                  'last_night': None if night is None else
+                  {'score': to_score(night), 'z': {k: round(v, 2) for k, v in nz.items()}, 'components': nparts},
+                  'weights': dict(READY_WEIGHTS)}
     if latest is None:
         return None, []
     # 'rest' = −1 SD (a design choice, stricter than the ±½ SD trial rule); keep in sync with READY_BANDS in the template

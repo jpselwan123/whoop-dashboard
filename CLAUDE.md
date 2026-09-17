@@ -45,9 +45,10 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   sign must be *confirmed* by `build_warning` — 2 of last 3 nights or 2+ vitals, still out last night — and caps
   37→24 graded; one-off nights are only "watching"; trained hard today / overload week ≤37) — never an "override" or a second verdict label.
   One explanation panel (click the orb).
-- **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 7-day ln-RMSSD
-  HRV + 7-day resting HR + 3-night sleep, each vs a 60-day personal baseline (±0.5 SD SWC), equal
-  weights, 50 = normal (the body-trend score). No sliders. Changes to the model need a cited source and tests
+- **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 50% last night
+  (ln-RMSSD HRV, resting HR, sleep vs single nights of the last 60 days) + 50% trend (7-day HRV,
+  7-day resting HR, 3-night sleep vs a 60-day baseline); ±0.5 SD SWC, equal weights (`READY_WEIGHTS`),
+  50 = normal (the body score). No sliders. Changes to the model need a cited source and tests
   (`tests/test_readiness.py`); recovery keeps WHOOP zones 34/67.
 - Add a test for new metrics or server behavior; run tests + privacy scan before pushing.
 

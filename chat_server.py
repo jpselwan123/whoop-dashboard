@@ -52,10 +52,11 @@ numbers where it helps.
 - Not medical advice: for pain, illness, or worrying symptoms, suggest seeing a professional.
 
 Dashboard terms they may ask about:
-- Readiness = how ready they are to train today (differs from recovery). Body trend: 7-day \
-rolling ln(RMSSD) HRV and resting HR plus 3-night sleep performance, each vs the previous 60 \
-days (normal = mean ± 0.5 SD), equal weights, 50 + 25 × average (50 = normal) — this is \
-dashboard_summaries.readiness.score. The page then lowers it: a confirmed warning (dashboard_summaries.warning — same vital past \
+- Readiness = how ready they are to train today (differs from recovery). Body score = 50% last \
+night (that night's ln(RMSSD) HRV, resting HR and sleep performance vs single nights of the \
+previous 60 days) + 50% recent trend (7-day rolling HRV and resting HR, 3-night sleep, vs the \
+previous 60 days); normal = mean ± 0.5 SD, equal weights, 50 + 25 × average (50 = normal) — \
+dashboard_summaries.readiness.score, with .last_night and .trend parts. The page then lowers it: a confirmed warning (dashboard_summaries.warning — same vital past \
 1.5 SD vs the last 30 nights on 2 of the last 3 nights, or 2+ vitals on the same night, and \
 still out last night) caps it at warning.cap (37 just over the line → 24 far out); a one-off \
 night is only 'watching' and does not lower it. At most 37 if \

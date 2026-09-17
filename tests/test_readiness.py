@@ -1,4 +1,5 @@
-"""Readiness model: 7-day HRV / resting HR and 3-night sleep vs a 60-day personal baseline."""
+"""Readiness model: half last night, half recent trend (7-day HRV / resting HR, 3-night sleep),
+each vs a 60-day personal baseline."""
 import math, random, unittest
 from datetime import date, timedelta
 from helpers import generate, build_dashboard as bd
@@ -42,7 +43,7 @@ class ReadinessTest(unittest.TestCase):
         latest, _ = bd.build_readiness(h, r, s)
         self.assertEqual(latest['state'], 'below')
         self.assertLess(latest['score'], 38)
-        self.assertLess(latest['z']['rhr'], 0, "higher resting HR must lower readiness")
+        self.assertLess(latest['trend']['z']['rhr'], 0, "higher resting HR must lower readiness")
 
     def test_strong_week_is_peak(self):
         h, r, s, ds = self.flat()
@@ -83,8 +84,43 @@ class ReadinessTest(unittest.TestCase):
     def test_normal_band_is_reported_in_real_units(self):
         h, r, s, _ = self.flat()
         latest, _ = bd.build_readiness(h, r, s)
-        lo, hi = latest['components']['hrv']['normal']
-        self.assertTrue(60 < lo < hi < 100, (lo, hi))    # ms, not ln(ms)
+        for part in ('trend', 'last_night'):
+            lo, hi = latest[part]['components']['hrv']['normal']
+            self.assertTrue(60 < lo < hi < 100, (part, lo, hi))    # ms, not ln(ms)
+
+    def test_score_is_half_last_night_half_trend(self):
+        for n in range(80, 100):
+            h, r, s, _ = self.flat(n=n)
+            latest, _ = bd.build_readiness(h, r, s)
+            mean_z = lambda part: sum(latest[part]['z'].values()) / len(latest[part]['z'])
+            expected = max(0, min(100, math.floor(50 + 25 * (0.5 * mean_z('trend') + 0.5 * mean_z('last_night')) + 0.5)))
+            # z values are rounded to 2 decimals in the output, so allow one point
+            self.assertLessEqual(abs(latest['score'] - expected), 1)
+            self.assertEqual(latest['weights'], {'last_night': 0.5, 'trend': 0.5})
+
+    def test_great_night_after_normal_week_moves_readiness(self):
+        h, r, s, ds = self.flat()
+        h[ds[-1]] *= 1.6      # one very strong night
+        r[ds[-1]] *= 0.9
+        latest, _ = bd.build_readiness(h, r, s)
+        self.assertGreater(latest['last_night']['score'], latest['trend']['score'])
+        self.assertGreaterEqual(latest['score'] - latest['trend']['score'], 5,
+                                "last night must count for more than 1/7 of the answer")
+
+    def test_one_bad_night_does_not_erase_a_good_week(self):
+        h, r, s, ds = self.flat()
+        for d in ds[-7:-1]:
+            h[d] *= 1.4; r[d] *= 0.9
+        h[ds[-1]] *= 0.6; r[ds[-1]] *= 1.1
+        latest, _ = bd.build_readiness(h, r, s)
+        self.assertLess(latest['last_night']['score'], 38)
+        self.assertGreater(latest['score'], latest['last_night']['score'])
+
+    def test_last_night_baseline_excludes_last_night(self):
+        h, r, s, ds = self.flat(jitter=False)
+        h[ds[-1]] *= 2      # an outlier must be judged against the nights before it, not itself
+        latest, _ = bd.build_readiness(h, r, s)
+        self.assertEqual(latest['last_night']['z']['hrv'], 3.0)
 
     def test_summary_includes_readiness(self):
         summary = bd.build_summary(generate(120))
