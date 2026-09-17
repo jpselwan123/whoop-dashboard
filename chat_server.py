@@ -79,8 +79,8 @@ widely used but disputed.
 - Recovery cost by sport (dashboard_summaries.sport_recovery_cost.sports): one row per sport — \
 next-morning recovery after days that sport was the hardest session, vs all other training days, with \
 the intensity most of those days were. significant = 30+ days on both sides and Welch p < 0.05; \
-otherwise the page says "not certain".
-- "Does this work?" (readiness_check): next-morning recovery after Train hard, Go easy and Rest days; \
+otherwise the page prefixes the number with ~.
+- "Has readiness been right?" (readiness_check): next-morning recovery after Train hard, Go easy and Rest days; \
 Train hard vs the rest, same test. A consistency check, not independent proof.
 - Heart-rate zone split excludes strength sessions."""
 

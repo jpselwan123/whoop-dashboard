@@ -77,9 +77,9 @@ invent one.
 <img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap and recovery cost by sport at the same intensity" width="880">
 
 - **Recovery calendar heatmap** of every day on record.
-- **Does this work?** — average next-morning recovery after Train hard, Go easy and Rest days,
-  and whether the gap passes a standard significance test. A consistency check
-  (recovery shares HRV and resting HR with the answer), not independent proof.
+- **Has readiness been right?** — every past day grouped by what readiness said, next to how you
+  actually recovered the morning after, and whether the gap passes a standard significance test.
+  A consistency check (recovery shares HRV and resting HR with the score), not independent proof.
 - **Recovery cost by sport** — one row per sport against your other training days, with your 4
   most-played shown and the rest in a dropdown; gaps that could be chance say so.
 - Trend explorer for any metric including readiness, personal records, and the full training log.
@@ -218,8 +218,8 @@ WHOOP recovery are shown next to the score.
 | **Load ratio (ACWR)** | Average strain over the last 7 calendar days ÷ last 28 (21+ days of data); bands 0.8 / 1.3 / 1.5 | Gabbett 2016 — predictive value disputed by [Impellizzeri et al., 2020](https://www.researchgate.net/publication/341936245_AcuteChronic_Workload_Ratio_Conceptual_Issues_and_Fundamental_Pitfalls) |
 | **Sleep** | Nights in the last 7 with 7+ hours asleep | [AASM & Sleep Research Society, Watson et al., 2015](http://jcsm.aasm.org/doi/10.5664/jcsm.4758) |
 | **Rest day** | The last finished day with no logged workout — a fact, no threshold | — |
-| **Sport recovery cost** | One row per sport: next-morning recovery after days that sport was your hardest session, vs all your other training days, with the intensity most of those days were. Your 4 most-played sports are shown, the rest in a dropdown; a gap counts as real only with 30+ days on both sides and Welch's t-test p < 0.05, otherwise it is marked "not certain" | Standard statistical conventions |
-| **Does this work?** | Next-morning recovery after Train hard, Go easy and Rest days; Train hard vs the rest tested the same way | Standard statistical conventions |
+| **Sport recovery cost** | One row per sport: next-morning recovery after days that sport was your hardest session, vs all your other training days, with the intensity most of those days were. Your 4 most-played sports are shown, the rest in a dropdown; a gap counts as real only with 30+ days on both sides and Welch's t-test p < 0.05, otherwise the number is prefixed with ~ | Standard statistical conventions |
+| **Has readiness been right?** | Next-morning recovery after Train hard, Go easy and Rest days; Train hard vs the rest tested the same way | Standard statistical conventions |
 | **▲▼ vs 30-day average** | Shown after 28 days; "= avg" when within ±0.5 SD of the last 30 days | Same smallest-worthwhile-change line as the protocol |
 
 **Honest limits.** The protocol comes from endurance-athlete trials that measured HRV on waking;
