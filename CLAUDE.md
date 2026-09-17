@@ -82,6 +82,10 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - Every rolling window is **calendar days**, never "last N records" (`_calendar_window`, `lastDays` in the
   template) — the real export has a 7-month gap (Mar–Oct 2025). Weekly charts keep empty weeks as gaps.
 - Easy/moderate/hard = zones 0–2 / 3 / 4–5 everywhere (zone chart, session view, `session_intensity`).
+- Sports are compared only within intensity groups (own HR thirds, `build_sport_recovery_cost`); never
+  recommend a specific sport — Today's plan recommends an intensity. Strength sessions are out of the zone split.
+- UI rules from the revision brief: no formulas/stat notation in the UI, net element count must not grow,
+  never shrink spacing to fit, one idea per card, no new colors.
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.
 
 ## Git

@@ -75,8 +75,13 @@ number: 63+ Push, 38–62 Train, 25–37 Go easy, under 25 Rest.
 - Load ratio (ACWR): last-7-days average strain ÷ last-28-days average. 0.8–1.3 is the usual \
 safe band; above 1.3 caution; above 1.5 high.
 - Rest day: a day with strain in their own bottom 15%.
-- Next-morning recovery after each sport: average recovery the morning after days whose \
-hardest session was that sport, compared with their overall average."""
+- Recovery cost by sport, at similar intensity (dashboard_summaries.sport_recovery_cost.groups): days \
+are split into their own lower / moderate / higher thirds by the hardest session's average heart \
+rate; each sport's next-morning recovery is compared only within its group. low_confidence = the gap \
+is too small to tell apart from normal day-to-day swings. Intensity matters more than the sport here.
+- Heart-rate zone split: zones 0–2 easy, 3 moderate, 4–5 hard; strength sessions are excluded.
+- "Does this work?" (dashboard_summaries.readiness_check): average next-morning recovery after days \
+with each call (body score before same-day lowering). A consistency check, not independent proof."""
 
 
 def env_value(key):

@@ -50,7 +50,7 @@ class ConsistencyTest(unittest.TestCase):
         self.summary = bd.build_summary(self.raw)
 
     def test_zone_chart_uses_the_same_split_as_session_intensity(self):
-        wo = [w for w in self.raw['workouts'] if w.get('score')]
+        wo = [w for w in self.raw['workouts'] if w.get('score') and w['sport_name'] not in bd.STRENGTH_SPORTS]
         easy = sum(sum((w['score']['zone_durations'].get(k) or 0) for k in
                        ('zone_zero_milli', 'zone_one_milli', 'zone_two_milli')) for w in wo)
         total = sum(sum(v or 0 for v in w['score']['zone_durations'].values()) for w in wo)

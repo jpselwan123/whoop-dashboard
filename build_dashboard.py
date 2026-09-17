@@ -129,26 +129,56 @@ def build_monotony(strain_by_day):
     return out
 
 
+# Sport recovery cost, at similar intensity. Comparing sports directly mostly compares heart
+# rate (weightlifting averages ~40 bpm lower than soccer at similar strain), so each day's
+# hardest session is first grouped by its average heart rate — the person's own lower, middle
+# and upper third — and sports are compared only with sessions of similar intensity.
+SPORT_COST_MIN_DAYS = 30        # days with a session + next-morning recovery before grouping at all
+SPORT_COST_MIN_SESSIONS = 10    # sessions of a sport inside an intensity group to show it
+NOISE_Z = 2                     # a gap smaller than ~2 standard errors is shown dimmed (not distinguishable)
+
+
 def build_sport_recovery_cost(wo, recovery_by_day):
-    """Average next-calendar-day recovery after a day whose hardest session was sport X,
-    vs this athlete's overall average recovery. Not something the WHOOP app computes."""
-    overall_avg = mean(recovery_by_day.values())
+    """Average next-morning recovery after days whose hardest session was each sport,
+    compared within intensity groups. Not something the WHOOP app computes."""
+    overall_avg = mean(recovery_by_day.values()) if recovery_by_day else None
     day_workouts = defaultdict(list)
     for w in wo:
-        day_workouts[day(w['created_at'])].append((sport_label(w['sport_name']), w['score']['strain']))
-    by_sport = defaultdict(list)
-    for d, sessions in day_workouts.items():
-        dominant = max(sessions, key=lambda x: x[1])[0]
+        day_workouts[day(w['created_at'])].append(w)
+    sessions = []
+    for d, ws in day_workouts.items():
+        dominant = max(ws, key=lambda w: w['score']['strain'])
+        hr = dominant['score'].get('average_heart_rate')
         next_day = (datetime.fromisoformat(d) + timedelta(days=1)).date().isoformat()
-        if next_day in recovery_by_day:
-            by_sport[dominant].append(recovery_by_day[next_day])
-    results = []
-    for sport, vals in by_sport.items():
-        if len(vals) >= 8:
-            results.append({'sport': sport, 'n': len(vals), 'avg_next_day_recovery': round(mean(vals), 1),
-                             'delta': round(mean(vals) - overall_avg, 1)})
-    results.sort(key=lambda x: x['delta'])
-    return {'overall_avg_recovery': round(overall_avg, 1), 'sports': results}
+        if hr and next_day in recovery_by_day:
+            sessions.append((sport_label(dominant['sport_name']), hr, recovery_by_day[next_day]))
+    out = {'overall_avg_recovery': round(overall_avg, 1) if overall_avg is not None else None, 'groups': []}
+    if len(sessions) < SPORT_COST_MIN_DAYS:
+        return out
+    hrs = sorted(h for _, h, _ in sessions)
+    cut1, cut2 = hrs[len(hrs) // 3], hrs[2 * len(hrs) // 3]
+    for key, lo, hi in (('lower', 0, cut1), ('moderate', cut1, cut2), ('higher', cut2, float('inf'))):
+        group = [x for x in sessions if lo <= x[1] < hi]
+        if not group:
+            continue
+        vals = [r for _, _, r in group]
+        g_avg, g_sd = mean(vals), pstdev(vals)
+        by_sport = defaultdict(list)
+        for sport, _, r in group:
+            by_sport[sport].append(r)
+        sports = []
+        for sport, rs in by_sport.items():
+            if len(rs) < SPORT_COST_MIN_SESSIONS:
+                continue
+            delta = mean(rs) - g_avg
+            sports.append({'sport': sport, 'n': len(rs), 'avg_next_recovery': round(mean(rs), 1),
+                           'delta': round(delta, 1),
+                           'low_confidence': abs(delta) < NOISE_Z * g_sd / math.sqrt(len(rs))})
+        sports.sort(key=lambda x: x['delta'])
+        out['groups'].append({'intensity': key, 'hr_from': None if lo == 0 else lo,
+                              'hr_to': None if hi == float('inf') else hi,
+                              'days': len(group), 'avg_next_recovery': round(g_avg, 1), 'sports': sports})
+    return out
 
 
 # Fatigue flags and warning signs compare each night with the 30 calendar days before it,
@@ -501,6 +531,9 @@ def build_sleep_composition(sleep, now):
     } for wk in weeks]
 
 
+STRENGTH_SPORTS = {'weightlifting', 'weightlifting_msk', 'powerlifting'}
+
+
 def build_zone_distribution(wo, now):
     """Weekly time-in-heart-rate-zone breakdown from workout.score.zone_durations
     (WHOOP's own zone_zero..zone_five, each a band of % of max heart rate — WHOOP
@@ -523,7 +556,7 @@ def build_zone_distribution(wo, now):
     all_time = [0.0, 0.0, 0.0]
     for w in wo:
         zd = w['score'].get('zone_durations')
-        if not zd:
+        if not zd or w['sport_name'] in STRENGTH_SPORTS:   # mostly rest between sets, counted as "easy"
             continue
         easy, mod, hard = bucket_hours(zd)
         key = iso_week_key(parse(w['created_at']))
@@ -568,7 +601,8 @@ def build_rest_day_stat(cyc):
             break
     if last_rest_idx is None:
         return None
-    days_since = len(completed) - 1 - last_rest_idx
+    today = parse(cyc[-1]['created_at']).date()
+    days_since = (today - parse(completed[last_rest_idx]['created_at']).date()).days
     return {
         'last_rest_date': day(completed[last_rest_idx]['created_at']),
         'days_since': days_since,
@@ -646,7 +680,7 @@ def build_summary(d):
     last30_rec, last30_cyc, last30_sleep = rec[-30:], cyc[-30:], sleep[-30:]
     last7_cyc = cyc[-7:]
 
-    sports = Counter(w['sport_name'] for w in wo)
+    sports = Counter(sport_label(w['sport_name']) for w in wo)
     now = parse(cyc[-1]['created_at'])
     week_wo_counts = Counter()
     for w in wo:
@@ -804,7 +838,7 @@ def build_summary(d):
             'sleep_efficiency_percentage': round(mean([s['score']['sleep_efficiency_percentage'] for s in last30_sleep]), 1),
         },
         'avg7_strain': round(mean([c['score']['strain'] for c in last7_cyc]), 2),
-        'sports': sports.most_common(8),
+        'sports': sports.most_common(),
         'workouts_per_week_last8': wpw,
         'workouts_per_week_starts': wpw_starts,
         'n_days_total': len(cyc),

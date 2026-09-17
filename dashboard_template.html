@@ -462,7 +462,7 @@
 
   <section class="card">
     <div class="section-head"><h2>Time in heart-rate zones</h2><span class="n" id="zoneTotal"></span></div>
-    <div class="section-sub">WHOOP records which of its 6 heart-rate zones every workout minute falls in but never totals it. Grouped here into easy (zones 0–2), moderate (3) and hard (4–5), the same split that rates each session — some endurance coaches use roughly 80% easy / 20% moderate-hard as a reference split, not a fixed rule.</div>
+    <div class="section-sub">WHOOP records which of its 6 heart-rate zones every workout minute falls in but never totals it. Grouped here into easy (zones 0–2), moderate (3) and hard (4–5), the same split that rates each session — some endurance coaches use roughly 80% easy / 20% moderate-hard as a reference split, not a fixed rule. Strength sessions are left out — most of their time is rest between sets.</div>
     <div class="explorer-stats" id="zoneSplitRow"></div>
     <div class="chart-wrap" id="zoneChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="zoneTooltip"></div></div>
     <div class="legend">
@@ -530,8 +530,8 @@
   </section>
 
   <section class="card">
-    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Next-morning recovery after each sport</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n">whole history</span></div>
-    <div class="section-sub">Average recovery the morning after a day whose hardest session was each sport, vs your <span id="sportCostBaseline">—</span> overall average. This is a correlation, not a controlled comparison — sessions differ in day-of-week, heart-rate intensity, and what else happened that day.</div>
+    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery cost by sport, at similar intensity</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportCostMonths"></span></div>
+    <div class="section-sub">Next-morning recovery after each sport, compared only with days of similar heart rate. Faded bars are gaps too small to tell apart from normal day-to-day swings.</div>
     <div id="sportCostRows" style="margin-top:14px;"></div>
   </section>
 
@@ -556,10 +556,7 @@
       <b>Measured vs. modeled</b>
       <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is the one model: how ready you are to train today — last night's HRV, resting HR and sleep hours vs needed plus their recent trend, each vs your own last 60 days, lowered by warning signs or today's context. Click the orb for the numbers.</span>
     </div>
-    <div class="grp">
-      <b>About the orb</b>
-      <span>The orb's color follows today's readiness score.</span>
-    </div>
+    <div class="grp"><span id="baselineNote"></span></div>
     <div class="grp"><span id="coverageNote"></span></div>
   </footer>
 
@@ -771,7 +768,8 @@ function renderHalves(calc){
 }
 
 function renderSuggestions(calc, alreadyTrainedHard, overloadCombo, rest){
-  const sports = DATA.sport_recovery_cost.sports; // sorted ascending by delta (most costly first)
+  const groups = DATA.sport_recovery_cost.groups || [];
+  const lower = groups.find(g => g.intensity === 'lower'), higher = groups.find(g => g.intensity === 'higher');
   const sEl = $('sportSuggestSignal'), sTxt = $('sportSuggestText');
   const fatigueFlagged = !!(DATA.warning && DATA.warning.confirmed);
 
@@ -780,28 +778,26 @@ function renderSuggestions(calc, alreadyTrainedHard, overloadCombo, rest){
     sTxt.innerHTML = `<b>You're done for today — and make tomorrow a rest day.</b> ${rest.days_since} days since your last true rest day, this week's load has been unusually concentrated, and your ACWR is in ${acwrZoneLabel}.`;
   } else if(alreadyTrainedHard){
     sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>You're done for today.</b> You've already trained hard — no need to pick another sport.`;
+    sTxt.innerHTML = `<b>You're done for today.</b> You've already trained hard — no need for another session.`;
   } else if(overloadCombo){
     sEl.className = 'signal warn';
-    sTxt.innerHTML = `<b>Take a rest or easy day.</b> ${rest.days_since} days since your last true rest day, this week's load has been unusually concentrated, and your ACWR is in ${acwrZoneLabel} — that combination calls for backing off, not another hard sport.`;
+    sTxt.innerHTML = `<b>Take a rest or easy day.</b> ${rest.days_since} days since your last true rest day, this week's load has been unusually concentrated, and your ACWR is in ${acwrZoneLabel} — that combination calls for backing off, not another hard session.`;
   } else if(calc.action === 'easy' || calc.action === 'rest' || fatigueFlagged){
     sEl.className = 'signal warn';
     sTxt.innerHTML = fatigueFlagged
-      ? `<b>Skip picking a sport today.</b> HRV, resting HR or breathing rate left your normal range recently — let it settle first.`
-      : `<b>Skip picking a sport today.</b> Readiness is below your normal range — an easy day or full rest fits better than ranking sports by recovery cost.`;
-  } else if(sports.length){
-    if(calc.action === 'push'){
-      const hard = sports.filter(s=>s.delta<0).sort((a,b)=>b.n-a.n)[0] || sports[sports.length-1];
-      sEl.className = 'signal ok';
-      sTxt.innerHTML = `<b>Good day for ${hard.sport}.</b> You're cleared to push, and it's one of your regular hard sessions.`;
-    } else {
-      const easiest = sports[sports.length-1];
-      sEl.className = 'signal ok';
-      sTxt.innerHTML = `<b>Try ${easiest.sport} today.</b> Of everything you play, it's followed by the smallest recovery dip the next morning (${easiest.delta>0?'+':''}${easiest.delta} vs your average) — a good fit while readiness is middling.`;
-    }
+      ? `<b>Skip hard training today.</b> HRV, resting HR or breathing rate left your normal range recently — let it settle first.`
+      : `<b>Keep today easy or rest.</b> Readiness is below your normal range.`;
+  } else if(calc.action === 'push'){
+    sEl.className = 'signal ok';
+    sTxt.innerHTML = `<b>A higher-intensity session fits today.</b> You're cleared to push.`;
+  } else if(lower && higher){
+    sEl.className = 'signal ok';
+    sTxt.innerHTML = lower.avg_next_recovery > higher.avg_next_recovery
+      ? `<b>A lower-intensity session fits today.</b> Your lower-heart-rate days are followed by better recovery (${Math.round(lower.avg_next_recovery)} vs ${Math.round(higher.avg_next_recovery)}), whatever the sport.`
+      : `<b>A normal session fits today.</b> Your recovery doesn't depend much on how intense the day was.`;
   } else {
     sEl.className = 'signal';
-    sTxt.textContent = 'Not enough training history yet to suggest a sport.';
+    sTxt.innerHTML = `<b>A normal session fits today.</b> Not enough training history yet to compare intensities.`;
   }
 
   const tips = [];
@@ -811,7 +807,7 @@ function renderSuggestions(calc, alreadyTrainedHard, overloadCombo, rest){
     ? `Keep tomorrow light — you've trained harder than usual this week.`
     : `You're training harder than usual this week — favor technique or mobility over volume.`);
   if(DATA.warning && DATA.warning.confirmed) tips.push(`Body signals are outside your normal range — prioritize sleep tonight.`);
-  if(!overloadCombo && monotonyHighFlag) tips.push(`This week's load has been unusually concentrated with few easy days — build one in soon.`);
+  if(!overloadCombo && monotonyHighFlag) tips.push(`${monotonyWeekName} was unusually hard-every-day for you — build an easy day in soon.`);
   if(tips.length === 0) tips.push(overloadCombo ? `Prioritize sleep tonight.` : `Nothing unusual in your numbers today — a normal week, stick to your plan.`);
   const tEl = $('tipsSignal'), tTxt = $('tipsText');
   const allClear = tips.length===1 && tips[0].startsWith('Nothing');
@@ -837,6 +833,19 @@ function countUp(el, target, format){
 }
 function reduceMotionPref(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
 
+// Sleep debt direction over 14 days: the last 7 days' average vs the 7 before, in one word.
+// 15 minutes either way counts as a real change (a design choice).
+function debtDirection(){
+  const pts = lastDays(DATA.full_series.sleep_debt || [], 14);
+  if(!pts.length) return null;
+  const split = new Date(pts[pts.length-1].date + 'T00:00:00Z'); split.setUTCDate(split.getUTCDate() - 6);
+  const from = split.toISOString().slice(0,10);
+  const recent = pts.filter(p => p.date >= from).map(p => p.v), before = pts.filter(p => p.date < from).map(p => p.v);
+  if(recent.length < 4 || before.length < 4) return null;
+  const avg = a => a.reduce((x,y)=>x+y,0) / a.length, diff = avg(recent) - avg(before);
+  return diff > 0.25 ? 'building' : diff < -0.25 ? 'clearing' : 'holding';
+}
+
 function renderStats(){
   const L = DATA.latest, A = DATA.avg30, F = DATA.full_series;
   $('athleteName').textContent = DATA.profile.name;
@@ -856,7 +865,7 @@ function renderStats(){
     ],
     load: [
       {label:'Sleep', unit:'%', value:L.sleep_performance_percentage, avg:A.sleep_performance_percentage, series:'sleep_performance', fmt:int, dfmt:int, better:1, tol:2},
-      {label:'Sleep debt', value:L.sleep_debt_hours, avg:meanOf(lastN('sleep_debt', 30)), series:'sleep_debt', fmt:fmtHM, dfmt:fmtHM, better:-1, tol:0.1},
+      {label: debtDirection() ? `Sleep debt · ${debtDirection()}` : 'Sleep debt', value:L.sleep_debt_hours, avg:meanOf(lastN('sleep_debt', 30)), series:'sleep_debt', fmt:fmtHM, dfmt:fmtHM, better:-1, tol:0.1},
       {label:'Strain · 7-day avg', value:DATA.avg7_strain, avg:A.strain, series:'strain', fmt:fmt1, dfmt:fmt1, better:0, tol:0.3},
     ],
   };
@@ -1320,14 +1329,14 @@ function renderTodaySignals(){
     sTxt.innerHTML = `No session logged ${isExportToday?'yesterday':`on ${dayLabel}`} (${yesterday}) — nothing to compare.`;
   } else {
     const dominant = sessions.reduce((a,b)=> b.strain>a.strain?b:a);
-    const cost = DATA.sport_recovery_cost.sports.find(s=>s.sport===dominant.sport);
+    const g = (DATA.sport_recovery_cost.groups || []).find(x => dominant.avg_hr != null
+      && (x.hr_from == null || dominant.avg_hr >= x.hr_from) && (x.hr_to == null || dominant.avg_hr < x.hr_to));
     sEl.className = 'signal';
-    if(cost){
-      sEl.className = cost.delta < -3 ? 'signal warn' : cost.delta > 3 ? 'signal ok' : 'signal';
-      const cmp = cost.delta >= 0 ? `about <b>${cost.delta}</b> points above` : `about <b>${Math.abs(cost.delta)}</b> points below`;
-      sTxt.innerHTML = `${dayLabel}'s hardest session was <b>${dominant.sport}</b> (strain ${fmt1(dominant.strain)}). Historically, your recovery the morning after ${dominant.sport} runs ${cmp} your average, based on ${cost.n} past sessions like it — correlation, not a guarantee.`;
+    if(g){
+      const name = `${g.intensity}-intensity`;
+      sTxt.innerHTML = `${dayLabel}'s hardest session was <b>${dominant.sport}</b> (avg HR ${dominant.avg_hr}, ${name}). After your ${name} days, recovery the next morning averages <b>${Math.round(g.avg_next_recovery)}</b> — correlation, not a guarantee.`;
     } else {
-      sTxt.innerHTML = `${dayLabel}'s hardest session was <b>${dominant.sport}</b> — not enough history on that sport yet (need 8+ sessions) to say what typically follows it.`;
+      sTxt.innerHTML = `${dayLabel}'s hardest session was <b>${dominant.sport}</b> — not enough history yet to say what typically follows a day like it.`;
     }
   }
 
@@ -1336,9 +1345,9 @@ function renderTodaySignals(){
   if(!rest){
     rEl.className = 'signal';
     rTxt.textContent = 'Not enough history yet to tell what a rest day looks like for you.';
-  } else if(rest.days_since === 0){
+  } else if(rest.days_since <= 1){
     rEl.className = 'signal ok';
-    rTxt.innerHTML = `<b>Your last true rest day was today.</b> (Strain at or below ${rest.threshold} — your own bottom 15%.)`;
+    rTxt.innerHTML = `<b>Your last true rest day was ${rest.days_since === 0 ? 'today' : 'yesterday'}.</b> (Strain at or below ${rest.threshold} — your own bottom 15%.)`;
   } else {
     rEl.className = rest.days_since >= 10 ? 'signal warn' : 'signal';
     rTxt.innerHTML = `<b>${rest.days_since} days since your last true rest day</b> (${fmtDate(rest.last_rest_date)}, strain ≤ ${rest.threshold} — your own bottom 15%).`;
@@ -1389,6 +1398,7 @@ function renderACWR(){
 /* ================= training variety (last 7 days) ================= */
 let monotonyHighFlag = false;
 let monotonyPct = null;
+let monotonyWeekName = 'This week';
 function renderMonotony(){
   const strain7 = lastDays(DATA.full_series.strain, 7);
   const cats = strain7.map(p => new Date(p.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}));
@@ -1408,7 +1418,7 @@ function renderMonotony(){
   const last = new Date(DATA.date_range[1]+'T00:00:00');
   const thisMonday = new Date(last); thisMonday.setDate(last.getDate() - ((last.getDay() + 6) % 7));
   const mondayISO = `${thisMonday.getFullYear()}-${String(thisMonday.getMonth()+1).padStart(2,'0')}-${String(thisMonday.getDate()).padStart(2,'0')}`;
-  const weekName = judged.start >= mondayISO ? 'This week' : `The week of ${weekRangeLabel(judged.start)}`;
+  const weekName = monotonyWeekName = judged.start >= mondayISO ? 'This week' : `The week of ${weekRangeLabel(judged.start)}`;
   if(pct >= 80){
     flagEl.innerHTML = `<div class="signal warn"><span class="dot"></span><span class="txt"><b>${weekName} was unusually hard-every-day for you</b> — more concentrated than ${pct}% of your previous weeks. Worth building in a genuinely easy day.</span></div>`;
   } else {
@@ -1433,21 +1443,28 @@ function renderZoneDistribution(){
 }
 
 /* ================= sport recovery cost ================= */
+const INTENSITY_NAME = {lower:'Lower intensity', moderate:'Moderate intensity', higher:'Higher intensity'};
+const hrRange = g => g.hr_from == null ? `avg HR under ${g.hr_to}` : g.hr_to == null ? `avg HR ${g.hr_from}+` : `avg HR ${g.hr_from}–${g.hr_to - 1}`;
 function renderSportCost(){
   const d = DATA.sport_recovery_cost;
-  $('sportCostBaseline').textContent = d.overall_avg_recovery;
-  const maxAbs = Math.max(...d.sports.map(s=>Math.abs(s.delta)), 1);
-  $('sportCostRows').innerHTML = d.sports.map(s=>{
-    const pct = Math.abs(s.delta)/maxAbs*50;
-    const isNeg = s.delta < 0;
-    const color = isNeg ? 'var(--critical)' : 'var(--good)';
-    const left = isNeg ? (50-pct) : 50;
-    return `<div class="div-row">
-      <span class="name">${s.sport}</span>
-      <span class="div-track"><span class="zero" style="left:50%"></span><span class="fill" style="left:${left}%;width:${pct}%;background:${color};"></span></span>
-      <span class="val tnum">${s.delta>0?'+':''}${s.delta}<span class="n">${s.n} sessions</span></span>
-    </div>`;
-  }).join('');
+  $('sportCostMonths').textContent = `${DATA.monthly_count_with_data} months tracked`;
+  const groups = (d.groups || []).filter(g => g.sports.length);
+  if(!groups.length){
+    $('sportCostRows').innerHTML = `<div class="section-sub" style="margin:0;">Not enough sessions yet to compare sports at similar intensity.</div>`;
+    return;
+  }
+  const maxAbs = Math.max(...groups.flatMap(g => g.sports.map(s => Math.abs(s.delta))), 1);
+  $('sportCostRows').innerHTML = groups.map(g => `
+    <div class="dt-section" style="margin-top:6px;"><span>${INTENSITY_NAME[g.intensity]} · ${hrRange(g)}</span><span>recovery ${Math.round(g.avg_next_recovery)}</span></div>` +
+    g.sports.map(s => {
+      const pct = Math.abs(s.delta)/maxAbs*50, isNeg = s.delta < 0;
+      const color = isNeg ? 'var(--critical)' : 'var(--good)', left = isNeg ? (50-pct) : 50;
+      return `<div class="div-row"${s.low_confidence ? ' style="opacity:.45"' : ''}>
+        <span class="name">${s.sport}</span>
+        <span class="div-track"><span class="zero" style="left:50%"></span><span class="fill" style="left:${left}%;width:${pct}%;background:${color};"></span></span>
+        <span class="val tnum">${s.delta>0?'+':''}${s.delta}<span class="n">${s.n} sessions</span></span>
+      </div>`;
+    }).join('')).join('');
 }
 
 /* ================= recovery heatmap ================= */
@@ -1550,23 +1567,24 @@ function renderReadinessCheck(){
     {color:'var(--accent)', decimals:0, height:150, partial: rows.map(r => r.low_confidence),
      tooltipText: i => `${rows[i].call} · recovery ${Math.round(rows[i].avg_next_recovery)} · ${rows[i].days} days${rows[i].low_confidence ? ' (few days)' : ''}`});
   const q = s => `"${s}"`;
-  const last = C.overlaps.length ? C.overlaps.map(p => `${q(p[0])} and ${q(p[1])}`).join(', ') : '';
-  $('checkCaption').textContent = C.overlaps.length
-    ? `Each call steps down except ${last}, which currently land in about the same place — the line between them isn't doing much work yet.`
-    : 'Each call steps down from the one above it — the calls are doing real work.';
+  const filled = rows.filter(r => r.avg_next_recovery != null);
+  const pairs = Math.max(filled.length - 1, 0);
+  let caption;
+  if(!C.overlaps.length) caption = 'Each call steps down from the one above it — the calls are doing real work.';
+  else if(C.overlaps.length >= pairs) caption = "The calls don't step down yet — next-morning recovery isn't lower after the lower calls, so treat them with caution.";
+  else caption = `Each call steps down except ${C.overlaps.map(p => `${q(p[0])} and ${q(p[1])}`).join('; ')}, which land in about the same place — the line between them isn't doing much work yet.`;
+  $('checkCaption').textContent = caption;
 }
 
 function renderRecords(){
   const R = DATA.records;
   const tiles = [
     ['Best recovery', R.best_recovery.v, fmtDate(R.best_recovery.date)],
-    ['Toughest recovery', R.worst_recovery.v, fmtDate(R.worst_recovery.date)],
     ['Peak HRV', R.best_hrv.v+' ms', fmtDate(R.best_hrv.date)],
     ['Lowest resting HR', R.lowest_rhr.v+' bpm', fmtDate(R.lowest_rhr.date)],
     ['Biggest strain day', R.biggest_strain_day.v, fmtDate(R.biggest_strain_day.date)],
     ...(R.biggest_strain_workout ? [['Biggest single session', R.biggest_strain_workout.v+' · '+R.biggest_strain_workout.sport, fmtDate(R.biggest_strain_workout.date)]] : []),
     ['Longest sleep', fmtHM(R.longest_sleep_h.v), fmtDate(R.longest_sleep_h.date)],
-    ['Current green streak', R.current_green_streak_days+(R.current_green_streak_days === 1 ? ' day' : ' days'), 'recovery ≥ 67'],
     ...(R.best_week_sessions ? [['Best week', R.best_week_sessions+' sessions', 'in one calendar week']] : []),
     ['Total training time', R.total_training_hours+' hrs', `${DATA.total_workouts} sessions`],
     ['Total distance', R.total_dist_km+' km', 'GPS-tracked sports'],
@@ -1599,9 +1617,8 @@ function renderLoad(){
     bars.appendChild(col);
   });
   const rows = $('sportRows'); rows.innerHTML='';
-  const raw = Object.fromEntries(DATA.sports);
-  const wl = (raw['weightlifting_msk']||0) + (raw['weightlifting']||0);
-  const named = [['Soccer', raw['soccer']||0],['Tennis', raw['tennis']||0],['Weightlifting', wl],['Padel', raw['padel']||0],['Other activity', raw['activity']||0]];
+  // top five sports by sessions; anything with 3 or fewer sessions is never named on its own
+  const named = DATA.sports.filter(([, n]) => n > 3).slice(0, 5);
   const namedTotal = named.reduce((s,x)=>s+x[1],0);
   const other = DATA.total_workouts - namedTotal;
   if(other>0) named.push(['Everything else', other]);
@@ -1634,6 +1651,7 @@ function renderLog(){
 function renderCoverage(){
   const [start,end] = DATA.date_range;
   $('coverageNote').textContent = `Pulled from ${DATA.n_days_total} days of WHOOP history, ${fmtDate(start)} → ${fmtDate(end)}. Body stats on file: ${DATA.body.height_meter}m, ${DATA.body.weight_kilogram}kg.`;
+  $('baselineNote').textContent = `Readiness compares today to your own recent normal — expect about one day in four to read below it. History-wide figures cover your ${DATA.monthly_count_with_data} tracked months, not every month since you started.`;
   $('totalDaysNote').textContent = `${DATA.n_days_total} days on record (${fmtDate(start)} → ${fmtDate(end)})`;
 }
 

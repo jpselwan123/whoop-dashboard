@@ -14,7 +14,7 @@ check line by line, and an AI chat that knows your entire history.
 ![macOS](https://img.shields.io/badge/app-macOS%2011%2B-000000?logo=apple&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 
-<img src="docs/screenshots/overview.png" alt="Daily view: training call, readiness orb, recovery, strain, sleep" width="880">
+<img src="docs/screenshots/overview.png" alt="Daily view: training call, readiness orb with last night and recent week, recovery, strain, sleep" width="880">
 
 <sub>All screenshots use the built-in synthetic demo athlete — no real health data.</sub>
 
@@ -56,8 +56,8 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
   context calls for it.
 - **Click the orb** to see every input next to its normal range, anything
   that lowered readiness today, and the four bands.
-- **Today's plan** — which kind of session fits today, based on how *you* have
-  recovered from each sport before.
+- **Today's plan** — what intensity fits today, based on how *you* have recovered after
+  lower- and higher-heart-rate days.
 - **Fatigue signal** — flags nights when HRV, resting heart rate, or breathing rate
   leave your personal normal range.
 
@@ -68,18 +68,19 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
 - **Acute:Chronic Workload Ratio** with safe / caution / high-risk bands.
 - **Training variety** (Foster monotony) — warns when a week has been unusually
   hard-every-day *for you*.
-- Heart-rate zone time, sessions per week, training mix, sleep composition — all on
-  Monday–Sunday weeks.
+- Heart-rate zone time (strength sessions left out — their rest between sets would count as
+  easy), sessions per week, training mix, sleep composition — all on Monday–Sunday weeks.
 
 ### Monthly — long-range trends
 
-<img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap, monthly averages, next-morning recovery per sport" width="880">
+<img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap and recovery cost by sport at similar intensity" width="880">
 
 - **Recovery calendar heatmap** of every day on record.
 - **Does this work?** — average next-morning recovery after days the model said Push,
   Train, Go easy or Rest, with a plain note when two calls don't separate. A consistency
   check (recovery shares HRV and resting HR with readiness), not independent proof.
-- **Next-morning recovery after each sport** — what each sport typically costs you.
+- **Recovery cost by sport, at similar intensity** — each sport compared only with days of
+  similar heart rate (your own lower / middle / upper third), with gaps too small to trust faded.
 - Trend explorer for any metric (including the body score before same-day lowering),
   personal records, and the full training log.
 
@@ -194,7 +195,9 @@ Everything is computed from your own history. Thresholds adapt to you.
 | **Training variety** | Foster monotony (weekly mean ÷ SD of daily strain) × weekly load | This week above 80% of your last 16 weeks |
 | **Fatigue signal** | Each night's HRV, resting HR, and breathing rate vs the 30 days before it (needs 21+ nights recorded) | Outside ±1.5 standard deviations (shown in the app as plain limits, e.g. "flags at 16.4+ /min") |
 | **Rest day** | A day in your bottom 15% of strain | 7+ days without one |
-| **Sport recovery cost** | Average next-morning recovery after days whose hardest session was that sport, vs your overall average | Sports with 8+ sessions |
+| **Sport recovery cost** | Average next-morning recovery after days whose hardest session was that sport, vs other days of similar heart rate (your own lower / middle / upper third of session average HR) | 10+ sessions in a group; faded when the gap is under about 2 standard errors |
+| **Does this work?** | Average next-morning recovery after days the body score said Push, Train, Go easy or Rest | Neighbouring calls less than 3 points apart are named as not separating |
+| **Sleep debt direction** | Last 7 days' average sleep debt vs the 7 before | Building / clearing when it moved 15+ minutes, otherwise holding |
 
 **Readiness is the answer.** It's one number for how ready you are to train today, and
 the day's label comes straight from it:
