@@ -44,11 +44,12 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   weights or minute counts. Where papers are ambiguous, follow the method paper they cite and note it in
   the README; where no study defines something, show a plain fact instead (e.g. rest day = last day
   without a workout). Statistical comparisons use Welch's t-test, p < 0.05, 30+ per group.
-- **Readiness = the HRV-guided training protocol** (`build_readiness`): 7-day ln-RMSSD HRV and 7-day
-  resting HR (3+ readings) vs mean ± 0.5 SD (sample SD) of the 7-day averages over the 4 weeks before the
-  current week (each week 3+ readings). Two answers only: "Train hard" / "Easy or rest" — no 0–100 score. Easy if HRV
-  below or resting HR above normal, breathing rate 3+ above usual (nights 30–90 days back), 2 hard days in a
-  row, or (page) a moderate/high session already today. Last night is information only. Sources in README.
+- **Readiness** (`build_readiness`) = one 0–100 score, 50 = normal: 7-day ln-RMSSD HRV, resting HR and hours
+  asleep (3+ readings) each a standard score vs the 7-day averages of the 4 weeks before the current week
+  (sample SD, each week 3+ readings), RHR flipped, equal weights, T scale 50 + 10z (Thornton 2019). Answer:
+  45+ Train hard · 35–44 Go easy · <35 Rest (`READY_LINES`); Rest on breathing +3/min; Go easy after 2 hard
+  days in a row or (page) a hard session today. Last night is information only. JP wants ONE score from all
+  measures AND every rule sourced — keep both.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
   (`intensity_minutes`, proportional split); session level = where most time was. Strength sessions: none.
 - Recovery keeps WHOOP zones 34/67. No sliders. Model changes need a cited source and tests.

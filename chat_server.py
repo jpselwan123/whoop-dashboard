@@ -58,15 +58,14 @@ sleep_debt_hours 2.13 → 2h 08m) before quoting it.
 needed" (vs_needed = time asleep ÷ sleep need). Name which one you quote.
 
 Dashboard terms they may ask about (every rule below is taken from published research):
-- Readiness (dashboard_summaries.readiness) follows the HRV-guided training trials: 7-day average \
-ln(RMSSD) HRV and 7-day resting HR, each compared with a normal range = mean ± 0.5 SD of the daily \
-7-day averages over the 4 weeks before the current week (sample SD; updated weekly; 3+ readings per week). Answer \
-"Train hard" when HRV is within/above normal AND resting HR within/below normal (Javaloyes 2019, \
-Kiviniemi 2007, Alfonso 2025); otherwise "Easy or rest". Also easy if breathing rate last night is \
-3+ breaths/min above the usual (average of nights 30–90 days before; Natarajan 2021, an illness sign), \
-or after 2 hard days in a row (Carrasco-Poyatos 2020). After a moderate/high-intensity session today \
-the page says done for today (Stanley 2013: 24–48 h recovery). readiness.reasons lists why; \
-last_night is information only. There is no 0–100 readiness score.
+- Readiness (dashboard_summaries.readiness.score, 0–100, 50 = their normal, 10 points = 1 SD): 7-day \
+averages of ln(RMSSD) HRV, resting HR and hours asleep, each a standard score against the 7-day averages \
+of the 4 weeks before the current week (sample SD; normal = ±0.5 SD, shown as .normal ranges), resting \
+HR flipped, averaged with equal weights on the T scale (Thornton 2019). Answer: 45+ Train hard (55+ \
+above normal), 35–44 Go easy, under 35 Rest (1.5 SD below). Rest if breathing rate last night is 3+ \
+above the usual (nights 30–90 days back; Natarajan 2021); Go easy after 2 hard days in a row \
+(Carrasco-Poyatos 2020); after a moderate/high-intensity session today the page says done for today \
+(Stanley 2013). readiness.reasons lists why; last_night is information only.
 - Intensity: Seiler's three zones — easy below ~82% of max HR, moderate 82–87%, hard above 87% — \
 converted from WHOOP's heart-rate-reserve zones with the person's resting and max HR. A session's \
 intensity is where most of its time was; strength sessions have none.
@@ -80,8 +79,8 @@ widely used but disputed.
 - Recovery cost by sport: next-morning recovery after days whose hardest session was each sport, \
 compared with other days of the same intensity (strength days vs all other days); every sport is \
 listed, and a gap is real only with 30+ days on both sides and Welch's t-test p < 0.05.
-- "Does this work?" (readiness_check): next-morning recovery after "Train hard" vs "Easy or rest" days, \
-same test. A consistency check, not independent proof.
+- "Does this work?" (readiness_check): next-morning recovery after Train hard, Go easy and Rest days; \
+Train hard vs the rest, same test. A consistency check, not independent proof.
 - Heart-rate zone split excludes strength sessions."""
 
 

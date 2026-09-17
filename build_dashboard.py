@@ -284,23 +284,32 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
     return out
 
 
-# ---- Readiness: the HRV-guided training protocol --------------------------------------------
-# Exactly the decision rule tested in HRV-guided training trials:
+# ---- Readiness: one score from the HRV-guided training protocol ------------------------------
+# Inputs and ranges follow the HRV-guided training trials; the score combines them the way athlete
+# monitoring combines several measures (Thornton et al. 2019):
 #   - 7-day average of ln(RMSSD) HRV (Plews et al. 2012; Javaloyes et al. 2019), valid with at
 #     least 3 readings in the 7 days (Plews et al. 2014).
 #   - Normal range = mean ± 0.5 SD of the 7-day averages over the 4 weeks before the current week
 #     (28 baseline values of the same 7-day average: Vesterinen et al. 2016; Javaloyes et al. 2019;
 #     tabulated in Manresa-Rocamora et al. 2021), updated weekly (Carrasco-Poyatos et al. 2020).
-#   - Within or above normal → hard training OK; below → easy or rest (Javaloyes 2019;
-#     Kiviniemi et al. 2007). Resting HR is judged the same way (above normal = worse), and hard
-#     training needs both markers in range (Alfonso et al. 2025).
+#   - Measures: 7-day HRV (every trial), 7-day resting HR (Alfonso et al. 2025) and 7-day hours
+#     asleep (sleep loss lowers performance: Craven et al. 2022). Each becomes a standard score vs
+#     its own baseline (resting HR flipped, so higher = better); the score is their average with
+#     equal weights (no study gives validated weights: Dawes 1979) on the T scale, 50 + 10 × average
+#     — 50 = exactly your normal, 10 points = 1 SD.
+#   - Answer: within or above normal (45+, i.e. not below −0.5 SD) → Train hard; below → Go easy
+#     (Javaloyes 2019; Kiviniemi et al. 2007); 1.5 SD or more below (under 35) → Rest, the line
+#     Thornton et al. 2019 give for a change worth acting on.
 #   - No more than 2 hard (moderate/high-intensity) days in a row (Carrasco-Poyatos et al. 2020).
 #   - Breathing rate 3+ breaths/min above the person's usual rate (average of the nights 30–90
-#     days before, at least 30 nights) — an illness sign (Natarajan et al. 2021) → easy or rest.
+#     days before, at least 30 nights) — an illness sign (Natarajan et al. 2021) → Rest.
 READY_WINDOW_DAYS = 7
 READY_MIN_READINGS = 3
 READY_BASELINE_DAYS = 28
 READY_SWC = 0.5
+READY_REST_SD = 1.5
+T_SCALE = (50, 10)
+READY_LINES = {'above': 55, 'train': 45, 'rest': 35}   # = +0.5 SD, −0.5 SD, −1.5 SD on the T scale
 MAX_HARD_DAYS_IN_A_ROW = 2
 BREATHING_RISE = 3.0
 BREATHING_BASELINE = (30, 90)
@@ -338,7 +347,8 @@ def judge_marker(src, d, worse):
     m, sd = mean(base), stdev(base)
     lo, hi = m - READY_SWC * sd, m + READY_SWC * sd
     state = 'below' if avg < lo else 'above' if avg > hi else 'within'
-    return {'avg': avg, 'lo': lo, 'hi': hi, 'state': state, 'worse': state == worse}
+    z = None if sd == 0 else (avg - m) / sd * (-1 if worse == 'above' else 1)   # + = better
+    return {'avg': avg, 'lo': lo, 'hi': hi, 'state': state, 'worse': state == worse, 'z': z}
 
 
 def breathing_check(rr_by_day, d):
@@ -361,28 +371,39 @@ def hard_days_in_a_row(hard_days, d):
     return n
 
 
-def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days):
+def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day=None):
     ln_hrv = {k: math.log(v) for k, v in hrv_by_day.items() if v and v > 0}
     rhr = {k: v for k, v in rhr_by_day.items() if v}
+    sleep_h = {k: v for k, v in (sleep_h_by_day or {}).items() if v}
     series, latest = [], None
     for d in sorted(ln_hrv):
         hrv = judge_marker(ln_hrv, d, 'below')
-        if hrv is None:
+        if hrv is None or hrv['z'] is None:
             continue
         rest = judge_marker(rhr, d, 'above')
+        sleep = judge_marker(sleep_h, d, 'below')
+        zs = [m['z'] for m in (hrv, rest, sleep) if m and m['z'] is not None]
+        score = max(0, min(100, math.floor(T_SCALE[0] + T_SCALE[1] * mean(zs) + 0.5)))
         breathing = breathing_check(rr_by_day, d)
         streak = hard_days_in_a_row(hard_days, d)
-        reasons = [name for name, hit in (('hrv', hrv['worse']), ('rhr', bool(rest and rest['worse'])),
-                                          ('breathing', bool(breathing and breathing['flagged'])),
-                                          ('streak', streak >= MAX_HARD_DAYS_IN_A_ROW)) if hit]
-        answer = 'easy' if reasons else 'hard'
-        series.append({'date': d, 'answer': answer})
+        if breathing and breathing['flagged']:
+            answer, reasons = 'rest', ['breathing']
+        elif score < READY_LINES['rest']:
+            answer, reasons = 'rest', ['low']
+        elif score < READY_LINES['train']:
+            answer, reasons = 'easy', ['low']
+        elif streak >= MAX_HARD_DAYS_IN_A_ROW:
+            answer, reasons = 'easy', ['streak']
+        else:
+            answer, reasons = 'hard', []
+        series.append({'date': d, 'v': score, 'answer': answer})
+        marker = lambda m, unit_fn: None if m is None else {'value': unit_fn(m['avg']), 'normal': [unit_fn(m['lo']), unit_fn(m['hi'])],
+                                                            'state': m['state']}
         latest = {
-            'date': d, 'answer': answer, 'reasons': reasons,
-            'hrv': {'value': round(math.exp(hrv['avg'])), 'normal': [round(math.exp(hrv['lo'])), round(math.exp(hrv['hi']))],
-                    'state': hrv['state']},
-            'rhr': None if rest is None else {'value': round(rest['avg'], 1), 'normal': [round(rest['lo'], 1), round(rest['hi'], 1)],
-                                              'state': rest['state']},
+            'date': d, 'score': score, 'answer': answer, 'reasons': reasons, 'lines': dict(READY_LINES),
+            'hrv': marker(hrv, lambda v: round(math.exp(v))),
+            'rhr': marker(rest, lambda v: round(v, 1)),
+            'sleep': marker(sleep, lambda v: round(v, 2)),
             'breathing': breathing, 'hard_days_in_a_row': streak, 'max_hard_days': MAX_HARD_DAYS_IN_A_ROW,
         }
     return latest, series
@@ -405,20 +426,23 @@ def readiness_progress(hrv_by_day):
 # tested with Welch's t-test. A consistency check, not independent proof — recovery shares HRV and
 # resting HR with the answer.
 def build_readiness_check(series, recovery_by_day):
-    groups = {'hard': [], 'easy': []}
+    """Next-morning recovery after days with each answer; Train hard vs the rest tested with Welch's
+    t-test. A consistency check, not independent proof (recovery shares HRV and resting HR)."""
+    groups = {'hard': [], 'easy': [], 'rest': []}
     for p in series:
         nxt = (datetime.fromisoformat(p['date']) + timedelta(days=1)).date().isoformat()
         if nxt in recovery_by_day:
             groups[p['answer']].append(recovery_by_day[nxt])
-    p = welch_p(groups['hard'], groups['easy'])
-    enough = len(groups['hard']) >= MIN_GROUP and len(groups['easy']) >= MIN_GROUP
+    lower = groups['easy'] + groups['rest']
+    p = welch_p(groups['hard'], lower)
+    enough = len(groups['hard']) >= MIN_GROUP and len(lower) >= MIN_GROUP
     return {
         'answers': [{'answer': k, 'avg_next_recovery': round(mean(v), 1) if v else None, 'days': len(v)}
                     for k, v in groups.items()],
         'days': sum(len(v) for v in groups.values()),
         'enough': enough,
         'significant': bool(enough and p is not None and p < SIGNIFICANCE),
-        'hard_higher': bool(groups['hard'] and groups['easy'] and mean(groups['hard']) > mean(groups['easy'])),
+        'hard_higher': bool(groups['hard'] and lower and mean(groups['hard']) > mean(lower)),
     }
 
 
@@ -677,7 +701,11 @@ def build_summary(d):
     today = day(cyc[-1]['created_at'])
     rest_day_stat = build_rest_day_stat(cyc, set(by_day_wo))
     today_snapshot = build_today_snapshot(cyc, wo, max_hr, rest_hr_for)
-    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days)
+    sleep_h_by_day = defaultdict(float)   # hours asleep per day, naps included
+    for sl in list(sleep) + list(naps):
+        sleep_h_by_day[day(sl['created_at'])] += asleep_ms(sl) / 3600000
+    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day)
+    full['readiness'] = [{'date': p['date'], 'v': p['v']} for p in readiness_series]
     readiness_check = build_readiness_check(readiness_series, recovery_by_day)
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
         entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(

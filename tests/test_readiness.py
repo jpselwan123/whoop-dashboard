@@ -1,5 +1,6 @@
-"""Readiness = the HRV-guided training protocol: 7-day HRV and resting HR vs the previous 4 weeks
-(±0.5 SD, updated weekly), breathing-rate illness sign, and at most 2 hard days in a row."""
+"""Readiness: 7-day HRV, resting HR and sleep, each a standard score vs the 7-day averages of the
+previous 4 weeks, averaged on the T scale (50 = normal). 45+ Train hard, 35–44 Go easy, under 35 Rest;
+Rest on a breathing-rate illness sign, Go easy after 2 hard days in a row."""
 import math, random, unittest
 from datetime import date, timedelta
 from helpers import generate, build_dashboard as bd
@@ -37,8 +38,9 @@ class ProtocolTest(unittest.TestCase):
         for d in ds[-7:]:
             h[d] *= 0.7
         latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertEqual(latest['answer'], 'easy')
-        self.assertIn('hrv', latest['reasons'])
+        self.assertIn(latest['answer'], ('easy', 'rest'))
+        self.assertEqual(latest['reasons'], ['low'])
+        self.assertLess(latest['score'], 45)
         self.assertEqual(latest['hrv']['state'], 'below')
 
     def test_higher_hrv_is_still_hard_training_ok(self):
@@ -53,8 +55,8 @@ class ProtocolTest(unittest.TestCase):
         for d in ds[-7:]:
             r[d] += 8
         latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertEqual(latest['answer'], 'easy')
-        self.assertEqual(latest['reasons'], ['rhr'])
+        self.assertEqual(latest['rhr']['state'], 'above')
+        self.assertLess(latest['score'], 50, "higher resting HR must lower readiness")
 
     def test_a_slightly_low_night_is_diluted_by_the_7_day_average(self):
         h, r, b, ds = steady()
@@ -149,6 +151,59 @@ class ProtocolTest(unittest.TestCase):
         self.assertIn(summary['readiness']['answer'], ('hard', 'easy'))
 
 
+class ScoreTest(unittest.TestCase):
+    def test_score_is_the_t_scale_average_of_the_standard_scores(self):
+        h, r, b, ds = steady()
+        sleep = {d: 7.5 + LN_PATTERN[i % 7] for i, d in enumerate(ds)}
+        latest, _ = bd.build_readiness(h, r, b, set(), sleep)
+        monday = date.fromisoformat(ds[-1]) - timedelta(days=date.fromisoformat(ds[-1]).weekday())
+        def z(src, f, flip):
+            def roll(day):
+                v = [f(x) for k, x in src.items() if day - timedelta(days=6) <= date.fromisoformat(k) <= day]
+                return sum(v) / len(v)
+            base = [roll(monday - timedelta(days=k)) for k in range(1, 29)]
+            m = sum(base) / len(base)
+            sd = math.sqrt(sum((x - m) ** 2 for x in base) / (len(base) - 1))
+            if sd == 0:
+                return None
+            return (roll(date.fromisoformat(ds[-1])) - m) / sd * (-1 if flip else 1)
+        zs = [x for x in (z(h, math.log, False), z(r, lambda v: v, True), z(sleep, lambda v: v, False)) if x is not None]
+        self.assertEqual(latest['score'], math.floor(50 + 10 * sum(zs) / len(zs) + 0.5))
+
+    def test_answer_lines_on_the_score(self):
+        h, r, b, ds = steady()
+        for factor, expected in ((1.0, 'hard'), (0.93, 'easy'), (0.6, 'rest')):
+            hh = dict(h)
+            for d in ds[-7:]:
+                hh[d] = h[d] * factor
+            latest, _ = bd.build_readiness(hh, r, b, set())
+            s = latest['score']
+            self.assertEqual(latest['answer'], 'hard' if s >= 45 else 'easy' if s >= 35 else 'rest', (factor, s))
+        self.assertEqual(latest['lines'], {'above': 55, 'train': 45, 'rest': 35})
+
+    def test_breathing_sign_means_rest_even_with_a_normal_score(self):
+        h, r, b, ds = steady(n=100)
+        b[ds[-1]] = 40.0
+        latest, _ = bd.build_readiness(h, r, b, set())
+        self.assertGreaterEqual(latest['score'], 45)
+        self.assertEqual((latest['answer'], latest['reasons']), ('rest', ['breathing']))
+
+    def test_shorter_sleep_lowers_the_score(self):
+        h, r, b, ds = steady()
+        sleep = {d: 7.5 + (0.3 if (i // 7) % 2 else -0.3) for i, d in enumerate(ds)}
+        normal, _ = bd.build_readiness(h, r, b, set(), sleep)
+        for d in ds[-7:]:
+            sleep[d] = 5.0
+        short, _ = bd.build_readiness(h, r, b, set(), sleep)
+        self.assertEqual(short['sleep']['state'], 'below')
+        self.assertLess(short['score'], normal['score'])
+
+    def test_series_carries_score_and_answer(self):
+        h, r, b, _ = steady()
+        _, series = bd.build_readiness(h, r, b, set())
+        self.assertTrue(all(0 <= p['v'] <= 100 and p['answer'] in ('hard', 'easy', 'rest') for p in series))
+
+
 class StatisticsTest(unittest.TestCase):
     def test_incomplete_beta_matches_known_value(self):
         # two-sided p for t = 2.0 with 10 degrees of freedom is 0.0734
@@ -169,7 +224,7 @@ class StatisticsTest(unittest.TestCase):
         self.assertFalse(out['significant'])
 
     def test_check_uses_next_morning(self):
-        series = [{'date': (date(2026, 1, 1) + timedelta(days=i)).isoformat(), 'answer': 'hard' if i % 2 else 'easy'}
+        series = [{'date': (date(2026, 1, 1) + timedelta(days=i)).isoformat(), 'answer': 'hard' if i % 2 else ('easy' if i % 4 else 'rest')}
                   for i in range(200)]
         rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): (60 if i % 2 else 40) + (i % 7) for i in range(200)}
         out = bd.build_readiness_check(series, rec)
