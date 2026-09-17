@@ -93,43 +93,56 @@ class DayFactsTest(unittest.TestCase):
         self.assertLessEqual(s['nights_7h'], s['nights'])
         self.assertEqual(s['min_hours'], 7)
 
+    def test_todays_session_and_load_ratio_include_today(self):
+        # a session logged today must show up in the snapshot (so the page can act on it) and the
+        # load ratio must cover today, so both change when the refresh button pulls new data
+        snap = self.summary['today_snapshot']
+        today_workouts = [w for w in self.raw['workouts'] if bd.day(w['created_at']) == snap['date']]
+        self.assertEqual(len(snap['workouts']), len(today_workouts))
+        self.assertEqual(self.summary['acwr'][-1]['date'], snap['date'])
+        strain_today = [p['v'] for p in self.summary['full_series']['strain'] if p['date'] == snap['date']]
+        self.assertEqual(strain_today, [round(snap['strain_so_far'], 1)])
+
     def test_workout_log_carries_intensity(self):
         for w in self.summary['workout_log']:
             self.assertIn(w['intensity'], ('easy', 'moderate', 'hard', None))
 
 
 class SportCostTest(unittest.TestCase):
-    def test_sports_are_compared_within_one_intensity(self):
+    """One row per sport: its days vs all other training days."""
+
+    def build(self, n=120):
         day_sessions, rec = {}, {}
-        for i in range(120):
+        for i in range(n):
             d = (date(2026, 1, 1) + timedelta(days=i)).isoformat()
             sport = 'Soccer' if i % 2 else 'Tennis'
-            day_sessions[d] = (sport, 'easy')
+            day_sessions[d] = (sport, 'hard' if sport == 'Soccer' else 'easy')
             rec[(date(2026, 1, 2) + timedelta(days=i)).isoformat()] = (40 if sport == 'Soccer' else 60) + (i % 5)
+        return day_sessions, rec
+
+    def test_one_row_per_sport_with_its_usual_intensity(self):
+        out = bd.build_sport_recovery_cost(*self.build())
+        rows = {s['sport']: s for s in out['sports']}
+        self.assertEqual(sorted(rows), ['Soccer', 'Tennis'])
+        self.assertEqual(rows['Soccer']['intensity'], 'hard')
+        self.assertEqual(rows['Tennis']['intensity'], 'easy')
+        self.assertTrue(rows['Soccer']['significant'] and rows['Soccer']['delta'] < 0)
+        self.assertEqual(rows['Soccer']['n'] + rows['Tennis']['n'], out['days'])
+
+    def test_sorted_by_days_and_small_samples_are_never_called_real(self):
+        day_sessions, rec = self.build()
+        for i in range(2):
+            d = (date(2026, 6, 1) + timedelta(days=i)).isoformat()
+            day_sessions[d] = ('Table-Tennis', 'easy')
+            rec[(date(2026, 6, 2) + timedelta(days=i)).isoformat()] = 5
         out = bd.build_sport_recovery_cost(day_sessions, rec)
-        g = out['groups'][0]
-        self.assertEqual(g['intensity'], 'easy')
-        by = {s['sport']: s for s in g['sports']}
-        self.assertTrue(by['Soccer']['significant'] and by['Soccer']['delta'] < 0)
+        self.assertEqual([s['n'] for s in out['sports']], sorted([s['n'] for s in out['sports']], reverse=True))
+        tt = [s for s in out['sports'] if s['sport'] == 'Table-Tennis'][0]
+        self.assertEqual(tt['n'], 2)
+        self.assertFalse(tt['significant'])
 
-    def test_every_sport_is_listed_but_small_samples_are_never_called_real(self):
-        day_sessions = {(date(2026, 1, 1) + timedelta(days=i)).isoformat(): ('Table-Tennis' if i < 2 else 'Tennis', 'easy')
-                        for i in range(60)}
-        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): (5 if i < 2 else 50 + i % 3) for i in range(60)}
-        g = bd.build_sport_recovery_cost(day_sessions, rec)['groups'][0]
-        by = {s['sport']: s for s in g['sports']}
-        self.assertEqual(by['Table-Tennis']['n'], 2)
-        self.assertFalse(by['Table-Tennis']['significant'])
-
-    def test_strength_days_are_compared_with_all_other_days(self):
-        day_sessions, rec = {}, {}
-        for i in range(120):
-            d = (date(2026, 1, 1) + timedelta(days=i)).isoformat()
-            day_sessions[d] = ('Weightlifting', 'strength') if i % 2 else ('Soccer', 'easy')
-            rec[(date(2026, 1, 2) + timedelta(days=i)).isoformat()] = (70 if i % 2 else 45) + i % 4
-        out = bd.build_sport_recovery_cost(day_sessions, rec, {'Weightlifting', 'Soccer', 'Yoga'})
-        strength = [g for g in out['groups'] if g['intensity'] == 'strength'][0]['sports'][0]
-        self.assertTrue(strength['vs_all'] and strength['significant'] and strength['delta'] > 0)
+    def test_sports_never_the_hardest_session_are_named(self):
+        out = bd.build_sport_recovery_cost(*self.build(), all_sports={'Soccer', 'Tennis', 'Yoga'})
         self.assertEqual(out['never_hardest'], ['Yoga'])
 
 if __name__ == '__main__':

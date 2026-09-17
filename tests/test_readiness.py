@@ -154,7 +154,9 @@ class ProtocolTest(unittest.TestCase):
 class ScoreTest(unittest.TestCase):
     def test_score_is_the_t_scale_average_of_the_standard_scores(self):
         h, r, b, ds = steady()
-        sleep = {d: 7.5 + LN_PATTERN[i % 7] for i, d in enumerate(ds)}
+        last_week = (len(ds) - 1) // 7
+        sleep = {d: 7.5 + LN_PATTERN[i % 7] + (0 if i // 7 == last_week else (0.3 if (i // 7) % 2 else -0.3))
+                 for i, d in enumerate(ds)}
         latest, _ = bd.build_readiness(h, r, b, set(), sleep)
         monday = date.fromisoformat(ds[-1]) - timedelta(days=date.fromisoformat(ds[-1]).weekday())
         def z(src, f, flip):
@@ -167,8 +169,17 @@ class ScoreTest(unittest.TestCase):
             if sd == 0:
                 return None
             return (roll(date.fromisoformat(ds[-1])) - m) / sd * (-1 if flip else 1)
-        zs = [x for x in (z(h, math.log, False), z(r, lambda v: v, True), z(sleep, lambda v: v, False)) if x is not None]
+        def z_night(src, f, flip):
+            base = [f(v) for k, v in src.items() if monday - timedelta(days=28) <= date.fromisoformat(k) < monday]
+            m = sum(base) / len(base)
+            sd = math.sqrt(sum((x - m) ** 2 for x in base) / (len(base) - 1))
+            return None if sd == 0 else (f(src[ds[-1]]) - m) / sd * (-1 if flip else 1)
+        zs = [x for x in (z(h, math.log, False), z(r, lambda v: v, True), z(sleep, lambda v: v, False),
+                          z_night(h, math.log, False), z_night(r, lambda v: v, True), z_night(sleep, lambda v: v, False))
+              if x is not None]
+        self.assertEqual(len(zs), 6)
         self.assertEqual(latest['score'], math.floor(50 + 10 * sum(zs) / len(zs) + 0.5))
+        self.assertEqual(latest['last_night']['measures'], 3)
 
     def test_answer_lines_on_the_score(self):
         h, r, b, ds = steady()

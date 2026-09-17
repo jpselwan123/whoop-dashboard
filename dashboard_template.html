@@ -288,8 +288,9 @@
   .more-sports summary{cursor:pointer;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:0.05em;text-transform:uppercase;color:var(--ink-muted);list-style:none;}
   .more-sports summary::-webkit-details-marker{display:none;}
   .more-sports summary::before{content:"▸ ";} .more-sports[open] summary::before{content:"▾ ";}
-  .div-row{display:grid;grid-template-columns:120px 1fr 90px;align-items:center;gap:10px;padding:7px 0;}
-  .div-row .name{font-size:12.5px;color:var(--ink-muted);}
+  .div-row{display:grid;grid-template-columns:118px 1fr 74px;align-items:center;gap:10px;padding:8px 0;}
+  .div-row .name{font-size:12.5px;color:var(--ink);display:flex;flex-direction:column;gap:1px;}
+  .div-row .name .sub{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);}
   .div-track{display:block;position:relative;height:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;}
   .div-track .zero{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--border-strong);}
   .div-track .fill{position:absolute;top:0;bottom:0;border-radius:4px;}
@@ -413,7 +414,7 @@
     <div class="flank right" id="flankLoad"></div>
     <div class="hero-halves" id="heroHalves" hidden>
       <div class="hh-row" id="hhRow"></div>
-      <div class="hh-cap">Readiness combines your 7-day HRV, resting HR and sleep, each against your last 4 weeks. 50 is your normal.</div>
+      <div class="hh-cap">Readiness combines your HRV, resting HR and sleep — last night and the last 7 days — against your own last 4 weeks. 50 is your normal.</div>
     </div>
     <div class="hero-legend"><span><b class="up">▲</b><b class="down">▼</b> vs your 30-day average</span></div>
   </section>
@@ -534,8 +535,8 @@
   </section>
 
   <section class="card">
-    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery cost by sport, at the same intensity</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportCostMonths"></span></div>
-    <div class="section-sub">Next-morning recovery after days each sport was your hardest session, compared with other days of the same intensity. Faded bars could be chance.</div>
+    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery cost by sport</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportCostMonths"></span></div>
+    <div class="section-sub">How your recovery the next morning compares after each sport, against your other training days. "Not certain" means the gap could be chance.</div>
     <div id="sportCostRows" style="margin-top:14px;"></div>
   </section>
 
@@ -674,6 +675,7 @@ function reasonText(calc, key){
   if(key === 'low'){
     const worse = ['hrv','rhr','sleep'].filter(k => markerWorse(k, R[k]))
       .map(k => `7-day ${MARKER_NAME[k]} ${markerValue(k, R[k])} (normal ${markerRange(k, R[k])})`);
+    if(R.last_night && R.last_night.state === 'below') worse.unshift('last night was below your normal');
     return `readiness is ${R.score}, below your normal` + (worse.length ? ` — ${listAnd(worse)}` : '');
   }
   if(key === 'breathing') return `last night's breathing rate was ${one(R.breathing.value)} /min, 3 or more above your usual ${one(R.breathing.usual)} — a possible sign of illness`;
@@ -689,9 +691,13 @@ function decisionWhy(calc){
   }
   if(calc.reasons.length) return sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))));
   const R = calc.R;
-  const better = ['hrv','rhr','sleep'].filter(k => R[k] && R[k].state === (k === 'rhr' ? 'below' : 'above')).map(k => MARKER_NAME[k]);
-  return better.length ? `Readiness ${R.score}: ${listAnd(better)} better than your normal, the rest within it.`
-                       : `Readiness ${R.score}: HRV, resting HR and sleep are within your normal range.`;
+  const better = ['hrv','rhr','sleep'].filter(k => R[k] && R[k].state === (k === 'rhr' ? 'below' : 'above')).map(k => `7-day ${MARKER_NAME[k]}`);
+  const N = R.last_night;
+  if(N && N.state !== 'within') better[N.state === 'above' ? 'unshift' : 'push'](`last night${N.state === 'below' ? ' (below normal)' : ''}`);
+  const above = better.filter(x => !x.includes('below'));
+  const inputs = ['HRV', 'resting HR', 'sleep'].concat(R.last_night ? ['last night'] : []);
+  return above.length ? `Readiness ${R.score}: ${listAnd(above)} better than your normal, the rest within it.`
+                      : `Readiness ${R.score}: ${listAnd(inputs)} are all within your normal range.`;
 }
 
 function renderDecision(){
@@ -707,7 +713,9 @@ function renderDecision(){
   const R = calc.R;
   if(R){
     countUp($('orbNum'), R.score, v => String(Math.round(v)));
-    $('orbCap').textContent = 'Readiness';
+    // the number is a position against your own normal, so say so in words next to it
+    const L0 = R.lines;
+    $('orbCap').textContent = 'Readiness · ' + (R.score >= L0.above ? 'above normal' : R.score >= L0.train ? 'normal' : R.score >= L0.rest ? 'below normal' : 'well below');
     // scale from 20 to 80 (±3 SD): red under 35 · yellow 35–44 · blue 45–54 · green 55+
     const lo = 20, hi = 80, L = R.lines;
     const widths = [L.rest - lo, L.train - L.rest, L.above - L.train, hi - L.above];
@@ -733,7 +741,8 @@ function renderMarkers(calc){
   if(!R){ box.hidden = true; return; }
   const span = (k, v, cls) => `<span>${k} <b class="${cls}">${v}</b></span>`;
   const word = (key, m) => m.state === 'within' ? ['Normal', ''] : [m.state === 'above' ? 'Above normal' : 'Below normal', markerWorse(key, m) ? 'warn' : 'good'];
-  const parts = ['hrv','rhr','sleep'].filter(k => R[k]).map(k => span(k === 'hrv' ? 'HRV' : k === 'rhr' ? 'Resting HR' : 'Sleep', ...word(k, R[k])));
+  const parts = ['hrv','rhr','sleep'].filter(k => R[k]).map(k => span(k === 'hrv' ? 'HRV · 7-day' : k === 'rhr' ? 'Resting HR · 7-day' : 'Sleep · 7-day', ...word(k, R[k])));
+  if(R.last_night) parts.push(span('Last night', ...(R.last_night.state === 'within' ? ['Normal', ''] : R.last_night.state === 'above' ? ['Above normal', 'good'] : ['Below normal', 'warn'])));
   if(calc.reasons.includes('breathing')) parts.push(span('Breathing', 'Raised', 'bad'));
   if(calc.reasons.includes('streak')) parts.push(span('Hard days in a row', `${R.hard_days_in_a_row}`, 'warn'));
   if(calc.reasons.includes('session')) parts.push(span('Today', 'Hard session done', 'warn'));
@@ -1370,36 +1379,29 @@ function renderZoneDistribution(){
 /* ================= sport recovery cost ================= */
 function renderSportCost(){
   const d = DATA.sport_recovery_cost;
-  $('sportCostMonths').textContent = `${DATA.monthly_count_with_data} months tracked`;
-  const groups = (d.groups || []).filter(g => g.sports.length);
-  if(!groups.length){
+  $('sportCostMonths').textContent = d.avg_next_recovery != null ? `your average after training: ${Math.round(d.avg_next_recovery)}` : '';
+  const sports = d.sports || [];
+  if(!sports.length){
     $('sportCostRows').innerHTML = `<div class="section-sub" style="margin:0;">No workouts with a next-morning recovery yet.</div>`;
     return;
   }
-  const title = {easy:'Easy days', moderate:'Moderate-intensity days', hard:'High-intensity days', strength:'Strength days'};
-  const maxAbs = Math.max(...groups.flatMap(g => g.sports.map(s => Math.abs(s.delta || 0))), 1);
-  // the 4 sports played most often are shown; everything else sits in a dropdown
-  const top = new Set(DATA.sports.slice(0, 4).map(([name]) => name));
+  const maxAbs = Math.max(...sports.map(s => Math.abs(s.delta || 0)), 1);
   const rowHTML = s => {
     const delta = s.delta == null ? 0 : s.delta;
     const pct = Math.abs(delta)/maxAbs*50, isNeg = delta < 0;
     const color = isNeg ? 'var(--critical)' : 'var(--good)', left = isNeg ? (50-pct) : 50;
-    return `<div class="div-row"${s.significant ? '' : ' style="opacity:.45"'}>
-      <span class="name">${s.sport}</span>
+    return `<div class="div-row">
+      <span class="name">${s.sport}<span class="sub">${s.n} ${s.n === 1 ? 'day' : 'days'} · ${INTENSITY_WORD[s.intensity] || s.intensity}</span></span>
       <span class="div-track"><span class="zero" style="left:50%"></span><span class="fill" style="left:${left}%;width:${pct}%;background:${color};"></span></span>
-      <span class="val tnum">${s.delta == null ? '—' : (s.delta>0?'+':'') + s.delta}<span class="n">${s.n} ${s.n === 1 ? 'day' : 'days'}</span></span>
+      <span class="val tnum">${s.delta == null ? '—' : (s.delta>0?'+':'') + s.delta}${s.significant ? '' : '<span class="n">not certain</span>'}</span>
     </div>`;
   };
-  const block = keep => groups.map(g => {
-    const rows = g.sports.filter(s => keep(s.sport));
-    return rows.length ? `<div class="dt-section" style="margin-top:6px;"><span>${title[g.intensity]} · ${g.days}</span><span>recovery ${Math.round(g.avg_next_recovery)}${g.intensity === 'strength' ? ' · vs all other days' : ''}</span></div>` + rows.map(rowHTML).join('') : '';
-  }).join('');
-  const others = new Set(groups.flatMap(g => g.sports.map(s => s.sport)).filter(n => !top.has(n)));
+  const top = sports.slice(0, 4), rest = sports.slice(4);
   const never = (d.never_hardest || []).length
-    ? `<div class="section-sub" style="margin-top:10px;">Never the hardest session of a day, so no next-morning comparison: ${d.never_hardest.join(', ')}.</div>` : '';
-  const more = others.size || never
-    ? `<details class="more-sports"><summary>${others.size} other sport${others.size === 1 ? '' : 's'}</summary>${block(n => !top.has(n))}${never}</details>` : '';
-  $('sportCostRows').innerHTML = block(n => top.has(n)) + more;
+    ? `<div class="section-sub" style="margin-top:10px;">Never the hardest session of a day, so no comparison: ${d.never_hardest.join(', ')}.</div>` : '';
+  const more = rest.length || never
+    ? `<details class="more-sports"><summary>${rest.length} other sport${rest.length === 1 ? '' : 's'}</summary>${rest.map(rowHTML).join('')}${never}</details>` : '';
+  $('sportCostRows').innerHTML = top.map(rowHTML).join('') + more;
 }
 
 /* ================= recovery heatmap ================= */
@@ -1635,6 +1637,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       const cls = k => markerWorse(k, R[k]) ? 'flagged' : R[k].state === 'within' ? '' : 'good';
       for(const [k, label] of [['hrv','HRV'], ['rhr','Resting HR'], ['sleep','Asleep']])
         out.push(R[k] ? row(label, markerValue(k, R[k]), markerRange(k, R[k]), cls(k)) : row(label, '—', 'not enough data', ''));
+      if(R.last_night) out.push(row('Last night · all three', `${R.last_night.score}`, '50 = normal', R.last_night.state === 'below' ? 'flagged' : R.last_night.state === 'above' ? 'good' : ''));
       out.push(row('Readiness', `${R.score}`, '50 = normal', 'current'));
       out.push(section('Answer', 'readiness'));
       const cur = calc.action, L2 = R.lines;
@@ -1654,7 +1657,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(row('Asleep', fmtHM(L.asleep_h), L.nap_h ? `+ ${fmtHM(L.nap_h)} nap` : '', ''));
       out.push(row('WHOOP recovery', `${Math.round(L.recovery)}`, '', ''));
     }
-    out.push(`<div class="rp-note">Each measure's 7-day average is compared with the range of its 7-day averages over your previous 4 weeks (updated each Monday) and the three are averaged equally: every 10 points is one standard deviation from your normal. Breathing rate 3+ above your usual means rest; after 2 hard days in a row or a hard session today, go easy.</div>`);
+    out.push(`<div class="rp-note">Each measure is compared with your previous 4 weeks (updated each Monday) — the 7-day average against your 7-day averages, last night against your single nights — and all six are averaged equally: every 10 points is one standard deviation from your normal. Breathing rate 3+ above your usual means rest; after 2 hard days in a row or a hard session today, go easy.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 

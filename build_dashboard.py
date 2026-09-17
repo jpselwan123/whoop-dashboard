@@ -246,41 +246,31 @@ def build_monotony(load_by_day, tracked_days):
     return out
 
 
-# ---- Sport recovery cost, at the same intensity ---------------------------------------------
-SPORT_GROUPS = ('easy', 'moderate', 'hard', 'strength')
-
-
+# ---- Sport recovery cost ---------------------------------------------------------------------
 def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
-    """Next-morning recovery after days whose hardest session was each sport, compared with the
-    other days of the same intensity (strength days have no heart-rate intensity, so they are
-    compared with every other day). Every sport is listed; a gap counts as real only with 30+ days
-    on both sides and Welch's t-test p < 0.05."""
-    groups = defaultdict(list)
+    """One row per sport: next-morning recovery after days whose hardest session was that sport,
+    against all your other training days. The gap counts as real only with 30+ days on both sides
+    and Welch's t-test p < 0.05. Each row also carries the intensity most of those days were."""
+    rows = []
     for d, (sport, level) in day_sessions.items():
         nxt = (datetime.fromisoformat(d) + timedelta(days=1)).date().isoformat()
         if level and nxt in recovery_by_day:
-            groups[level].append((sport, recovery_by_day[nxt]))
-    everything = [x for rows in groups.values() for x in rows]
-    out = {'groups': [], 'never_hardest': sorted(set(all_sports) - {s for s, _ in everything})}
-    for level in SPORT_GROUPS:
-        rows = groups.get(level, [])
-        if not rows:
-            continue
-        sports = []
-        for sport in {s for s, _ in rows}:
-            mine = [r for s, r in rows if s == sport]
-            others = [r for s, r in rows if s != sport]
-            vs_all = not others
-            if vs_all:
-                others = [r for s, r in everything if s != sport]
-            # the test is only trusted with 30+ days on both sides; smaller samples stay listed but faded
-            p = welch_p(mine, others) if len(mine) >= MIN_GROUP and len(others) >= MIN_GROUP else None
-            sports.append({'sport': sport, 'n': len(mine), 'avg_next_recovery': round(mean(mine), 1),
-                           'delta': round(mean(mine) - mean(others), 1) if others else None,
-                           'significant': p is not None and p < SIGNIFICANCE, 'vs_all': vs_all})
-        sports.sort(key=lambda x: (-x['n'], x['sport']))
-        out['groups'].append({'intensity': level, 'days': len(rows),
-                              'avg_next_recovery': round(mean(r for _, r in rows), 1), 'sports': sports})
+            rows.append((sport, level, recovery_by_day[nxt]))
+    out = {'sports': [], 'days': len(rows),
+           'avg_next_recovery': round(mean([r for _, _, r in rows]), 1) if rows else None,
+           'never_hardest': sorted(set(all_sports) - {s for s, _, _ in rows})}
+    for sport in {s for s, _, _ in rows}:
+        mine = [r for s, _, r in rows if s == sport]
+        others = [r for s, _, r in rows if s != sport]
+        levels = Counter(l for s, l, _ in rows if s == sport)
+        p = welch_p(mine, others) if len(mine) >= MIN_GROUP and len(others) >= MIN_GROUP else None
+        out['sports'].append({
+            'sport': sport, 'n': len(mine), 'avg_next_recovery': round(mean(mine), 1),
+            'delta': round(mean(mine) - mean(others), 1) if others else None,
+            'significant': p is not None and p < SIGNIFICANCE,
+            'intensity': levels.most_common(1)[0][0],
+        })
+    out['sports'].sort(key=lambda x: (-x['n'], x['sport']))
     return out
 
 
@@ -292,10 +282,12 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #   - Normal range = mean ± 0.5 SD of the 7-day averages over the 4 weeks before the current week
 #     (28 baseline values of the same 7-day average: Vesterinen et al. 2016; Javaloyes et al. 2019;
 #     tabulated in Manresa-Rocamora et al. 2021), updated weekly (Carrasco-Poyatos et al. 2020).
-#   - Measures: 7-day HRV (every trial), 7-day resting HR (Alfonso et al. 2025) and 7-day hours
-#     asleep (sleep loss lowers performance: Craven et al. 2022). Each becomes a standard score vs
-#     its own baseline (resting HR flipped, so higher = better); the score is their average with
-#     equal weights (no study gives validated weights: Dawes 1979) on the T scale, 50 + 10 × average
+#   - Measures: HRV, resting HR and hours asleep, each over the last 7 days (the trials' unit:
+#     Javaloyes et al. 2019; Alfonso et al. 2025 for resting HR; Craven et al. 2022 for sleep) and
+#     for last night alone (single days keep the response to yesterday visible: Schneider et al.
+#     2019; Kiviniemi et al. 2007; Nuuttila et al. 2024). Each becomes a standard score vs its own
+#     baseline (resting HR flipped, so higher = better); the score is their average with equal
+#     weights (no study gives validated weights: Dawes 1979) on the T scale, 50 + 10 × average
 #     — 50 = exactly your normal, 10 points = 1 SD.
 #   - Answer: within or above normal (45+, i.e. not below −0.5 SD) → Train hard; below → Go easy
 #     (Javaloyes 2019; Kiviniemi et al. 2007); 1.5 SD or more below (under 35) → Rest, the line
@@ -371,6 +363,20 @@ def hard_days_in_a_row(hard_days, d):
     return n
 
 
+def judge_last_night(src, d, worse):
+    """Last night's single value vs the daily values of the 4 weeks before this week."""
+    if d not in src:
+        return None
+    monday = _date_minus(d, datetime.fromisoformat(d).weekday())
+    base = _in_range(src, _date_minus(monday, READY_BASELINE_DAYS), _date_minus(monday, 1))
+    if len(base) < READY_BASELINE_DAYS // 2:
+        return None
+    m, sd = mean(base), stdev(base)
+    if sd == 0:
+        return None
+    return {'value': src[d], 'z': (src[d] - m) / sd * (-1 if worse == 'above' else 1)}
+
+
 def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day=None):
     ln_hrv = {k: math.log(v) for k, v in hrv_by_day.items() if v and v > 0}
     rhr = {k: v for k, v in rhr_by_day.items() if v}
@@ -382,7 +388,10 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
             continue
         rest = judge_marker(rhr, d, 'above')
         sleep = judge_marker(sleep_h, d, 'below')
+        night = [judge_last_night(src, d, worse) for src, worse in
+                 ((ln_hrv, 'below'), (rhr, 'above'), (sleep_h, 'below'))]
         zs = [m['z'] for m in (hrv, rest, sleep) if m and m['z'] is not None]
+        zs += [m['z'] for m in night if m]
         score = max(0, min(100, math.floor(T_SCALE[0] + T_SCALE[1] * mean(zs) + 0.5)))
         breathing = breathing_check(rr_by_day, d)
         streak = hard_days_in_a_row(hard_days, d)
@@ -404,6 +413,11 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
             'hrv': marker(hrv, lambda v: round(math.exp(v))),
             'rhr': marker(rest, lambda v: round(v, 1)),
             'sleep': marker(sleep, lambda v: round(v, 2)),
+            'last_night': None if not [m for m in night if m] else {
+                'score': max(0, min(100, math.floor(T_SCALE[0] + T_SCALE[1] * mean([m['z'] for m in night if m]) + 0.5))),
+                'state': ('above' if mean([m['z'] for m in night if m]) > READY_SWC else
+                          'below' if mean([m['z'] for m in night if m]) < -READY_SWC else 'within'),
+                'measures': sum(1 for m in night if m)},
             'breathing': breathing, 'hard_days_in_a_row': streak, 'max_hard_days': MAX_HARD_DAYS_IN_A_ROW,
         }
     return latest, series
