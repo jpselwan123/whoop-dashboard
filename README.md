@@ -211,8 +211,21 @@ It starts from your **body score** (below) and can only be *lowered* by today's 
   or more → at most 24. A one-off night is only shown as *watching* — single nights brushing
   the line are common noise, and wearable illness detection relies on changes across
   several nights ([Miller et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33301493/)).
-- **At most 37** — you've already trained harder than your 7-day average today, *or* all
-  three of 7+ days since rest, a week harder than 80% of recent weeks, and ACWR above 1.3.
+- **Sessions today** — each workout logged today is classed easy, moderate or hard, following
+  the three recovery time courses in [Stanley, Peake & Buchheit, 2013](https://link.springer.com/article/10.1007/s40279-013-0083-4)
+  (cardiac autonomic recovery: up to 24 h after low-intensity, 24–48 h after threshold-intensity,
+  48 h+ after high-intensity exercise):
+
+  | Session | Rule (WHOOP heart-rate zones, strain) | Readiness for the rest of today |
+  |---|---|---|
+  | Easy | anything below moderate | no change |
+  | Moderate | 20+ min in zones 3–5, or strain 10+ | at most 62 (no Push) |
+  | Hard | 10+ min in zones 4–5, or strain 14+ — or today's total strain above your 7-day average | at most 37 |
+
+  The strain lines are WHOOP's own scale (10–13.9 moderate, 14+ high); the minute lines and
+  treating zone 3 / zones 4–5 as roughly "threshold" / "above threshold" are design choices.
+- **At most 37** — all three of 7+ days since rest, a week harder than 80% of recent weeks,
+  and ACWR above 1.3.
 
 ### How readiness is calculated
 
@@ -225,7 +238,7 @@ your recent trend inside, above, or below it?** Each counts for half.
 | 1. Smooth (trend half) | 7-day rolling average of ln(RMSSD) HRV and of resting HR; 3-night average of sleep performance | The 7-day rolling ln RMSSD average is what HRV-guided training trials act on ([Javaloyes et al., 2019](https://pubmed.ncbi.nlm.nih.gov/29809080/); [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Sleep loss impairs performance ([Fullagar et al., 2015](https://pubmed.ncbi.nlm.nih.gov/25315456/); [Walsh et al., 2021](https://www.researchgate.net/publication/345351246_Sleep_and_the_athlete_narrative_review_and_2021_expert_consensus_recommendations)); the 3-night window is a design choice |
 | 2. Compare to *your* normal | Baseline = your rolling values over the 60 days before this week. Normal range = baseline mean ± 0.5 SD | ±0.5 SD is the "smallest worthwhile change" these trials use to choose hard vs easy days (mean ± 0.5 × SD, following Plews et al., 2012 — see [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Trials used a ~4-week baseline; 60 days is a steadier choice for everyday life |
 | 3. Add resting HR and sleep | Each input expressed in SD units (resting HR flipped: lower = better), capped at ±3 | Adding resting HR (and well-being) to HRV gave the largest gains in a 2025 cyclist trial ([Alfonso et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12485039/)) |
-| 4. Last night (other half) | The same three markers from last night alone, vs the single nights of your previous 60 days | Averaging hides individual next-day responses; single-day values are recommended for short-term responses ([Schneider et al., 2019](https://pmc.ncbi.nlm.nih.gov/articles/PMC6538885/)), and the first HRV-guided trial decided each day from that morning's HRV ([Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/)). Acute sleep loss (6 h or less) lowers exercise performance by ~8% on average ([Craven et al., 2022](https://pubmed.ncbi.nlm.nih.gov/35708888/)) |
+| 4. Last night (other half) | The same three markers from last night alone, vs the single nights of your previous 60 days. Naps taken after waking count toward sleep: their sleep time is added to last night's (WHOOP's sleep performance is time asleep ÷ sleep needed), capped at 100% — a nap restores performance, most clearly after a short night ([Botonis et al., 2021](https://onlinelibrary.wiley.com/doi/10.1111/sms.14060)) | Averaging hides individual next-day responses; single-day values are recommended for short-term responses ([Schneider et al., 2019](https://pmc.ncbi.nlm.nih.gov/articles/PMC6538885/)), and the first HRV-guided trial decided each day from that morning's HRV ([Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/)). Acute sleep loss (6 h or less) lowers exercise performance by ~8% on average ([Craven et al., 2022](https://pubmed.ncbi.nlm.nih.gov/35708888/)) |
 | 5. Combine | Equal-weight average within each half, then **50% last night + 50% trend** → score = 50 + 25 × average, 0–100 | Single nights are noisy and can mislead on their own ([Plews et al., 2012](https://link.springer.com/article/10.1007/s00421-012-2354-4)); rolling averages lose next-day detail (Schneider 2019). No study has validated a split or specific weights, and the 2021 meta-analysis calls daily vs rolling an open question ([Manresa-Rocamora et al., 2021](https://pubmed.ncbi.nlm.nih.gov/34639599/)) — so equal weights, the robust default when none exist ([Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making)) |
 | 6. Bands | 63+ Push (≥ +0.5 SD) · 38–62 Train · 25–37 Go easy (< −0.5 SD) · under 25 Rest (< −1 SD) | ±0.5 SD is the trials' above / within / below rule; the −1 SD Rest line, the 2-of-3-nights rule, and the 37 / 24 caps are design choices |
 

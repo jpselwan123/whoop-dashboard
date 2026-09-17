@@ -269,6 +269,54 @@ READY_SWC = 0.5
 # a split, so equal weights (Dawes 1979).
 READY_WEIGHTS = {'last_night': 0.5, 'trend': 0.5}
 
+# Same-day sessions. Cardiac autonomic recovery takes up to 24 h after low-intensity exercise,
+# 24–48 h after threshold-intensity and 48 h+ after high-intensity (Stanley, Peake & Buchheit
+# 2013). Each session today is classed on those three levels from WHOOP's heart-rate zones and
+# strain; the page caps readiness for the rest of the day (hard ≤37 Go easy, moderate ≤62 Train).
+# Zone 3 ≈ between the thresholds and zones 4–5 ≈ above the second is an approximation; the
+# minute cut-offs are design choices, and the strain cut-offs are WHOOP's own scale
+# (10–13.9 moderate, 14+ high).
+SESSION_HARD = {'zone45_min': 10, 'strain': 14}
+SESSION_MODERATE = {'zone3plus_min': 20, 'strain': 10}
+
+
+def session_intensity(zone45_min, zone3plus_min, strain):
+    if zone45_min >= SESSION_HARD['zone45_min'] or (strain or 0) >= SESSION_HARD['strain']:
+        return 'hard'
+    if zone3plus_min >= SESSION_MODERATE['zone3plus_min'] or (strain or 0) >= SESSION_MODERATE['strain']:
+        return 'moderate'
+    return 'easy'
+
+
+def asleep_ms(s):
+    st = s['score']['stage_summary']
+    return max(0, st['total_in_bed_time_milli'] - st['total_awake_time_milli'])
+
+
+def sleep_with_naps(sleep, naps):
+    """Sleep performance per day with same-day naps counted.
+
+    WHOOP's sleep performance is time asleep ÷ sleep needed (checked against the export to
+    within 0.5 points). A nap after waking adds its sleep time to the numerator, capped at
+    100% — naps restore performance, most clearly after short nights (Botonis et al. 2021).
+    Days without a nap keep WHOOP's own number. Returns ({day: perf}, {day: nap hours})."""
+    perf, nap_h = {}, {}
+    naps_by_day = defaultdict(list)
+    for n in naps:
+        naps_by_day[day(n['created_at'])].append(n)
+    for s in sleep:
+        d = day(s['created_at'])
+        perf[d] = s['score']['sleep_performance_percentage']
+        extra = sum(asleep_ms(n) for n in naps_by_day.get(d, []) if n['start'] >= s['end'])
+        need = s['score'].get('sleep_needed') or {}
+        need_ms = sum(need.get(k) or 0 for k in ('baseline_milli', 'need_from_sleep_debt_milli',
+                                                  'need_from_recent_strain_milli', 'need_from_recent_nap_milli'))
+        if extra <= 0 or need_ms <= 0 or perf[d] is None:
+            continue
+        perf[d] = min(100.0, round(perf[d] + 100 * extra / need_ms, 1))
+        nap_h[d] = round(extra / 3600000, 2)
+    return perf, nap_h
+
 
 def _rolling_by_calendar(by_day, window, min_n, transform=lambda v: v):
     """Rolling mean over calendar days (not records), so gaps in wear don't stretch a
@@ -287,7 +335,7 @@ def _rolling_by_calendar(by_day, window, min_n, transform=lambda v: v):
     return out
 
 
-def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day):
+def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day, nap_h_by_day=None):
     from datetime import date as _date
     rolled = {
         'hrv': _rolling_by_calendar({k: v for k, v in hrv_by_day.items() if v and v > 0},
@@ -353,6 +401,8 @@ def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day):
             continue
         trend = mean(zs.values())
         nz, nparts = part(raw, night_baseline, d)
+        if nap_h_by_day and d in nap_h_by_day and 'sleep' in nparts:
+            nparts['sleep']['nap_h'] = nap_h_by_day[d]
         night = mean(nz.values()) if 'hrv' in nz else None
         composite = trend if night is None else READY_WEIGHTS['trend'] * trend + READY_WEIGHTS['last_night'] * night
         score = to_score(composite)
@@ -491,6 +541,7 @@ def build_today_snapshot(cyc, wo):
         zone_easy = sum((zd.get(k) or 0) for k in ZONE_EASY) / 60000
         zone_mod = sum((zd.get(k) or 0) for k in ZONE_MOD) / 60000
         zone_hard = sum((zd.get(k) or 0) for k in ZONE_HARD) / 60000
+        zone3 = (zd.get('zone_three_milli') or 0) / 60000
         todays_workouts.append({
             'sport': sport_label(w['sport_name']),
             'start': w['start'],
@@ -504,6 +555,7 @@ def build_today_snapshot(cyc, wo):
             'zone_easy_min': round(zone_easy),
             'zone_mod_min': round(zone_mod),
             'zone_hard_min': round(zone_hard),
+            'intensity': session_intensity(zone_hard, zone_hard + zone3, sc.get('strain')),
         })
     todays_workouts.sort(key=lambda w: w['start'])
 
@@ -520,6 +572,7 @@ def build_summary(d):
     rec = sorted([r for r in d['recovery'] if r['score_state'] == 'SCORED'], key=lambda r: r['created_at'])
     cyc = sorted([c for c in d['cycles'] if c['score_state'] == 'SCORED'], key=lambda c: c['created_at'])
     sleep = sorted([s for s in d['sleep'] if s['score_state'] == 'SCORED' and not s['nap']], key=lambda s: s['created_at'])
+    naps = [s for s in d['sleep'] if s['score_state'] == 'SCORED' and s['nap'] and s.get('score')]
     wo = sorted([w for w in d['workouts'] if w['score_state'] == 'SCORED' and w.get('score')], key=lambda w: w['start'])
 
     if not rec or not cyc or not sleep:
@@ -654,8 +707,8 @@ def build_summary(d):
     rest_day_stat = build_rest_day_stat(cyc)
     today_snapshot = build_today_snapshot(cyc, wo)
     anomalies = build_anomalies(hrv_by_day, rhr_by_day, rr_by_day)
-    sleep_perf_by_day = {day(s['created_at']): s['score']['sleep_performance_percentage'] for s in sleep}
-    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day)
+    sleep_perf_by_day, nap_h_by_day = sleep_with_naps(sleep, naps)
+    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day, nap_h_by_day)
     warning = build_warning(hrv_by_day, rhr_by_day, rr_by_day)
     full['readiness'] = readiness_series
     cutoff_14d = (parse(latest_rec['created_at']) - timedelta(days=14)).date().isoformat()

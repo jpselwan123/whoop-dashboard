@@ -46,6 +46,7 @@ def clamp(v, lo, hi):
 
 def generate(days=420, seed=23, now=None):
     rng = random.Random(seed)
+    nap_rng = random.Random(seed + 1000)
     now = now or datetime.now(timezone.utc)
     today_local = (now + TZ_DELTA).date()
     start_day = today_local - timedelta(days=days - 1)
@@ -115,6 +116,33 @@ def generate(days=420, seed=23, now=None):
                       "spo2_percentage": round(clamp(rng.gauss(96.4, 0.6), 93, 99), 3),
                       "skin_temp_celsius": round(clamp(rng.gauss(33.4, 0.35), 32, 35), 3)},
         })
+
+        # ---- nap: some weekend afternoons and after short nights (own RNG so the rest of the data is unchanged) ----
+        if nap_rng.random() < (0.35 if asleep_h < 6.3 else 0.12 if d.weekday() >= 5 else 0.03):
+            nap_start = local_midnight + timedelta(hours=14, minutes=nap_rng.randint(0, 60))
+            nap_h = nap_rng.uniform(0.35, 1.4)
+            nap_end = nap_start + timedelta(hours=nap_h)
+            if nap_end + timedelta(minutes=10) <= now:
+                nap_awake = nap_h * 0.12
+                nap_asleep = nap_h - nap_awake
+                sleeps.append({
+                    "id": uid(), "cycle_id": cycle_id, "v1_id": None, "user_id": 1,
+                    "created_at": iso(nap_end + timedelta(minutes=8)), "updated_at": iso(nap_end + timedelta(minutes=20)),
+                    "start": iso(nap_start), "end": iso(nap_end), "timezone_offset": TZ, "nap": True, "score_state": "SCORED",
+                    "score": {
+                        "stage_summary": {
+                            "total_in_bed_time_milli": int(nap_h * 3.6e6), "total_awake_time_milli": int(nap_awake * 3.6e6),
+                            "total_no_data_time_milli": 0, "total_light_sleep_time_milli": int(nap_asleep * 0.7 * 3.6e6),
+                            "total_slow_wave_sleep_time_milli": int(nap_asleep * 0.2 * 3.6e6),
+                            "total_rem_sleep_time_milli": int(nap_asleep * 0.1 * 3.6e6),
+                            "sleep_cycle_count": 0, "disturbance_count": nap_rng.randint(0, 3),
+                        },
+                        "sleep_needed": {"baseline_milli": 0, "need_from_sleep_debt_milli": 0,
+                                         "need_from_recent_strain_milli": 0, "need_from_recent_nap_milli": 0},
+                        "respiratory_rate": resp, "sleep_performance_percentage": None,
+                        "sleep_consistency_percentage": None, "sleep_efficiency_percentage": round(100 * nap_asleep / nap_h, 1),
+                    },
+                })
 
         # ---- workouts ----
         day_strain = clamp(rng.gauss(5.5, 1.2), 2.5, 9) if d.weekday() != 4 else clamp(rng.gauss(4.2, 0.8), 2.5, 6)   # Fridays off

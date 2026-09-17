@@ -59,9 +59,12 @@ previous 60 days); normal = mean ± 0.5 SD, equal weights, 50 + 25 × average (5
 dashboard_summaries.readiness.score, with .last_night and .trend parts. The page then lowers it: a confirmed warning (dashboard_summaries.warning — same vital past \
 1.5 SD vs the last 30 nights on 2 of the last 3 nights, or 2+ vitals on the same night, and \
 still out last night) caps it at warning.cap (37 just over the line → 24 far out); a one-off \
-night is only 'watching' and does not lower it. At most 37 if \
-today's strain is already above the 7-day average, or if 7+ days without rest AND this week \
-harder than 80% of recent weeks AND load ratio above 1.3× all hold. Answer from the final \
+night is only 'watching' and does not lower it. Sessions today \
+(dashboard_summaries.today_snapshot.workouts[].intensity, after Stanley et al. 2013): hard = 10+ min \
+in zones 4–5 or strain 14+, or today's total strain above the 7-day average → at most 37; moderate = \
+20+ min in zones 3–5 or strain 10+ → at most 62; easy → no change. Naps after waking add their sleep \
+time to last night's sleep performance (capped at 100%). Also at most 37 if 7+ days without rest AND \
+this week harder than 80% of recent weeks AND load ratio above 1.3× all hold. Answer from the final \
 number: 63+ Push, 38–62 Train, 25–37 Go easy, under 25 Rest.
 - Load ratio (ACWR): last-7-days average strain ÷ last-28-days average. 0.8–1.3 is the usual \
 safe band; above 1.3 caution; above 1.5 high.

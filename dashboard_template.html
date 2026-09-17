@@ -677,12 +677,14 @@ function percentile(vals, p){
 //   2. Lowered (never raised) by today's context: a *confirmed* warning sign (build_warning:
 //      same vital out of range on 2 of the last 3 nights, or 2+ vitals out together, and
 //      still out last night) caps it between 37 and 24 depending on how far out it is;
-//      having already trained hard today, or 7+ days without rest + an unusually hard
-//      week + load ratio above 1.3 together, caps it at 37. A one-off night is only watched.
+//      a hard session today (intensity from build_today_snapshot, after Stanley et al. 2013),
+//      today's strain above the 7-day average, or 7+ days without rest + an unusually hard
+//      week + load ratio above 1.3 together, caps it at 37; a moderate session caps it at 62
+//      (no Push). Easy sessions change nothing. A one-off night is only watched.
 //   3. Answer from the final number: 63+ Push (≥ +½ SD) · 38–62 Train · 25–37 Go easy
 //      (below −½ SD) · under 25 Rest (below −1 SD).
 const READY_BANDS = { push: 63, train: 38, easy: 25 };
-const READY_CAPS = { context: 37 };   // warning caps (37→24, graded) come from DATA.warning
+const READY_CAPS = { context: 37, moderate: 62 };   // warning caps (37→24, graded) come from DATA.warning
 const ACTIONS = {
   push:  {label:'Push',    c:'var(--good)',     bg:'var(--good-bg)',     headline:'Ready to push.'},
   train: {label:'Train',   c:'var(--accent)',   bg:'var(--accent-soft)', headline:'Ready to train.'},
@@ -700,7 +702,13 @@ function computeReadiness(){
 
   const snap = DATA.today_snapshot;
   const snapIsToday = !!(snap && snap.date === todayLocalISO());
-  const alreadyTrainedHard = snapIsToday && snap.strain_so_far > DATA.avg7_strain;
+  const sessions = snapIsToday ? (snap.workouts || []) : [];
+  const hardSessions = sessions.filter(w => w.intensity === 'hard');
+  const moderateSessions = sessions.filter(w => w.intensity === 'moderate');
+  const dayStrainHigh = snapIsToday && snap.strain_so_far > DATA.avg7_strain;
+  const alreadyTrainedHard = dayStrainHigh || hardSessions.length > 0;
+  const trainedModerate = !alreadyTrainedHard && moderateSessions.length > 0;
+  const sessionText = arr => arr.map(w => `${w.sport} today was ${w.intensity} (${w.dur_min} min, strain ${fmt1(w.strain)})`).join(' and ');
   const rest = DATA.rest_day_stat;
   const restOverdue = !!(rest && rest.days_since >= 7);
   const acwrElevated = acwrZoneLabel === 'Caution' || acwrZoneLabel === 'High risk';
@@ -717,14 +725,16 @@ function computeReadiness(){
     const joined = parts.join(' and ') + (W.reason === 'multiple' ? ` ${warnWhen}` : '');
     caps.push({key:'warning', max:W.cap, text:joined});
   }
-  if(alreadyTrainedHard) caps.push({key:'trained', max:READY_CAPS.context, text:`today's strain (${fmt1(snap.strain_so_far)}) is already above your 7-day average (${fmt1(DATA.avg7_strain)})`});
+  if(alreadyTrainedHard) caps.push({key:'trained', max:READY_CAPS.context, text: hardSessions.length
+    ? sessionText(hardSessions) : `today's strain (${fmt1(snap.strain_so_far)}) is already above your 7-day average (${fmt1(DATA.avg7_strain)})`});
+  else if(trainedModerate) caps.push({key:'trained', max:READY_CAPS.moderate, text:sessionText(moderateSessions)});
   if(overloadCombo) caps.push({key:'overload', max:READY_CAPS.context, text:`${rest.days_since} days without rest, an unusually hard week and load ratio above 1.3×`});
   const limit = caps.length ? Math.min(...caps.map(c => c.max)) : 100;
   const readiness = Math.min(base, limit);
   const lowering = caps.filter(c => c.max < base);           // only caps that actually changed the number
 
   return { readiness, base, action: actionFor(readiness), caps, lowering, fallback: !R, strainRatio,
-           snap, snapIsToday, alreadyTrainedHard, rest, overloadCombo, fatigueFlagged, watch, warnWhen, sigText };
+           snap, snapIsToday, sessions, dayStrainHigh, alreadyTrainedHard, rest, overloadCombo, fatigueFlagged, watch, warnWhen, sigText };
 }
 
 function decisionWhy(calc){
@@ -736,7 +746,7 @@ function decisionWhy(calc){
   }
   if(!R) return `Based on WHOOP recovery (<b>${calc.base}</b>) until there's about 5 weeks of data.`;
   const nameOf = {hrv:'HRV', rhr:'resting HR', sleep:'sleep'};
-  const val = (m, c) => m === 'hrv' ? `${c.value} ms` : m === 'rhr' ? `${c.value.toFixed(1)} bpm` : `${Math.round(c.value)}%`;
+  const val = (m, c) => m === 'hrv' ? `${c.value} ms` : m === 'rhr' ? `${c.value.toFixed(1)} bpm` : `${Math.round(c.value)}%${c.nap_h ? ` with a ${fmtHM(c.nap_h)} nap` : ''}`;
   const rng = (m, c) => m === 'hrv' ? `${c.normal[0]}–${c.normal[1]}` : m === 'rhr' ? `${c.normal[0].toFixed(1)}–${c.normal[1].toFixed(1)}` : `${Math.round(c.normal[0])}–${Math.round(c.normal[1])}%`;
   const list = arr => arr.length > 1 ? arr.slice(0,-1).join(', ') + ' and ' + arr[arr.length-1] : arr[0];
   // one clause per part, e.g. "last night HRV 137 ms (normal 71–100) and resting HR 58.0 bpm (…)"
@@ -791,7 +801,7 @@ function renderSuggestions(state, calc, alreadyTrainedHard, overloadCombo, rest)
     sTxt.innerHTML = `<b>You're done for today — and make tomorrow a rest day.</b> ${rest.days_since} days since your last true rest day, this week's load has been unusually concentrated, and your ACWR is in ${acwrZoneLabel}.`;
   } else if(alreadyTrainedHard){
     sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>You're done for today.</b> Strain is already above your 7-day average — no need to pick another sport.`;
+    sTxt.innerHTML = `<b>You're done for today.</b> You've already trained hard — no need to pick another sport.`;
   } else if(overloadCombo){
     sEl.className = 'signal warn';
     sTxt.innerHTML = `<b>Take a rest or easy day.</b> ${rest.days_since} days since your last true rest day, this week's load has been unusually concentrated, and your ACWR is in ${acwrZoneLabel} — that combination calls for backing off, not another hard sport.`;
@@ -834,10 +844,12 @@ function renderSuggestions(state, calc, alreadyTrainedHard, overloadCombo, rest)
 // frames never run (hidden window, reduced motion, an error) the real number is already shown.
 let firstPaint = true;
 function countUp(el, target, format){
+  const run = el.__countRun = (el.__countRun || 0) + 1;   // a newer render cancels an older animation
   el.textContent = format(target);
   if(!firstPaint || reduceMotionPref() || !isFinite(target)) return;
   const t0 = performance.now(), dur = 750;
   const step = (now)=>{
+    if(el.__countRun !== run) return;
     const k = Math.min(1, (now - t0) / dur), eased = 1 - Math.pow(1 - k, 3);
     el.textContent = format(target * eased);
     if(k < 1) requestAnimationFrame(step); else el.textContent = format(target);
@@ -1699,7 +1711,8 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
         out.push(c.sleep ? row(labels.sleep, `${one(c.sleep.value)}%`, `${one(c.sleep.normal[0])}–${one(c.sleep.normal[1])}`, cls('sleep')) : row(labels.sleep, '—', '', ''));
         out.push(row('Score', `${P.score}`, '50 = normal', ''));
       };
-      block(R.last_night, 'Last night', {hrv:'HRV', rhr:'Resting HR', sleep:'Sleep'});
+      const nap = R.last_night && R.last_night.components.sleep && R.last_night.components.sleep.nap_h;
+      block(R.last_night, 'Last night', {hrv:'HRV', rhr:'Resting HR', sleep: nap ? `Sleep · incl. ${fmtHM(nap)} nap` : 'Sleep'});
       block(R.trend, 'Recent trend', {hrv:'HRV · 7-day avg', rhr:'Resting HR · 7-day avg', sleep:'Sleep · 3-night avg'});
       out.push(row('Body score', `${calc.base}`, R.last_night ? `${Math.round(w.last_night*100)}% last night + ${Math.round(w.trend*100)}% trend` : 'trend only', 'current'));
     } else {
@@ -1707,18 +1720,26 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(`<div class="rp-note">Needs about 5 weeks of data to learn your normal.</div>`);
     }
 
-    if(calc.lowering.length){
+    if(calc.sessions.length || calc.dayStrainHigh){
+      out.push(section('Today so far', 'sessions'));
+      for(const w of calc.sessions)
+        out.push(row(`${w.sport} · ${w.intensity}`, `${w.dur_min} min`, `strain ${fmt1(w.strain)}`, w.intensity === 'hard' ? 'flagged' : ''));
+      if(calc.dayStrainHigh) out.push(row('Strain today', fmt1(calc.snap.strain_so_far), `avg ${fmt1(DATA.avg7_strain)}`, 'flagged'));
+      const t = calc.caps.find(c => c.key === 'trained');
+      if(!t) out.push(`<div class="rp-note" style="margin-top:4px">Easy sessions don't lower readiness.</div>`);
+      else out.push(row('Readiness at most', `${t.max}`, t.max < calc.base ? '' : 'already below', t.max < calc.base ? 'current' : ''));
+    }
+
+    const otherLowering = calc.lowering.filter(c => c.key !== 'trained');
+    if(otherLowering.length){
       out.push(section('Lowered today', ''));
-      for(const cap of calc.lowering){
+      for(const cap of otherLowering){
         if(cap.key === 'warning'){
           const W = DATA.warning;
           for(const x of W.signals){
             const label = W.reason === 'repeated' ? `${x.name} · ${W.nights_out[x.name]} of ${W.nights_checked} nights` : `${x.name} · ${calc.warnWhen.replace(/^on /,'')}`;
             out.push(row(label, `${x.value}${x.unit}`, `${x.limit}${x.direction === 'low' ? ' or less' : '+'}`, 'flagged'));
           }
-          out.push(row('Readiness at most', `${cap.max}`, '', 'current'));
-        } else if(cap.key === 'trained'){
-          out.push(row('Strain today', fmt1(calc.snap.strain_so_far), `avg ${fmt1(DATA.avg7_strain)}`, 'flagged'));
           out.push(row('Readiness at most', `${cap.max}`, '', 'current'));
         } else if(cap.key === 'overload'){
           const acwr = DATA.acwr.length ? DATA.acwr[DATA.acwr.length-1].v : null;
@@ -1742,7 +1763,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
     out.push(row('Train', `${b.train}–${b.push - 1}`, '', cur === 'train' ? 'current' : ''));
     out.push(row('Go easy', `${b.easy}–${b.train - 1}`, '', cur === 'easy' ? 'current' : ''));
     out.push(row('Rest', `under ${b.easy}`, '', cur === 'rest' ? 'current' : ''));
-    out.push(`<div class="rp-note">A confirmed warning sign caps readiness at 37 to 24 depending on how far out it is; a hard session today or an overload week caps it at ${READY_CAPS.context}.</div>`);
+    out.push(`<div class="rp-note">A confirmed warning sign caps readiness at 37 to 24 depending on how far out it is; a hard session today or an overload week caps it at ${READY_CAPS.context}, a moderate session at ${READY_CAPS.moderate}.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 
