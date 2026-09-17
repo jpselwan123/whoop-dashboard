@@ -45,7 +45,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   sign must be *confirmed* by `build_warning` — 2 of last 3 nights or 2+ vitals, still out last night — and caps
   37→24 graded; one-off nights are only "watching"; a hard session today (`session_intensity`) / strain above
   7-day avg / overload week ≤37; a moderate session ≤62; easy sessions nothing) — never an "override" or a second verdict label.
-  One explanation panel (click the orb).
+  One explanation panel (click the orb). Under the orb, the two halves in words only (Strong/Normal/
+  Below normal/Low, same cut-offs as the bands); explorer tab is "Body score" (pre-lowering).
 - **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 50% last night
   (ln-RMSSD HRV, resting HR, sleep vs single nights of the last 60 days) + 50% trend (7-day HRV,
   7-day resting HR, 3-night sleep hours vs needed vs a 60-day baseline); ±0.5 SD SWC, equal weights (`READY_WEIGHTS`),

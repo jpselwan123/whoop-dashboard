@@ -139,6 +139,11 @@
   .rs-marker{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px var(--surface);transition:left .6s cubic-bezier(.2,.7,.2,1);}
   .rs-ticks{position:relative;height:14px;margin-top:5px;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);}
   .rs-ticks span{position:absolute;transform:translateX(-50%);}
+  .hero-halves{grid-column:1 / -1;text-align:center;padding-top:12px;border-top:1px solid var(--border);}
+  .hh-row{display:flex;justify-content:center;align-items:baseline;gap:6px 28px;flex-wrap:wrap;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:0.04em;color:var(--ink-muted);}
+  .hh-row b{font-family:"IBM Plex Sans",sans-serif;font-size:13px;font-weight:600;letter-spacing:0;color:var(--ink);margin-left:6px;}
+  .hh-row b.good{color:var(--good);} .hh-row b.warn{color:var(--warn);} .hh-row b.bad{color:var(--critical);}
+  .hh-cap{margin-top:6px;font-size:11.5px;color:var(--ink-faint);}
   .hero-legend{grid-column:1 / -1;display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;
     padding-top:12px;border-top:1px solid var(--border);font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);}
   .hero-legend b{font-weight:600;font-size:9px;} .hero-legend .up{color:var(--good);} .hero-legend .down{color:var(--critical);margin-left:1px;}
@@ -402,6 +407,10 @@
       </div>
     </div>
     <div class="flank right" id="flankLoad"></div>
+    <div class="hero-halves" id="heroHalves" hidden>
+      <div class="hh-row"><span>Last night <b id="hhNight">—</b></span><span>Recent week <b id="hhWeek">—</b></span><span class="hh-result">→ <b id="hhScore">—</b></span></div>
+      <div class="hh-cap">Readiness weighs last night and your recent week equally.</div>
+    </div>
     <div class="hero-legend"><span><b class="up">▲</b><b class="down">▼</b> vs your 30-day average</span></div>
   </section>
 
@@ -484,20 +493,6 @@
     </div>
   </section>
 
-  <section>
-    <div class="section-head"><h2>By day of week</h2><span class="n">whole history</span></div>
-    <div class="chart-grid-2" style="margin-top:10px;">
-      <div class="card">
-        <div class="section-sub" style="margin:0 0 8px;">Avg recovery</div>
-        <div class="chart-wrap" id="wdRecChartWrap"><div class="chart-tooltip" id="wdRecTooltip"></div></div>
-      </div>
-      <div class="card">
-        <div class="section-sub" style="margin:0 0 8px;">Avg strain</div>
-        <div class="chart-wrap" id="wdStrainChartWrap"><div class="chart-tooltip" id="wdStrainTooltip"></div></div>
-      </div>
-    </div>
-  </section>
-
   <div class="group-header"><span class="glabel">Monthly</span><span class="grule"></span><span class="gcaption">long-range trends &amp; all-time record</span></div>
 
   <section class="card">
@@ -513,6 +508,13 @@
     </div>
   </section>
 
+  <section class="card" id="checkCard">
+    <div class="section-head"><h2>Does this work?</h2><span class="n" id="checkDays"></span></div>
+    <div class="section-sub">Average recovery the next morning, after days the model made each call.</div>
+    <div class="chart-wrap" id="checkChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="checkTooltip"></div></div>
+    <div class="section-sub" id="checkCaption" style="margin-top:8px;"></div>
+  </section>
+
   <section class="card">
     <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery, every day</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="heatmapRange"></span></div>
     <div class="heatmap-scroll" id="heatmapScroll">
@@ -524,21 +526,6 @@
       <div class="li"><span class="sw" style="background:var(--warn)"></span>34–66</div>
       <div class="li"><span class="sw" style="background:var(--good)"></span>67–100</div>
       <div class="li"><span class="sw" style="background:var(--surface-2);border:1px solid var(--border);"></span>No data</div>
-    </div>
-  </section>
-
-  <section>
-    <div class="section-head"><h2>Long-term pattern</h2><span class="n" id="monthlyRange"></span></div>
-    <div class="section-sub" style="margin-top:2px;">Empty gaps are months with no WHOOP data at all. Faded bars are months with fewer than 10 tracked days — not enough to trust the average.</div>
-    <div class="chart-grid-2" style="margin-top:10px;">
-      <div class="card">
-        <div class="section-sub" style="margin:0 0 8px;">Recovery, monthly avg</div>
-        <div class="chart-wrap" id="monthRecChartWrap"><div class="chart-tooltip" id="monthRecTooltip"></div></div>
-      </div>
-      <div class="card">
-        <div class="section-sub" style="margin:0 0 8px;">Strain, monthly avg</div>
-        <div class="chart-wrap" id="monthStrainChartWrap"><div class="chart-tooltip" id="monthStrainTooltip"></div></div>
-      </div>
     </div>
   </section>
 
@@ -610,7 +597,6 @@ let DATA = __DATA__;
 const $ = (id) => document.getElementById(id);
 const fmt1 = (n) => (Math.round(n*10)/10).toFixed(1).replace(/\.0$/,'');
 const fmtDate = (iso) => new Date(iso+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
-const fmtMonth = (ym) => { const [y,mo] = ym.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString(undefined,{month:'short',year:'numeric'}); };
 const fmtHM = (hoursDecimal) => {
   let totalMin = Math.round(hoursDecimal * 60);
   let h = Math.floor(totalMin / 60), m = totalMin % 60;
@@ -766,8 +752,22 @@ function renderDecision(){
     $(id).style.left = v + '%'; $(id).textContent = v;
   });
   drawOrb(calc.readiness);
+  renderHalves(calc);
   renderSuggestions(calc, calc.alreadyTrainedHard, calc.overloadCombo, calc.rest);
   window.__readinessCalc = calc;
+}
+
+// The two halves of readiness in words (same lines as the answer bands), so a strong night
+// after a weak week explains itself without showing any arithmetic.
+function renderHalves(calc){
+  const R = DATA.readiness, box = $('heroHalves');
+  if(!R || !R.last_night || !R.trend){ box.hidden = true; return; }
+  const word = s => s >= READY_BANDS.push ? ['Strong','good'] : s >= READY_BANDS.train ? ['Normal',''] : s >= READY_BANDS.easy ? ['Below normal','warn'] : ['Low','bad'];
+  const put = (id, s) => { const [w, cls] = word(s); $(id).textContent = w; $(id).className = cls; };
+  put('hhNight', R.last_night.score);
+  put('hhWeek', R.trend.score);
+  $('hhScore').textContent = calc.lowering.length ? `${calc.base}, lowered to ${calc.readiness}` : `${calc.readiness}`;
+  box.hidden = false;
 }
 
 function renderSuggestions(calc, alreadyTrainedHard, overloadCombo, rest){
@@ -1103,8 +1103,7 @@ function barChart(wrapId, tooltipId, categories, values, opts){
   wrap.querySelectorAll('svg').forEach(s=>s.remove());
   const tooltip = $(tooltipId);
   const showValueLabels = categories.length<=10;
-  const hasYAxis = !!opts.yAxis;
-  const W=wrap.clientWidth||opts.width||360, H=opts.height||150, padL=hasYAxis?30:32, padR=8, padT=showValueLabels?22:10, padB=22;
+  const W=wrap.clientWidth||opts.width||360, H=opts.height||150, padL=32, padR=8, padT=showValueLabels?22:10, padB=22;
   const plotW=W-padL-padR, plotH=H-padT-padB;
   const isGap = values.map(v=>v==null);
   const clean = values.map(v=>v==null?0:v);
@@ -1112,16 +1111,6 @@ function barChart(wrapId, tooltipId, categories, values, opts){
   const max = rawMax * 1.15;
   const bw = plotW/categories.length;
   const svg = svgEl('svg',{viewBox:`0 0 ${W} ${H}`, preserveAspectRatio:'none'});
-  if(hasYAxis){
-    const yticks = niceTicksRounded(0, rawMax, 4).filter(t=>t<=max);
-    for(const t of yticks){
-      const ty = padT+plotH-(t/max)*plotH;
-      svg.appendChild(svgEl('line',{x1:padL,y1:ty,x2:W-padR,y2:ty,stroke:'var(--border)','stroke-width':1}));
-      const lbl = svgEl('text',{x:2,y:ty+3,class:'axis-label'});
-      lbl.textContent = opts.decimals===0?Math.round(t):fmt1(t);
-      svg.appendChild(lbl);
-    }
-  }
   svg.appendChild(svgEl('line',{x1:padL,y1:padT+plotH,x2:W-padR,y2:padT+plotH,stroke:'var(--border-strong)','stroke-width':1}));
   const bars = [];
   categories.forEach((cat,i)=>{
@@ -1171,7 +1160,8 @@ function barChart(wrapId, tooltipId, categories, values, opts){
       const r = wrap.getBoundingClientRect();
       const pct = (b.x+b.w/2)/W*100;
       tooltip.style.left = pct+'%'; tooltip.style.top = ((padT+plotH-(b.v/max)*plotH)/H*100)+'%'; tooltip.style.opacity=1;
-      tooltip.textContent = `${b.cat} · ${opts.decimals===0?Math.round(b.v):fmt1(b.v)}${opts.unit||''}${b.partial?' (partial)':''}`;
+      tooltip.textContent = opts.tooltipText ? opts.tooltipText(bars.indexOf(b))
+        : `${b.cat} · ${opts.decimals===0?Math.round(b.v):fmt1(b.v)}${opts.unit||''}${b.partial?' (partial)':''}`;
     });
     hit.addEventListener('mouseleave', ()=>{ hoverRect.setAttribute('opacity',0); tooltip.style.opacity=0; });
     svg.appendChild(hit);
@@ -1224,7 +1214,7 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
 
 /* ================= trend explorer ================= */
 const METRICS = [
-  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:'readiness', bounds:[0,100], formula:'Half last night, half recent trend (7-day HRV and resting HR, 3-night sleep vs need), each vs your 60-day normal (50 = normal), before any same-day lowering.'},
+  {key:'readiness', label:'Body score', unit:'', decimals:0, refLines:'readiness', bounds:[0,100], formula:'Half last night, half recent trend (7-day HRV and resting HR, 3-night sleep vs need), each vs your 60-day normal (50 = normal), before any same-day lowering.'},
   {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
   {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:"WHOOP's Sleep Performance. Since WHOOP's 2025 update it blends hours vs needed with consistency, efficiency and sleep stress; readiness uses hours vs needed on its own."},
@@ -1547,23 +1537,25 @@ function renderHeatmap(){
   $('heatmapRange').textContent = `${fmtDate(series[0].date)} → ${fmtDate(series[series.length-1].date)}`;
 }
 
-/* ================= monthly & weekday ================= */
-function renderMonthly(){
-  const m = DATA.monthly;
-  const cats = m.map(x=>{ const [y,mo]=x.month.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString(undefined,{month:'short'})+"'"+y.slice(2); });
-  const partial = m.map(x=>x.partial);
-  barChart('monthRecChartWrap','monthRecTooltip', cats, m.map(x=>x.recovery), {color:'var(--accent)', decimals:0, highlightLast:true, yAxis:true, partial});
-  barChart('monthStrainChartWrap','monthStrainTooltip', cats, m.map(x=>x.strain), {color:'var(--accent)', decimals:1, highlightLast:true, yAxis:true, partial});
-  $('monthlyRange').textContent = `${fmtMonth(m[0].month)} → ${fmtMonth(m[m.length-1].month)} · ${DATA.monthly_count_with_data} months with data`;
-}
-function renderWeekday(){
-  const w = DATA.weekday;
-  const cats = w.map(x=>x.day);
-  barChart('wdRecChartWrap','wdRecTooltip', cats, w.map(x=>x.recovery), {color:'var(--accent)', decimals:0});
-  barChart('wdStrainChartWrap','wdStrainTooltip', cats, w.map(x=>x.strain), {color:'var(--accent)', decimals:1});
-}
 
 /* ================= records ================= */
+/* ================= does readiness work? ================= */
+function renderReadinessCheck(){
+  const C = DATA.readiness_check, card = $('checkCard');
+  if(!C || !C.days){ card.hidden = true; return; }
+  card.hidden = false;
+  const rows = C.calls;
+  $('checkDays').textContent = `${C.days} days`;
+  barChart('checkChartWrap', 'checkTooltip', rows.map(r => r.call), rows.map(r => r.avg_next_recovery),
+    {color:'var(--accent)', decimals:0, height:150, partial: rows.map(r => r.low_confidence),
+     tooltipText: i => `${rows[i].call} · recovery ${Math.round(rows[i].avg_next_recovery)} · ${rows[i].days} days${rows[i].low_confidence ? ' (few days)' : ''}`});
+  const q = s => `"${s}"`;
+  const last = C.overlaps.length ? C.overlaps.map(p => `${q(p[0])} and ${q(p[1])}`).join(', ') : '';
+  $('checkCaption').textContent = C.overlaps.length
+    ? `Each call steps down except ${last}, which currently land in about the same place — the line between them isn't doing much work yet.`
+    : 'Each call steps down from the one above it — the calls are doing real work.';
+}
+
 function renderRecords(){
   const R = DATA.records;
   const tiles = [
@@ -1656,8 +1648,7 @@ function renderAll(){
   renderExplorer();
   renderHeatmap();
   renderStageChart();
-  renderMonthly();
-  renderWeekday();
+  renderReadinessCheck();
   renderRecords();
   renderLoad();
   renderLog();
@@ -1666,7 +1657,7 @@ function renderAll(){
 }
 renderAll();
 firstPaint = false;
-window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); renderMonthly(); renderWeekday(); renderACWR(); renderMonotony(); renderZoneDistribution(); });
+window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); renderReadinessCheck(); renderACWR(); renderMonotony(); renderZoneDistribution(); });
 
 /* ================= readiness panel (click the orb) ================= */
 // The one place that explains today: last night, the recent trend, anything that lowered it, and the bands.

@@ -51,8 +51,9 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
 
 ### Daily — today's call
 - **Readiness — how ready you are to train today**, one 0–100 number that sets the
-  day's answer: **Push · Train · Go easy · Rest**. It starts from your body's trend and is
-  lowered when a warning sign or today's context calls for it.
+  day's answer: **Push · Train · Go easy · Rest**. It weighs last night and your recent week
+  equally (shown in words under the orb) and is lowered when a warning sign or today's
+  context calls for it.
 - **Click the orb** to see every input next to its normal range, anything
   that lowered readiness today, and the four bands.
 - **Today's plan** — which kind of session fits today, based on how *you* have
@@ -67,18 +68,20 @@ behind it, calibrated to **your own** history rather than generic cut-offs.
 - **Acute:Chronic Workload Ratio** with safe / caution / high-risk bands.
 - **Training variety** (Foster monotony) — warns when a week has been unusually
   hard-every-day *for you*.
-- Heart-rate zone time, sessions per week, training mix, sleep composition,
-  day-of-week patterns — all on Monday–Sunday weeks.
+- Heart-rate zone time, sessions per week, training mix, sleep composition — all on
+  Monday–Sunday weeks.
 
 ### Monthly — long-range trends
 
 <img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap, monthly averages, next-morning recovery per sport" width="880">
 
 - **Recovery calendar heatmap** of every day on record.
-- **Monthly averages** that show real gaps and fade partial months instead of
-  hiding them.
+- **Does this work?** — average next-morning recovery after days the model said Push,
+  Train, Go easy or Rest, with a plain note when two calls don't separate. A consistency
+  check (recovery shares HRV and resting HR with readiness), not independent proof.
 - **Next-morning recovery after each sport** — what each sport typically costs you.
-- Trend explorer for any metric, personal records, and the full training log.
+- Trend explorer for any metric (including the body score before same-day lowering),
+  personal records, and the full training log.
 
 ### App experience
 - **Native macOS app** (Swift + WebKit) that refreshes on launch.
@@ -348,7 +351,7 @@ python3 scripts/privacy_scan.py
   one-time right-click → Open.
 - The local server uses port `8934`; if something else uses it, change `PORT` in
   `chat_server.py` and the matching URLs in `dashboard_template.html`.
-- Sport and weekday comparisons are correlations, not controlled experiments.
+- Sport comparisons and the "Does this work?" check are correlations, not controlled experiments.
 
 ## License & disclaimer
 

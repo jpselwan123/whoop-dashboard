@@ -452,6 +452,32 @@ def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day, nap_h_by_day=None
     return latest, series
 
 
+# "Does this work?": average next-morning recovery after days the model made each call.
+# A consistency check, not independent validation — recovery shares HRV and resting HR with
+# readiness — and it uses the body score before same-day lowering (not stored for past days).
+CHECK_MIN_DAYS = 20          # fewer days than this → the bar is shown dimmed
+CHECK_SEPARATION = 3         # recovery points between neighbouring calls to count as "separate"
+
+
+def build_readiness_check(readiness_series, recovery_by_day):
+    calls = (('Push', 63, 101), ('Train', 38, 63), ('Go easy', 25, 38), ('Rest', 0, 25))
+    groups = {name: [] for name, _, _ in calls}
+    for p in readiness_series:
+        nxt = (datetime.fromisoformat(p['date']) + timedelta(days=1)).date().isoformat()
+        if nxt not in recovery_by_day:
+            continue
+        for name, lo, hi in calls:
+            if lo <= p['v'] < hi:
+                groups[name].append(recovery_by_day[nxt])
+    rows = [{'call': name, 'avg_next_recovery': round(mean(groups[name]), 1) if groups[name] else None,
+             'days': len(groups[name]), 'low_confidence': len(groups[name]) < CHECK_MIN_DAYS}
+            for name, _, _ in calls]
+    overlaps = [[a['call'], b['call']] for a, b in zip(rows, rows[1:])
+                if a['avg_next_recovery'] is not None and b['avg_next_recovery'] is not None
+                and a['avg_next_recovery'] - b['avg_next_recovery'] < CHECK_SEPARATION]
+    return {'calls': rows, 'overlaps': overlaps, 'days': sum(r['days'] for r in rows)}
+
+
 def build_sleep_composition(sleep, now):
     """Weekly average REM/deep(SWS)/light sleep hours, last 8 weeks. Computed here
     (not client-side) so the week key is zero-padded and sorts correctly — the same
@@ -732,6 +758,7 @@ def build_summary(d):
     readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day, nap_h_by_day)
     warning = build_warning(hrv_by_day, rhr_by_day, rr_by_day)
     full['readiness'] = readiness_series
+    readiness_check = build_readiness_check(readiness_series, recovery_by_day)
     cutoff_14d = (parse(latest_rec['created_at']) - timedelta(days=14)).date().isoformat()
     recent_anomalies = [a for a in anomalies if a['date'] >= cutoff_14d]
 
@@ -786,6 +813,7 @@ def build_summary(d):
         'full_series': full,
         'readiness': readiness,
         'warning': warning,
+        'readiness_check': readiness_check,
         'workout_log': workout_log,
         'monthly': monthly,
         'monthly_count_with_data': months_with_data,

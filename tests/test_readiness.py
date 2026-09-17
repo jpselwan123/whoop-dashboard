@@ -128,6 +128,37 @@ class ReadinessTest(unittest.TestCase):
         self.assertIn('readiness', summary['full_series'])
 
 
+class ReadinessCheckTest(unittest.TestCase):
+    def test_groups_by_call_and_uses_next_morning(self):
+        series = [{'date': '2026-01-01', 'v': 70}, {'date': '2026-01-02', 'v': 50},
+                  {'date': '2026-01-03', 'v': 30}, {'date': '2026-01-04', 'v': 10}]
+        recovery = {'2026-01-02': 80, '2026-01-03': 60, '2026-01-04': 40, '2026-01-05': 20}
+        out = bd.build_readiness_check(series, recovery)
+        self.assertEqual([(r['call'], r['avg_next_recovery'], r['days']) for r in out['calls']],
+                         [('Push', 80, 1), ('Train', 60, 1), ('Go easy', 40, 1), ('Rest', 20, 1)])
+        self.assertEqual(out['overlaps'], [])
+        self.assertTrue(all(r['low_confidence'] for r in out['calls']))
+
+    def test_band_edges_match_the_answer_bands(self):
+        series = [{'date': '2026-01-01', 'v': 63}, {'date': '2026-01-02', 'v': 62},
+                  {'date': '2026-01-03', 'v': 38}, {'date': '2026-01-04', 'v': 37},
+                  {'date': '2026-01-05', 'v': 25}, {'date': '2026-01-06', 'v': 24}]
+        recovery = {'2026-01-0%d' % i: 50 for i in range(2, 8)}
+        days = [r['days'] for r in bd.build_readiness_check(series, recovery)['calls']]
+        self.assertEqual(days, [1, 2, 2, 1])
+
+    def test_flags_neighbours_that_do_not_separate(self):
+        series = [{'date': '2026-01-01', 'v': 30}, {'date': '2026-01-02', 'v': 10}]
+        recovery = {'2026-01-02': 44.0, '2026-01-03': 44.3}
+        out = bd.build_readiness_check(series, recovery)
+        self.assertEqual(out['overlaps'], [['Go easy', 'Rest']])
+
+    def test_missing_next_morning_is_skipped(self):
+        out = bd.build_readiness_check([{'date': '2026-01-01', 'v': 70}], {})
+        self.assertEqual(out['days'], 0)
+        self.assertIsNone(out['calls'][0]['avg_next_recovery'])
+
+
 def generate_by_day():
     raw = generate(200, seed=5)
     day = bd.day
