@@ -775,13 +775,13 @@ function renderSuggestions(calc, alreadyTrainedHard, overloadCombo, rest){
 
   if(alreadyTrainedHard && overloadCombo){
     sEl.className = 'signal warn';
-    sTxt.innerHTML = `<b>You're done for today — and make tomorrow a rest day.</b> ${rest.days_since} days since your last true rest day, this week's load has been unusually concentrated, and your ACWR is in ${acwrZoneLabel}.`;
+    sTxt.innerHTML = `<b>You're done for today — and make tomorrow a rest day.</b> ${rest.days_since} days since your last true rest day, ${monotonyWeekName.charAt(0).toLowerCase() + monotonyWeekName.slice(1)} was unusually hard-every-day, and your ACWR is in ${acwrZoneLabel}.`;
   } else if(alreadyTrainedHard){
     sEl.className = 'signal ok';
     sTxt.innerHTML = `<b>You're done for today.</b> You've already trained hard — no need for another session.`;
   } else if(overloadCombo){
     sEl.className = 'signal warn';
-    sTxt.innerHTML = `<b>Take a rest or easy day.</b> ${rest.days_since} days since your last true rest day, this week's load has been unusually concentrated, and your ACWR is in ${acwrZoneLabel} — that combination calls for backing off, not another hard session.`;
+    sTxt.innerHTML = `<b>Take a rest or easy day.</b> ${rest.days_since} days since your last true rest day, ${monotonyWeekName.charAt(0).toLowerCase() + monotonyWeekName.slice(1)} was unusually hard-every-day, and your ACWR is in ${acwrZoneLabel} — that combination calls for backing off, not another hard session.`;
   } else if(calc.action === 'easy' || calc.action === 'rest' || fatigueFlagged){
     sEl.className = 'signal warn';
     sTxt.innerHTML = fatigueFlagged
