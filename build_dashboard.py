@@ -614,13 +614,6 @@ def build_summary(d):
             "WHOOP overnight, let it sync, then run this again."
         )
 
-    def day_series(items, val_fn):
-        out = {}
-        for it in items:
-            out[day(it['created_at'])] = val_fn(it)
-        days = sorted(out.keys())[-30:]
-        return [{'date': dd, 'v': round(out[dd], 1)} for dd in days]
-
     latest_rec, latest_cyc, latest_sleep = rec[-1], cyc[-1], sleep[-1]
     sn = latest_sleep['score']['sleep_needed']
     debt_h = sn['need_from_sleep_debt_milli'] / 3600000
@@ -647,10 +640,6 @@ def build_summary(d):
         'spo2': series_full(rec, lambda r: r['score'].get('spo2_percentage'), 1),
         'skin_temp': series_full(rec, lambda r: r['score'].get('skin_temp_celsius'), 2),
         'respiratory_rate': series_full(sleep, lambda s: s['score'].get('respiratory_rate'), 1),
-        'time_in_bed_h': series_full(sleep, lambda s: s['score']['stage_summary']['total_in_bed_time_milli'] / 3600000, 2),
-        'rem_h': series_full(sleep, lambda s: s['score']['stage_summary']['total_rem_sleep_time_milli'] / 3600000, 2),
-        'sws_h': series_full(sleep, lambda s: s['score']['stage_summary']['total_slow_wave_sleep_time_milli'] / 3600000, 2),
-        'light_h': series_full(sleep, lambda s: s['score']['stage_summary']['total_light_sleep_time_milli'] / 3600000, 2),
         'sleep_debt': series_full(sleep, lambda s: s['score']['sleep_needed']['need_from_sleep_debt_milli'] / 3600000, 2),
     }
 
@@ -788,13 +777,6 @@ def build_summary(d):
             'sleep_efficiency_percentage': round(mean([s['score']['sleep_efficiency_percentage'] for s in last30_sleep]), 1),
         },
         'avg7_strain': round(mean([c['score']['strain'] for c in last7_cyc]), 2),
-        'series': {
-            'recovery': day_series(rec, lambda r: r['score']['recovery_score']),
-            'strain': day_series(cyc, lambda c: c['score']['strain']),
-            'sleep_performance': day_series(sleep, lambda s: s['score']['sleep_performance_percentage']),
-            'hrv': day_series(rec, lambda r: r['score']['hrv_rmssd_milli']),
-            'rhr': day_series(rec, lambda r: r['score']['resting_heart_rate']),
-        },
         'sports': sports.most_common(8),
         'workouts_per_week_last8': wpw,
         'workouts_per_week_starts': wpw_starts,

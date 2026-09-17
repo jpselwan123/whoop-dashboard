@@ -24,7 +24,7 @@ DASH_FILE = os.path.join(HERE, "dashboard_data.json")
 # dashboard_data.json keys that are already covered, in full, by the tables below
 # (or are identifying) — everything else there is a small computed summary and is
 # included as-is, since it's exactly what the person sees on the page.
-DASH_SKIP = {"profile", "full_series", "series", "workout_log", "acwr"}
+DASH_SKIP = {"profile", "full_series", "workout_log", "acwr"}
 
 
 def _parse(s):

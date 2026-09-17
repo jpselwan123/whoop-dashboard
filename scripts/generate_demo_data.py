@@ -9,7 +9,7 @@ short sleep does too, and a heavy final training block pushes the load ratio up.
 Usage: python3 scripts/generate_demo_data.py [out_dir] [--days N] [--seed S] [--now ISO8601]
        (default out_dir: demo/, 420 days, seed 23)
 """
-import argparse, json, math, os, random, uuid
+import argparse, json, os, random, uuid
 from datetime import datetime, timedelta, timezone
 
 TZ = "+01:00"
