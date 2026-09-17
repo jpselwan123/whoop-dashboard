@@ -244,7 +244,7 @@ def build_warning(hrv_by_day, rhr_by_day, rr_by_day):
 # et al. 2020 trial protocol, which follows Plews et al. 2012 and Kiviniemi et al. 2007;
 # Alfonso et al. 2025 for adding resting HR). Sources and limits are listed in the README.
 #   1. Each marker is smoothed with a rolling average — 7 days for ln(RMSSD) HRV and
-#      resting HR (as in the trials), 3 nights for sleep performance (a design choice).
+#      resting HR (as in the trials), 3 nights for sleep hours vs needed (a design choice).
 #   2. It's compared with the person's own baseline: the rolling values over the 60 days
 #      before the current 7-day window (trials used ~4 weeks). "Normal" = baseline
 #      mean ± 0.5 SD, the smallest worthwhile change (SWC) used in those trials.
@@ -294,27 +294,31 @@ def asleep_ms(s):
 
 
 def sleep_with_naps(sleep, naps):
-    """Sleep performance per day with same-day naps counted.
+    """Hours vs needed per day (time asleep ÷ WHOOP's sleep need, %), with same-day naps counted.
 
-    WHOOP's sleep performance is time asleep ÷ sleep needed (checked against the export to
-    within 0.5 points). A nap after waking adds its sleep time to the numerator, capped at
-    100% — naps restore performance, most clearly after short nights (Botonis et al. 2021).
-    Days without a nap keep WHOOP's own number. Returns ({day: perf}, {day: nap hours})."""
+    Readiness uses this rather than WHOOP's Sleep Performance: until 2025 the two were identical
+    (within 0.3 points on real exports), but WHOOP's updated Sleep Performance also blends in
+    consistency, efficiency and sleep stress, so its meaning changed mid-history — and the
+    performance research readiness cites is about how much sleep you got. A nap after waking
+    adds its sleep time, capped at 100% — naps restore performance, most clearly after short
+    nights (Botonis et al. 2021). If WHOOP gives no sleep need, its Sleep Performance stands in.
+    Returns ({day: percent}, {day: nap hours})."""
     perf, nap_h = {}, {}
     naps_by_day = defaultdict(list)
     for n in naps:
         naps_by_day[day(n['created_at'])].append(n)
     for s in sleep:
         d = day(s['created_at'])
-        perf[d] = s['score']['sleep_performance_percentage']
         extra = sum(asleep_ms(n) for n in naps_by_day.get(d, []) if n['start'] >= s['end'])
         need = s['score'].get('sleep_needed') or {}
         need_ms = sum(need.get(k) or 0 for k in ('baseline_milli', 'need_from_sleep_debt_milli',
                                                   'need_from_recent_strain_milli', 'need_from_recent_nap_milli'))
-        if extra <= 0 or need_ms <= 0 or perf[d] is None:
+        if need_ms <= 0:
+            perf[d] = s['score'].get('sleep_performance_percentage')
             continue
-        perf[d] = min(100.0, round(perf[d] + 100 * extra / need_ms, 1))
-        nap_h[d] = round(extra / 3600000, 2)
+        perf[d] = min(100.0, round(100 * (asleep_ms(s) + extra) / need_ms, 1))
+        if extra > 0:
+            nap_h[d] = round(extra / 3600000, 2)
     return perf, nap_h
 
 
@@ -341,7 +345,8 @@ def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day, nap_h_by_day=None
         'hrv': _rolling_by_calendar({k: v for k, v in hrv_by_day.items() if v and v > 0},
                                     READY_WINDOWS['hrv'], READY_MIN_IN_WINDOW['hrv'], math.log),
         'rhr': _rolling_by_calendar(rhr_by_day, READY_WINDOWS['rhr'], READY_MIN_IN_WINDOW['rhr']),
-        'sleep': _rolling_by_calendar(sleep_perf_by_day, READY_WINDOWS['sleep'], READY_MIN_IN_WINDOW['sleep']),
+        'sleep': _rolling_by_calendar({k: v for k, v in sleep_perf_by_day.items() if v is not None},
+                                      READY_WINDOWS['sleep'], READY_MIN_IN_WINDOW['sleep']),
     }
     sign = {'hrv': 1, 'rhr': -1, 'sleep': 1}
 

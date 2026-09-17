@@ -58,6 +58,12 @@ class NapTest(unittest.TestCase):
         self.assertEqual(perf['2026-03-10'], 87.5)          # 75 + 1 h / 8 h
         self.assertEqual(naps['2026-03-10'], 1.0)
 
+    def test_uses_hours_vs_needed_not_whoop_sleep_performance(self):
+        s = main_sleep(WAKE, asleep_h=6.04, need_h=10.05)
+        s['score']['sleep_performance_percentage'] = 73      # WHOOP's 2025 blended score
+        perf, _ = bd.sleep_with_naps([s], [])
+        self.assertEqual(perf['2026-03-10'], 60.1)            # 6h 04m of 10h 03m needed
+
     def test_capped_at_100(self):
         perf, _ = bd.sleep_with_naps([main_sleep(WAKE, asleep_h=7.5)], [nap(WAKE + timedelta(hours=6), 2.0)])
         self.assertEqual(perf['2026-03-10'], 100.0)

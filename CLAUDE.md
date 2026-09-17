@@ -48,8 +48,9 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   One explanation panel (click the orb).
 - **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 50% last night
   (ln-RMSSD HRV, resting HR, sleep vs single nights of the last 60 days) + 50% trend (7-day HRV,
-  7-day resting HR, 3-night sleep vs a 60-day baseline); ±0.5 SD SWC, equal weights (`READY_WEIGHTS`),
-  50 = normal (the body score). Naps after waking add sleep time to that day's sleep performance
+  7-day resting HR, 3-night sleep hours vs needed vs a 60-day baseline); ±0.5 SD SWC, equal weights (`READY_WEIGHTS`),
+  50 = normal (the body score). Sleep input = hours vs needed (asleep ÷ need), NOT WHOOP's
+  `sleep_performance_percentage` (a blend since WHOOP's 2025 update); naps after waking add sleep time
   (`sleep_with_naps`, capped 100%). No sliders. Changes to the model need a cited source and tests
   (`tests/test_readiness.py`); recovery keeps WHOOP zones 34/67.
 - Add a test for new metrics or server behavior; run tests + privacy scan before pushing.
@@ -74,6 +75,9 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - Don't step `Date` objects day-by-day across DST (hour drift); compare `YYYY-MM-DD` strings.
 - Dashboard dates = UTC calendar day of `created_at`; `ai_context.py` matches that convention.
 - Heatmap/month labels collide on partial months — drop the older label when < 3 cells apart.
+- WHOOP `sleep_performance_percentage` = hours vs needed only until ~Oct 2025; after that it's WHOOP's blended
+  score. The WHOOP app rounds sleep stages on the running total (light → deep → REM → awake) — `ai_context._stage_minutes`.
+- `whoop_data.json` lists are newest-first — sort before taking "latest".
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.
 
 ## Git

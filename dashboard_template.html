@@ -589,7 +589,7 @@
   <footer>
     <div class="grp">
       <b>Measured vs. modeled</b>
-      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is the one model: how ready you are to train today — last night's HRV, resting HR and sleep plus their recent trend, each vs your own last 60 days, lowered by warning signs or today's context. Click the orb for the numbers.</span>
+      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is the one model: how ready you are to train today — last night's HRV, resting HR and sleep hours vs needed plus their recent trend, each vs your own last 60 days, lowered by warning signs or today's context. Click the orb for the numbers.</span>
     </div>
     <div class="grp">
       <b>About the orb</b>
@@ -745,7 +745,7 @@ function decisionWhy(calc){
     return joined.charAt(0).toUpperCase() + joined.slice(1) + '.';
   }
   if(!R) return `Based on WHOOP recovery (<b>${calc.base}</b>) until there's about 5 weeks of data.`;
-  const nameOf = {hrv:'HRV', rhr:'resting HR', sleep:'sleep'};
+  const nameOf = {hrv:'HRV', rhr:'resting HR', sleep:'sleep vs need'};
   const val = (m, c) => m === 'hrv' ? `${c.value} ms` : m === 'rhr' ? `${c.value.toFixed(1)} bpm` : `${Math.round(c.value)}%${c.nap_h ? ` with a ${fmtHM(c.nap_h)} nap` : ''}`;
   const rng = (m, c) => m === 'hrv' ? `${c.normal[0]}–${c.normal[1]}` : m === 'rhr' ? `${c.normal[0].toFixed(1)}–${c.normal[1].toFixed(1)}` : `${Math.round(c.normal[0])}–${Math.round(c.normal[1])}%`;
   const list = arr => arr.length > 1 ? arr.slice(0,-1).join(', ') + ' and ' + arr[arr.length-1] : arr[0];
@@ -1244,10 +1244,10 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
 
 /* ================= trend explorer ================= */
 const METRICS = [
-  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:'readiness', bounds:[0,100], formula:'Half last night, half recent trend (7-day HRV and resting HR, 3-night sleep), each vs your 60-day normal (50 = normal), before any same-day lowering.'},
+  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:'readiness', bounds:[0,100], formula:'Half last night, half recent trend (7-day HRV and resting HR, 3-night sleep vs need), each vs your 60-day normal (50 = normal), before any same-day lowering.'},
   {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
-  {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:'sleep.score.sleep_performance_percentage — time asleep ÷ time needed.'},
+  {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:"WHOOP's Sleep Performance. Since WHOOP's 2025 update it blends hours vs needed with consistency, efficiency and sleep stress; readiness uses hours vs needed on its own."},
   {key:'hrv', label:'HRV', unit:'ms', decimals:0, formula:'recovery.score.hrv_rmssd_milli — overnight HRV (RMSSD), /v2/recovery.'},
   {key:'rhr', label:'RHR', unit:'bpm', decimals:0, formula:'recovery.score.resting_heart_rate, /v2/recovery.'},
   {key:'spo2', label:'SpO2', unit:'%', decimals:1, bounds:[0,100], formula:'recovery.score.spo2_percentage, overnight blood oxygen.'},
@@ -1709,11 +1709,11 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
         out.push(c.hrv ? row(labels.hrv, `${c.hrv.value} ms`, `${c.hrv.normal[0]}–${c.hrv.normal[1]}`, cls('hrv')) : row(labels.hrv, '—', '', ''));
         out.push(c.rhr ? row(labels.rhr, `${one(c.rhr.value)} bpm`, `${one(c.rhr.normal[0])}–${one(c.rhr.normal[1])}`, cls('rhr')) : row(labels.rhr, '—', '', ''));
         out.push(c.sleep ? row(labels.sleep, `${one(c.sleep.value)}%`, `${one(c.sleep.normal[0])}–${one(c.sleep.normal[1])}`, cls('sleep')) : row(labels.sleep, '—', '', ''));
-        out.push(row('Score', `${P.score}`, '50 = normal', ''));
+        out.push(row(labels.score, `${P.score}`, '50 = normal', ''));
       };
       const nap = R.last_night && R.last_night.components.sleep && R.last_night.components.sleep.nap_h;
-      block(R.last_night, 'Last night', {hrv:'HRV', rhr:'Resting HR', sleep: nap ? `Sleep · incl. ${fmtHM(nap)} nap` : 'Sleep'});
-      block(R.trend, 'Recent trend', {hrv:'HRV · 7-day avg', rhr:'Resting HR · 7-day avg', sleep:'Sleep · 3-night avg'});
+      block(R.last_night, 'Last night', {score:'Last night score', hrv:'HRV', rhr:'Resting HR', sleep: nap ? `Sleep vs need · incl. ${fmtHM(nap)} nap` : 'Sleep vs need'});
+      block(R.trend, 'Recent trend', {score:'7-day trend score', hrv:'HRV · 7-day avg', rhr:'Resting HR · 7-day avg', sleep:'Sleep vs need · 3-night avg'});
       out.push(row('Body score', `${calc.base}`, R.last_night ? `${Math.round(w.last_night*100)}% last night + ${Math.round(w.trend*100)}% trend` : 'trend only', 'current'));
     } else {
       out.push(row('WHOOP recovery', `${calc.base}`, '', 'current'));

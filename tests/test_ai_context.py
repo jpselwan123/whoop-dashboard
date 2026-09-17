@@ -31,5 +31,37 @@ class AiContextTest(unittest.TestCase):
         self.assertLess(len(self.text) / 4, 150_000)
 
 
+class DurationFormatTest(unittest.TestCase):
+    def test_hours_minutes_not_decimal(self):
+        import ai_context
+        self.assertEqual(ai_context._h(2.44 * 3600000), "2:26")
+        self.assertEqual(ai_context._h(0), "0:00")
+        self.assertEqual(ai_context._h(None), "")
+
+    def test_stage_minutes_match_whoop_app(self):
+        import ai_context
+        m = lambda x: x * 60000
+        stages = {"total_light_sleep_time_milli": m(91.55167), "total_slow_wave_sleep_time_milli": m(146.64617),
+                  "total_rem_sleep_time_milli": m(126.1365), "total_awake_time_milli": m(28.78383),
+                  "total_no_data_time_milli": 0}
+        out = ai_context._stage_minutes(stages)
+        # the WHOOP app showed light 1:32, deep 2:26, REM 2:06, awake 0:29 for this night
+        self.assertEqual([out[k] for k in ("total_light_sleep_time_milli", "total_slow_wave_sleep_time_milli",
+                                           "total_rem_sleep_time_milli", "total_awake_time_milli")], [92, 146, 126, 29])
+        self.assertEqual(sum(out.values()), 393)               # 6:33 in bed
+
+    def test_vs_needed(self):
+        import ai_context
+        stage = {"total_in_bed_time_milli": 6.55 * 3600000, "total_awake_time_milli": 0.48 * 3600000}
+        need = {"baseline_milli": 7.88 * 3600000, "need_from_sleep_debt_milli": 2.13 * 3600000,
+                "need_from_recent_strain_milli": 0.04 * 3600000, "need_from_recent_nap_milli": 0}
+        self.assertEqual(ai_context._vs_needed(stage, need), "60")
+
+    def test_prompt_asks_for_hours_and_minutes(self):
+        import chat_server
+        self.assertIn("never decimal hours", chat_server.SYSTEM_PROMPT.replace("\n", " "))
+
+
+
 if __name__ == "__main__":
     unittest.main()
