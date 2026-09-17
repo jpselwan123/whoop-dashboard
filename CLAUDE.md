@@ -40,20 +40,18 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   `renderX()` kills everything after it in `renderAll()` — guard, don't assume.
 - **Visibility is never JS-gated.** Animations must fail open (content visible if JS breaks).
 - **Nothing automatic.** No timers/auto-refresh; data refreshes only via the button.
-- **Readiness is the answer.** One number (how ready to train today) → Push 63+ · Train 38–62 ·
-  Go easy 25–37 · Rest <25 (`READY_BANDS`). Context only *lowers* it via caps (`READY_CAPS`: warning
-  sign must be *confirmed* by `build_warning` — 2 of last 3 nights or 2+ vitals, still out last night — and caps
-  37→24 graded; one-off nights are only "watching"; a hard session today (`session_intensity`) / strain above
-  7-day avg / overload week ≤37; a moderate session ≤62; easy sessions nothing) — never an "override" or a second verdict label.
-  One explanation panel (click the orb). Under the orb, the two halves in words only (Strong/Normal/
-  Below normal/Low, same cut-offs as the bands); explorer tab is "Body score" (pre-lowering).
-- **Readiness ≠ recovery.** Readiness (`build_readiness` in build_dashboard.py) = 50% last night
-  (ln-RMSSD HRV, resting HR, sleep vs single nights of the last 60 days) + 50% trend (7-day HRV,
-  7-day resting HR, 3-night sleep hours vs needed vs a 60-day baseline); ±0.5 SD SWC, equal weights (`READY_WEIGHTS`),
-  50 = normal (the body score). Sleep input = hours vs needed (asleep ÷ need), NOT WHOOP's
-  `sleep_performance_percentage` (a blend since WHOOP's 2025 update); naps after waking add sleep time
-  (`sleep_with_naps`, capped 100%). No sliders. Changes to the model need a cited source and tests
-  (`tests/test_readiness.py`); recovery keeps WHOOP zones 34/67.
+- **Every rule and threshold must come from published research** (JP's rule). No invented cut-offs,
+  weights or minute counts. Where papers are ambiguous, follow the method paper they cite and note it in
+  the README; where no study defines something, show a plain fact instead (e.g. rest day = last day
+  without a workout). Statistical comparisons use Welch's t-test, p < 0.05, 30+ per group.
+- **Readiness = the HRV-guided training protocol** (`build_readiness`): 7-day ln-RMSSD HRV and 7-day
+  resting HR (3+ readings) vs mean ± 0.5 SD of daily values over the 4 weeks before the current week
+  (each week 3+ readings). Two answers only: "Train hard" / "Easy or rest" — no 0–100 score. Easy if HRV
+  below or resting HR above normal, breathing rate 3+ above usual (nights 30–90 days back), 2 hard days in a
+  row, or (page) a moderate/high session already today. Last night is information only. Sources in README.
+- **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
+  (`intensity_minutes`, proportional split); session level = where most time was. Strength sessions: none.
+- Recovery keeps WHOOP zones 34/67. No sliders. Model changes need a cited source and tests.
 - Add a test for new metrics or server behavior; run tests + privacy scan before pushing.
 
 ## UI / product conventions
@@ -81,9 +79,9 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - `whoop_data.json` lists are newest-first — sort before taking "latest".
 - Every rolling window is **calendar days**, never "last N records" (`_calendar_window`, `lastDays` in the
   template) — the real export has a 7-month gap (Mar–Oct 2025). Weekly charts keep empty weeks as gaps.
-- Easy/moderate/hard = zones 0–2 / 3 / 4–5 everywhere (zone chart, session view, `session_intensity`).
-- Sports are compared only within intensity groups (own HR thirds, `build_sport_recovery_cost`); never
-  recommend a specific sport — Today's plan recommends an intensity. Strength sessions are out of the zone split.
+- Easy/moderate/hard = Seiler zones everywhere (zone chart, session view, readiness), via `intensity_minutes`.
+- Sports are compared only within the same intensity (`build_sport_recovery_cost`); never recommend a
+  specific sport. Strength sessions are out of the zone split.
 - UI rules from the revision brief: no formulas/stat notation in the UI, net element count must not grow,
   never shrink spacing to fit, one idea per card, no new colors.
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.

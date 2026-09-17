@@ -7,7 +7,7 @@ Usage: python3 build_dashboard.py [data_dir]   (default: current directory)
 """
 import json, math, os
 from datetime import datetime, timedelta, timezone
-from statistics import mean, pstdev
+from statistics import mean, pstdev, variance
 from collections import Counter, defaultdict
 from env_config import atomic_write, atomic_write_json
 
@@ -101,248 +101,185 @@ def build_acwr(strain_by_day):
     return out
 
 
-def build_monotony(strain_by_day):
-    """Foster training monotony & load-strain, by ISO week. Flags weeks where the
-    load x monotony combo is unusually high relative to this athlete's OWN recent
-    weeks (not a fixed textbook cutoff, which doesn't discriminate well per-person)."""
-    week_strain = defaultdict(list)
-    week_start = {}
-    for d in sorted(strain_by_day.keys()):
-        dt = datetime.fromisoformat(d)
-        iso = dt.isocalendar()
-        key = f"{iso[0]}-W{iso[1]:02d}"
-        week_strain[key].append(strain_by_day[d])
-        if key not in week_start or d < week_start[key]:
-            week_start[key] = d
-    weeks = sorted(week_strain.keys())
-    out = []
-    for wk in weeks:
-        vals = week_strain[wk]
-        if len(vals) < 5:
+# ---- Statistics helpers ----------------------------------------------------------------
+# A difference is only called real when it passes a two-sided Welch's t-test at p < 0.05, the
+# standard convention in sport-science and medical research. Groups need at least 30 values
+# before being compared (the usual central-limit rule of thumb for comparing averages).
+SIGNIFICANCE = 0.05
+MIN_GROUP = 30
+
+
+def _betacf(a, b, x):
+    """Continued fraction for the incomplete beta function (Numerical Recipes)."""
+    fpmin = 1e-300
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c, d = 1.0, 1.0 - qab * x / qap
+    d = 1.0 / (d if abs(d) > fpmin else fpmin)
+    h = d
+    for m in range(1, 300):
+        m2 = 2 * m
+        for aa in (m * (b - m) * x / ((qam + m2) * (a + m2)),
+                   -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))):
+            d = 1.0 + aa * d
+            d = 1.0 / (d if abs(d) > fpmin else fpmin)
+            c = 1.0 + aa / c
+            c = c if abs(c) > fpmin else fpmin
+            h *= d * c
+        if abs(d * c - 1.0) < 3e-14:
+            break
+    return h
+
+
+def _betainc(a, b, x):
+    """Regularized incomplete beta I_x(a, b)."""
+    if x <= 0:
+        return 0.0
+    if x >= 1:
+        return 1.0
+    front = math.exp(math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b) + a * math.log(x) + b * math.log(1 - x))
+    if x < (a + 1) / (a + b + 2):
+        return front * _betacf(a, b, x) / a
+    return 1.0 - front * _betacf(b, a, 1 - x) / b
+
+
+def welch_p(a, b):
+    """Two-sided p-value of Welch's t-test (unequal variances); None if a group has < 2 values."""
+    n1, n2 = len(a), len(b)
+    if n1 < 2 or n2 < 2:
+        return None
+    v1, v2 = variance(a), variance(b)
+    se2 = v1 / n1 + v2 / n2
+    if se2 == 0:
+        return 1.0 if mean(a) == mean(b) else 0.0
+    t = (mean(a) - mean(b)) / math.sqrt(se2)
+    df = se2 ** 2 / ((v1 / n1) ** 2 / (n1 - 1) + (v2 / n2) ** 2 / (n2 - 1))
+    return _betainc(df / 2, 0.5, df / (df + t * t))
+
+
+def _date_minus(d, n):
+    return (datetime.fromisoformat(d) - timedelta(days=n)).date().isoformat()
+
+
+# ---- Exercise intensity (Seiler's three zones) --------------------------------------------
+# Low intensity is below the first ventilatory threshold, moderate between the two thresholds,
+# high above the second; on the Norwegian Olympic scale these sit at ~82% and ~87% of maximum
+# heart rate (Seiler 2010; Seiler & Kjerland 2006). WHOOP's zones are percentages of heart-rate
+# *reserve* (resting → max), so each zone is converted to beats per minute with the person's
+# resting and max heart rate and its minutes are split across the 82% / 87% lines in proportion
+# (time assumed evenly spread inside a zone — WHOOP reports only minutes per zone).
+SEILER_LINES = (0.82, 0.87)
+WHOOP_ZONES_HRR = (('zone_zero_milli', 0.0, 0.5), ('zone_one_milli', 0.5, 0.6), ('zone_two_milli', 0.6, 0.7),
+                   ('zone_three_milli', 0.7, 0.8), ('zone_four_milli', 0.8, 0.9), ('zone_five_milli', 0.9, 1.0))
+STRENGTH_SPORTS = {'weightlifting', 'weightlifting_msk', 'powerlifting'}   # rest between sets reads as "easy"
+
+
+def intensity_minutes(zone_durations, max_hr, rest_hr):
+    """[easy, moderate, hard] minutes for one workout, or None without the heart rates needed."""
+    if not zone_durations or not max_hr or not rest_hr or max_hr <= rest_hr:
+        return None
+    lines = [f * max_hr for f in SEILER_LINES]
+    out = [0.0, 0.0, 0.0]
+    for key, lo, hi in WHOOP_ZONES_HRR:
+        minutes = (zone_durations.get(key) or 0) / 60000
+        if not minutes:
             continue
-        m = mean(vals)
+        a, b = rest_hr + lo * (max_hr - rest_hr), rest_hr + hi * (max_hr - rest_hr)
+        below = [min(1.0, max(0.0, (line - a) / (b - a))) for line in lines]
+        out[0] += minutes * below[0]
+        out[1] += minutes * (below[1] - below[0])
+        out[2] += minutes * (1 - below[1])
+    return out
+
+
+def session_level(split):
+    """A session's intensity from where most of its time was (time-in-zone method, Seiler &
+    Kjerland 2006): 'easy' when most time is below the first threshold, otherwise 'hard' or
+    'moderate' by whichever of the two upper zones holds more time."""
+    if not split or sum(split) == 0:
+        return None
+    if split[1] + split[2] <= split[0]:
+        return 'easy'
+    return 'hard' if split[2] >= split[1] else 'moderate'
+
+
+# ---- Training monotony (Foster) -----------------------------------------------------------
+# Foster's monotony = a week's mean daily training load ÷ its standard deviation, with 0 on days
+# without training (Foster 1998; Foster et al. 2001). Session load here is WHOOP workout strain
+# (Foster used session RPE × minutes, which WHOOP doesn't record). Monotony above 2.0 is the
+# commonly used risk line (Foster 2001 and later studies).
+FOSTER_MONOTONY_LIMIT = 2.0
+
+
+def build_monotony(load_by_day, tracked_days):
+    """Complete ISO weeks (all 7 days tracked) only — a partial week has no fair mean/SD."""
+    weeks = defaultdict(list)
+    for d in sorted(tracked_days):
+        weeks[iso_week_key(datetime.fromisoformat(d))].append(d)
+    out = []
+    for wk in sorted(weeks):
+        if len(weeks[wk]) < 7:
+            continue
+        vals = [load_by_day.get(d, 0.0) for d in weeks[wk]]
         sd = pstdev(vals)
-        monotony = round(m / sd, 2) if sd > 0 else None
-        load = round(sum(vals), 1)
-        load_strain = round(monotony * load, 0) if monotony else None
-        out.append({'week': wk, 'start': iso_week_monday(wk), 'monotony': monotony, 'load': load, 'load_strain': load_strain})
+        monotony = round(mean(vals) / sd, 2) if sd > 0 else None
+        out.append({'week': wk, 'start': iso_week_monday(wk), 'monotony': monotony, 'load': round(sum(vals), 1),
+                    'high': bool(monotony is not None and monotony > FOSTER_MONOTONY_LIMIT)})
     return out
 
 
-# Sport recovery cost, at similar intensity. Comparing sports directly mostly compares heart
-# rate (weightlifting averages ~40 bpm lower than soccer at similar strain), so each day's
-# hardest session is first grouped by its average heart rate — the person's own lower, middle
-# and upper third — and sports are compared only with sessions of similar intensity.
-SPORT_COST_MIN_DAYS = 30        # days with a session + next-morning recovery before grouping at all
-SPORT_COST_MIN_SESSIONS = 10    # sessions of a sport inside an intensity group to show it
-NOISE_Z = 2                     # a gap smaller than ~2 standard errors is shown dimmed (not distinguishable)
-
-
-def build_sport_recovery_cost(wo, recovery_by_day):
-    """Average next-morning recovery after days whose hardest session was each sport,
-    compared within intensity groups. Not something the WHOOP app computes."""
-    overall_avg = mean(recovery_by_day.values()) if recovery_by_day else None
-    day_workouts = defaultdict(list)
-    for w in wo:
-        day_workouts[day(w['created_at'])].append(w)
-    sessions = []
-    for d, ws in day_workouts.items():
-        dominant = max(ws, key=lambda w: w['score']['strain'])
-        hr = dominant['score'].get('average_heart_rate')
-        next_day = (datetime.fromisoformat(d) + timedelta(days=1)).date().isoformat()
-        if hr and next_day in recovery_by_day:
-            sessions.append((sport_label(dominant['sport_name']), hr, recovery_by_day[next_day]))
-    out = {'overall_avg_recovery': round(overall_avg, 1) if overall_avg is not None else None, 'groups': []}
-    if len(sessions) < SPORT_COST_MIN_DAYS:
-        return out
-    hrs = sorted(h for _, h, _ in sessions)
-    cut1, cut2 = hrs[len(hrs) // 3], hrs[2 * len(hrs) // 3]
-    for key, lo, hi in (('lower', 0, cut1), ('moderate', cut1, cut2), ('higher', cut2, float('inf'))):
-        group = [x for x in sessions if lo <= x[1] < hi]
-        if not group:
+# ---- Sport recovery cost, at the same intensity ---------------------------------------------
+def build_sport_recovery_cost(day_sessions, recovery_by_day):
+    """Next-morning recovery after days whose hardest session was each sport, compared only with
+    other days whose hardest session had the same intensity (Seiler zones). A sport is shown once
+    it has 30+ such days; its gap counts as real only if Welch's test gives p < 0.05."""
+    groups = defaultdict(list)
+    for d, (sport, level) in day_sessions.items():
+        nxt = (datetime.fromisoformat(d) + timedelta(days=1)).date().isoformat()
+        if level and nxt in recovery_by_day:
+            groups[level].append((sport, recovery_by_day[nxt]))
+    out = {'groups': []}
+    for level in ('easy', 'moderate', 'hard'):
+        rows = groups.get(level, [])
+        if not rows:
             continue
-        vals = [r for _, _, r in group]
-        g_avg, g_sd = mean(vals), pstdev(vals)
-        by_sport = defaultdict(list)
-        for sport, _, r in group:
-            by_sport[sport].append(r)
+        vals = [r for _, r in rows]
         sports = []
-        for sport, rs in by_sport.items():
-            if len(rs) < SPORT_COST_MIN_SESSIONS:
+        for sport in sorted({s for s, _ in rows}):
+            mine = [r for s, r in rows if s == sport]
+            others = [r for s, r in rows if s != sport]
+            if len(mine) < MIN_GROUP or len(others) < MIN_GROUP:
                 continue
-            delta = mean(rs) - g_avg
-            sports.append({'sport': sport, 'n': len(rs), 'avg_next_recovery': round(mean(rs), 1),
-                           'delta': round(delta, 1),
-                           'low_confidence': abs(delta) < NOISE_Z * g_sd / math.sqrt(len(rs))})
+            p = welch_p(mine, others)
+            sports.append({'sport': sport, 'n': len(mine), 'avg_next_recovery': round(mean(mine), 1),
+                           'delta': round(mean(mine) - mean(others), 1),
+                           'significant': p is not None and p < SIGNIFICANCE})
         sports.sort(key=lambda x: x['delta'])
-        out['groups'].append({'intensity': key, 'hr_from': None if lo == 0 else lo,
-                              'hr_to': None if hi == float('inf') else hi,
-                              'days': len(group), 'avg_next_recovery': round(g_avg, 1), 'sports': sports})
+        out['groups'].append({'intensity': level, 'days': len(rows), 'avg_next_recovery': round(mean(vals), 1),
+                              'sports': sports})
     return out
 
 
-# Fatigue flags and warning signs compare each night with the 30 calendar days before it,
-# and need at least 21 of those nights recorded (70% wear) to judge.
-BASELINE_NIGHTS = 30
-BASELINE_MIN_NIGHTS = 21
-
-
-def build_anomalies(hrv_by_day, rhr_by_day, rr_by_day):
-    """Flag days where HRV, RHR or respiratory rate moved >1.5 SD from this athlete's
-    own trailing 30-day baseline. HRV/RHR deviation is a standard overreaching signal
-    in sports science; elevated overnight respiratory rate specifically has published
-    evidence (wearable studies during COVID-19) as an early illness-onset signal,
-    often showing up a day or two before other symptoms. None of this is a diagnosis —
-    it's a same-methodology extension of the HRV/RHR check to a third vital sign
-    WHOOP already measures but doesn't flag on its own."""
-    days = sorted(set(hrv_by_day) & set(rhr_by_day) & set(rr_by_day))
-    flags = []
-    for i, d in enumerate(days):
-        window = [days[j] for j in _calendar_window(days, i, BASELINE_NIGHTS)]
-        if len(window) < BASELINE_MIN_NIGHTS:
-            continue
-        hrv_hist = [hrv_by_day[w] for w in window]
-        rhr_hist = [rhr_by_day[w] for w in window]
-        rr_hist = [rr_by_day[w] for w in window]
-        m_hrv, sd_hrv = mean(hrv_hist), pstdev(hrv_hist)
-        m_rhr, sd_rhr = mean(rhr_hist), pstdev(rhr_hist)
-        m_rr, sd_rr = mean(rr_hist), pstdev(rr_hist)
-        if sd_hrv == 0 or sd_rhr == 0 or sd_rr == 0:
-            continue
-        z_hrv = (hrv_by_day[d] - m_hrv) / sd_hrv
-        z_rhr = (rhr_by_day[d] - m_rhr) / sd_rhr
-        z_rr = (rr_by_day[d] - m_rr) / sd_rr
-        if z_hrv <= -1.5 or z_rhr >= 1.5 or z_rr >= 1.5:
-            flags.append({'date': d, 'z_hrv': round(z_hrv, 2), 'z_rhr': round(z_rhr, 2), 'z_rr': round(z_rr, 2),
-                          'hrv': hrv_by_day[d], 'rhr': rhr_by_day[d], 'rr': round(rr_by_day[d], 2),
-                          # the edge of this person's normal range (same 1.5 SD cut, pre-converted
-                          # into real units) so the page can show plain numbers instead of z-scores
-                          'hrv_low': round(m_hrv - 1.5 * sd_hrv), 'rhr_high': round(m_rhr + 1.5 * sd_rhr),
-                          'rr_high': round(m_rr + 1.5 * sd_rr, 2)})
-    return flags
-
-
-# ---- Warning signs (confirmed + graded) -----------------------------------------------
-# A single night brushing the 1.5 SD line is common noise. A warning only lowers readiness
-# when it's confirmed — the same signal out of range on 2 of the last 3 nights, or 2+
-# signals out on the same night — and the most recent night is still out (once nights are
-# back to normal it stops counting). Multi-night persistence mirrors how wearable illness
-# detection works (Miller et al. 2020 used night-to-night respiratory-rate changes).
-# The cap is graded by how far past the line it is: just over → at most 37 (Go easy),
-# 1 SD further or more (2.5 SD from normal) → at most 24 (Rest). Unconfirmed = "watch".
-WARN_LINE = 1.5
-WARN_NIGHTS = 3
-WARN_CAP_MILD, WARN_CAP_SEVERE = 37, 24
-
-
-def _night_signals(hrv_by_day, rhr_by_day, rr_by_day, d, history_days):
-    """Each vital for night d vs the 30 nights before it, as plain units + SD distance."""
-    i = history_days.index(d)
-    window = [history_days[j] for j in _calendar_window(history_days, i, BASELINE_NIGHTS)]
-    if len(window) < BASELINE_MIN_NIGHTS:
-        return None
-    out = []
-    for name, by_day, direction, unit, digits in (
-            ('HRV', hrv_by_day, -1, 'ms', 0), ('Resting HR', rhr_by_day, 1, 'bpm', 0),
-            ('Breathing rate', rr_by_day, 1, '/min', 1)):
-        hist = [by_day[w] for w in window]
-        m, sd = mean(hist), pstdev(hist)
-        if sd == 0:
-            continue
-        z = direction * (by_day[d] - m) / sd            # positive = worse
-        limit = m + direction * WARN_LINE * sd
-        out.append({'name': name, 'value': round(by_day[d], digits) if digits else round(by_day[d]),
-                    'limit': round(limit, digits) if digits else round(limit), 'unit': unit,
-                    'direction': 'low' if direction < 0 else 'high',
-                    'sd_past_line': round(z - WARN_LINE, 2), 'out': z >= WARN_LINE})
-    return out
-
-
-def build_warning(hrv_by_day, rhr_by_day, rr_by_day):
-    days = sorted(set(hrv_by_day) & set(rhr_by_day) & set(rr_by_day))
-    if len(days) < BASELINE_MIN_NIGHTS + 1:
-        return None
-    from datetime import date as _date
-    latest = days[-1]
-    recent = [d for d in days[-WARN_NIGHTS:]
-              if (_date.fromisoformat(latest) - _date.fromisoformat(d)).days < WARN_NIGHTS]
-    nights = []
-    for d in recent:
-        sig = _night_signals(hrv_by_day, rhr_by_day, rr_by_day, d, days)
-        if sig is not None:
-            nights.append({'date': d, 'signals': sig})
-    if not nights or nights[-1]['date'] != latest:
-        return None
-    last = nights[-1]['signals']
-    out_last = [x for x in last if x['out']]
-    repeated = [x for x in out_last
-                if sum(1 for n in nights for y in n['signals'] if y['name'] == x['name'] and y['out']) >= 2]
-    multiple = len(out_last) >= 2
-    confirmed = bool(out_last) and (bool(repeated) or multiple)
-    cap = None
-    if confirmed:
-        drivers = out_last if multiple else repeated
-        severity = min(1.0, max(x['sd_past_line'] for x in drivers))      # 0 at the line → 1 at +1 SD
-        cap = round(WARN_CAP_MILD - (WARN_CAP_MILD - WARN_CAP_SEVERE) * severity)
-    return {
-        'date': latest,
-        'confirmed': confirmed,
-        'reason': ('multiple' if multiple else 'repeated') if confirmed else None,
-        'cap': cap,
-        'signals': out_last,                                                 # out of range on the latest night
-        'nights_out': {x['name']: sum(1 for n in nights for y in n['signals'] if y['name'] == x['name'] and y['out'])
-                       for x in out_last},
-        'nights_checked': len(nights),
-    }
-
-
-# ---- Readiness -------------------------------------------------------------------
-# Method, from HRV-guided training research (Javaloyes et al. 2019; the Carrasco-Poyatos
-# et al. 2020 trial protocol, which follows Plews et al. 2012 and Kiviniemi et al. 2007;
-# Alfonso et al. 2025 for adding resting HR). Sources and limits are listed in the README.
-#   1. Each marker is smoothed with a rolling average — 7 days for ln(RMSSD) HRV and
-#      resting HR (as in the trials), 3 nights for sleep hours vs needed (a design choice).
-#   2. It's compared with the person's own baseline: the rolling values over the 60 days
-#      before the current 7-day window (trials used ~4 weeks). "Normal" = baseline
-#      mean ± 0.5 SD, the smallest worthwhile change (SWC) used in those trials.
-#   3. Markers are expressed in SD units (resting HR sign-flipped so higher = better),
-#      clipped to ±3, and combined with equal (unit) weights — no study has validated
-#      specific weights, and unit weighting is the robust default (Dawes 1979).
-#   4. The same three markers from last night alone (vs the single nights of the previous
-#      60 days) form a second part; readiness = ½ last night + ½ trend (READY_WEIGHTS).
-#      Averages hide individual next-day responses (Schneider et al. 2019), single nights
-#      are noisy (Plews et al. 2012), so both count. No last-night HRV → trend only.
-#   5. Score = 50 + 25 × mean, clamped 0–100: 50 = exactly your normal. At or above
-#      +0.5 SD (63+) = above normal, below −0.5 SD (<38) = below normal, in between = normal —
-#      the same "within / above / below SWC" rule the trials used to prescribe intensity.
-READY_WINDOWS = {'hrv': 7, 'rhr': 7, 'sleep': 3}
-READY_MIN_IN_WINDOW = {'hrv': 4, 'rhr': 4, 'sleep': 2}
-READY_BASELINE_DAYS = 60
-READY_MIN_BASELINE = 21
+# ---- Readiness: the HRV-guided training protocol --------------------------------------------
+# Exactly the decision rule tested in HRV-guided training trials:
+#   - 7-day average of ln(RMSSD) HRV (Plews et al. 2012; Javaloyes et al. 2019), valid with at
+#     least 3 readings in the 7 days (Plews et al. 2014).
+#   - Normal range = mean ± 0.5 SD of the daily values over the 4 weeks before the current week,
+#     so it updates weekly (Javaloyes et al. 2019: 4 baseline weeks; Carrasco-Poyatos et al. 2020:
+#     range updated weekly; daily values as in Plews et al. 2012).
+#   - Within or above normal → hard training OK; below → easy or rest (Javaloyes 2019;
+#     Kiviniemi et al. 2007). Resting HR is judged the same way (above normal = worse), and hard
+#     training needs both markers in range (Alfonso et al. 2025).
+#   - No more than 2 hard (moderate/high-intensity) days in a row (Carrasco-Poyatos et al. 2020).
+#   - Breathing rate 3+ breaths/min above the person's usual rate (average of the nights 30–90
+#     days before, at least 30 nights) — an illness sign (Natarajan et al. 2021) → easy or rest.
+READY_WINDOW_DAYS = 7
+READY_MIN_READINGS = 3
+READY_BASELINE_DAYS = 28
 READY_SWC = 0.5
-# Last night and the recent trend count equally. Single-day values keep individual next-day
-# responses visible (Schneider 2019; Kiviniemi 2007 guided training on each morning's HRV);
-# rolling averages cut single-night noise (Plews 2012; Javaloyes 2019). No study has validated
-# a split, so equal weights (Dawes 1979).
-READY_WEIGHTS = {'last_night': 0.5, 'trend': 0.5}
-
-# Same-day sessions. Cardiac autonomic recovery takes up to 24 h after low-intensity exercise,
-# 24–48 h after threshold-intensity and 48 h+ after high-intensity (Stanley, Peake & Buchheit
-# 2013). Each session today is classed on those three levels from WHOOP's heart-rate zones and
-# strain; the page caps readiness for the rest of the day (hard ≤37 Go easy, moderate ≤62 Train).
-# Zone 3 ≈ between the thresholds and zones 4–5 ≈ above the second is an approximation; the
-# minute cut-offs are design choices, and the strain cut-offs are WHOOP's own scale
-# (10–13.9 moderate, 14+ high).
-SESSION_HARD = {'zone45_min': 10, 'strain': 14}
-SESSION_MODERATE = {'zone3plus_min': 20, 'strain': 10}
-
-
-def session_intensity(zone45_min, zone3plus_min, strain):
-    if zone45_min >= SESSION_HARD['zone45_min'] or (strain or 0) >= SESSION_HARD['strain']:
-        return 'hard'
-    if zone3plus_min >= SESSION_MODERATE['zone3plus_min'] or (strain or 0) >= SESSION_MODERATE['strain']:
-        return 'moderate'
-    return 'easy'
+MAX_HARD_DAYS_IN_A_ROW = 2
+BREATHING_RISE = 3.0
+BREATHING_BASELINE = (30, 90)
+BREATHING_MIN_NIGHTS = 30
 
 
 def asleep_ms(s):
@@ -350,162 +287,104 @@ def asleep_ms(s):
     return max(0, st['total_in_bed_time_milli'] - st['total_awake_time_milli'])
 
 
-def sleep_with_naps(sleep, naps):
-    """Hours vs needed per day (time asleep ÷ WHOOP's sleep need, %), with same-day naps counted.
+def _in_range(src, first, last):
+    return [v for k, v in src.items() if first <= k <= last]
 
-    Readiness uses this rather than WHOOP's Sleep Performance: until 2025 the two were identical
-    (within 0.3 points on real exports), but WHOOP's updated Sleep Performance also blends in
-    consistency, efficiency and sleep stress, so its meaning changed mid-history — and the
-    performance research readiness cites is about how much sleep you got. A nap after waking
-    adds its sleep time, capped at 100% — naps restore performance, most clearly after short
-    nights (Botonis et al. 2021). If WHOOP gives no sleep need, its Sleep Performance stands in.
-    Returns ({day: percent}, {day: nap hours})."""
-    perf, nap_h = {}, {}
-    naps_by_day = defaultdict(list)
-    for n in naps:
-        naps_by_day[day(n['created_at'])].append(n)
-    for s in sleep:
-        d = day(s['created_at'])
-        extra = sum(asleep_ms(n) for n in naps_by_day.get(d, []) if n['start'] >= s['end'])
-        need = s['score'].get('sleep_needed') or {}
-        need_ms = sum(need.get(k) or 0 for k in ('baseline_milli', 'need_from_sleep_debt_milli',
-                                                  'need_from_recent_strain_milli', 'need_from_recent_nap_milli'))
-        if need_ms <= 0:
-            perf[d] = s['score'].get('sleep_performance_percentage')
+
+def judge_marker(src, d, worse):
+    """7-day average vs the 4 weeks before this week, ±0.5 SD. None until both are valid."""
+    window = _in_range(src, _date_minus(d, READY_WINDOW_DAYS - 1), d)
+    monday = _date_minus(d, datetime.fromisoformat(d).weekday())
+    base = _in_range(src, _date_minus(monday, READY_BASELINE_DAYS), _date_minus(monday, 1))
+    weeks_ok = all(len(_in_range(src, _date_minus(monday, 7 * (k + 1)), _date_minus(monday, 7 * k + 1))) >= READY_MIN_READINGS
+                   for k in range(READY_BASELINE_DAYS // 7))   # each of the 4 baseline weeks needs 3+ readings
+    if len(window) < READY_MIN_READINGS or not weeks_ok:
+        return None
+    avg, m, sd = mean(window), mean(base), pstdev(base)
+    lo, hi = m - READY_SWC * sd, m + READY_SWC * sd
+    state = 'below' if avg < lo else 'above' if avg > hi else 'within'
+    return {'avg': avg, 'lo': lo, 'hi': hi, 'state': state, 'worse': state == worse}
+
+
+def breathing_check(rr_by_day, d):
+    if d not in rr_by_day:
+        return None
+    base = _in_range(rr_by_day, _date_minus(d, BREATHING_BASELINE[1]), _date_minus(d, BREATHING_BASELINE[0]))
+    if len(base) < BREATHING_MIN_NIGHTS:
+        return None
+    usual = mean(base)
+    return {'value': round(rr_by_day[d], 1), 'usual': round(usual, 1), 'limit': round(usual + BREATHING_RISE, 1),
+            'flagged': rr_by_day[d] >= usual + BREATHING_RISE}
+
+
+def hard_days_in_a_row(hard_days, d):
+    """Consecutive calendar days with a moderate/high-intensity session, ending the day before d."""
+    n, cur = 0, _date_minus(d, 1)
+    while cur in hard_days:
+        n += 1
+        cur = _date_minus(cur, 1)
+    return n
+
+
+def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days):
+    ln_hrv = {k: math.log(v) for k, v in hrv_by_day.items() if v and v > 0}
+    rhr = {k: v for k, v in rhr_by_day.items() if v}
+    series, latest = [], None
+    for d in sorted(ln_hrv):
+        hrv = judge_marker(ln_hrv, d, 'below')
+        if hrv is None:
             continue
-        perf[d] = min(100.0, round(100 * (asleep_ms(s) + extra) / need_ms, 1))
-        if extra > 0:
-            nap_h[d] = round(extra / 3600000, 2)
-    return perf, nap_h
-
-
-def _rolling_by_calendar(by_day, window, min_n, transform=lambda v: v):
-    """Rolling mean over calendar days (not records), so gaps in wear don't stretch a
-    '7-day' average across weeks. Returns {date: mean} where enough values exist."""
-    from datetime import date as _date
-    dates = sorted(by_day)
-    parsed = {d: _date.fromisoformat(d) for d in dates}
-    out = {}
-    start = 0
-    for i, d in enumerate(dates):
-        while (parsed[d] - parsed[dates[start]]).days >= window:
-            start += 1
-        vals = [transform(by_day[x]) for x in dates[start:i + 1]]
-        if len(vals) >= min_n:
-            out[d] = mean(vals)
-    return out
-
-
-def build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day, nap_h_by_day=None):
-    from datetime import date as _date
-    rolled = {
-        'hrv': _rolling_by_calendar({k: v for k, v in hrv_by_day.items() if v and v > 0},
-                                    READY_WINDOWS['hrv'], READY_MIN_IN_WINDOW['hrv'], math.log),
-        'rhr': _rolling_by_calendar(rhr_by_day, READY_WINDOWS['rhr'], READY_MIN_IN_WINDOW['rhr']),
-        'sleep': _rolling_by_calendar({k: v for k, v in sleep_perf_by_day.items() if v is not None},
-                                      READY_WINDOWS['sleep'], READY_MIN_IN_WINDOW['sleep']),
-    }
-    sign = {'hrv': 1, 'rhr': -1, 'sleep': 1}
-
-    def baseline(marker, d):
-        end = _date.fromisoformat(d) - timedelta(days=READY_WINDOWS['hrv'])       # exclude current 7-day window
-        start = end - timedelta(days=READY_BASELINE_DAYS)
-        vals = [v for k, v in rolled[marker].items() if start < _date.fromisoformat(k) <= end]
-        if len(vals) < READY_MIN_BASELINE:
-            return None
-        m, sd = mean(vals), pstdev(vals)
-        # numerical floor: if someone's rolling values barely move, a near-zero SD would turn
-        # trivial wobbles into huge swings — never treat less than 1% of the mean as meaningful
-        sd = max(sd, 0.01 if marker == 'hrv' else 0.01 * abs(m))   # HRV is on a ln scale: 0.01 ≈ 1%
-        return (m, sd) if sd > 0 else None
-
-    raw = {
-        'hrv': {k: math.log(v) for k, v in hrv_by_day.items() if v and v > 0},
-        'rhr': {k: v for k, v in rhr_by_day.items() if v is not None},
-        'sleep': {k: v for k, v in sleep_perf_by_day.items() if v is not None},
-    }
-
-    def night_baseline(marker, d):
-        """Single nights over the 60 days before d (d itself excluded)."""
-        end = _date.fromisoformat(d)
-        start = end - timedelta(days=READY_BASELINE_DAYS)
-        vals = [v for k, v in raw[marker].items() if start <= _date.fromisoformat(k) < end]
-        if len(vals) < READY_MIN_BASELINE:
-            return None
-        m, sd = mean(vals), pstdev(vals)
-        sd = max(sd, 0.01 if marker == 'hrv' else 0.01 * abs(m))
-        return (m, sd) if sd > 0 else None
-
-    def part(values, base_fn, d):
-        zs, parts = {}, {}
-        for marker in ('hrv', 'rhr', 'sleep'):
-            if d not in values[marker]:
-                continue
-            b = base_fn(marker, d)
-            if not b:
-                continue
-            m, sd = b
-            v = values[marker][d]
-            zs[marker] = max(-3.0, min(3.0, sign[marker] * (v - m) / sd))
-            lo, hi = m - READY_SWC * sd, m + READY_SWC * sd
-            if marker == 'hrv':   # back from ln(ms) to ms for display
-                parts[marker] = {'value': round(math.exp(v)), 'normal': [round(math.exp(lo)), round(math.exp(hi))]}
-            else:
-                parts[marker] = {'value': round(v, 1), 'normal': [round(lo, 1), round(hi, 1)]}
-        return zs, parts
-
-    to_score = lambda c: max(0, min(100, math.floor(50 + 25 * c + 0.5)))   # half-up, never banker's rounding
-    series = []
-    latest = None
-    for d in sorted(rolled['hrv']):
-        zs, parts = part(rolled, baseline, d)
-        if 'hrv' not in zs:        # HRV is the evidence-backed core; no score without it
-            continue
-        trend = mean(zs.values())
-        nz, nparts = part(raw, night_baseline, d)
-        if nap_h_by_day and d in nap_h_by_day and 'sleep' in nparts:
-            nparts['sleep']['nap_h'] = nap_h_by_day[d]
-        night = mean(nz.values()) if 'hrv' in nz else None
-        composite = trend if night is None else READY_WEIGHTS['trend'] * trend + READY_WEIGHTS['last_night'] * night
-        score = to_score(composite)
-        state = 'above' if composite >= READY_SWC else 'below' if composite < -READY_SWC else 'normal'
-        series.append({'date': d, 'v': score})
-        latest = {'date': d, 'score': score, 'state': state,
-                  'trend': {'score': to_score(trend), 'z': {k: round(v, 2) for k, v in zs.items()}, 'components': parts},
-                  'last_night': None if night is None else
-                  {'score': to_score(night), 'z': {k: round(v, 2) for k, v in nz.items()}, 'components': nparts},
-                  'weights': dict(READY_WEIGHTS)}
-    if latest is None:
-        return None, []
-    # 'rest' = −1 SD (a design choice, stricter than the ±½ SD trial rule); keep in sync with READY_BANDS in the template
-    latest['thresholds'] = {'above': math.floor(50 + 25 * READY_SWC + 0.5), 'below': math.floor(50 - 25 * READY_SWC + 0.5), 'rest': 25}
+        rest = judge_marker(rhr, d, 'above')
+        breathing = breathing_check(rr_by_day, d)
+        streak = hard_days_in_a_row(hard_days, d)
+        reasons = [name for name, hit in (('hrv', hrv['worse']), ('rhr', bool(rest and rest['worse'])),
+                                          ('breathing', bool(breathing and breathing['flagged'])),
+                                          ('streak', streak >= MAX_HARD_DAYS_IN_A_ROW)) if hit]
+        answer = 'easy' if reasons else 'hard'
+        series.append({'date': d, 'answer': answer})
+        latest = {
+            'date': d, 'answer': answer, 'reasons': reasons,
+            'hrv': {'value': round(math.exp(hrv['avg'])), 'normal': [round(math.exp(hrv['lo'])), round(math.exp(hrv['hi']))],
+                    'state': hrv['state']},
+            'rhr': None if rest is None else {'value': round(rest['avg'], 1), 'normal': [round(rest['lo'], 1), round(rest['hi'], 1)],
+                                              'state': rest['state']},
+            'breathing': breathing, 'hard_days_in_a_row': streak, 'max_hard_days': MAX_HARD_DAYS_IN_A_ROW,
+        }
     return latest, series
 
 
-# "Does this work?": average next-morning recovery after days the model made each call.
-# A consistency check, not independent validation — recovery shares HRV and resting HR with
-# readiness — and it uses the body score before same-day lowering (not stored for past days).
-CHECK_MIN_DAYS = 20          # fewer days than this → the bar is shown dimmed
-CHECK_SEPARATION = 3         # recovery points between neighbouring calls to count as "separate"
+def readiness_progress(hrv_by_day):
+    """Days of HRV so far vs days until the first answer: the first Monday that has 4 full weeks
+    of data before it (the answer itself can come that Monday)."""
+    days = sorted(k for k, v in hrv_by_day.items() if v)
+    if not days:
+        return {'days': 0, 'needed': READY_BASELINE_DAYS + 1}
+    first = datetime.fromisoformat(days[0])
+    ready = first + timedelta(days=READY_BASELINE_DAYS)
+    ready += timedelta(days=(7 - ready.weekday()) % 7)
+    elapsed = (datetime.fromisoformat(days[-1]) - first).days + 1
+    return {'days': elapsed, 'needed': (ready - first).days + 1}
 
 
-def build_readiness_check(readiness_series, recovery_by_day):
-    calls = (('Push', 63, 101), ('Train', 38, 63), ('Go easy', 25, 38), ('Rest', 0, 25))
-    groups = {name: [] for name, _, _ in calls}
-    for p in readiness_series:
+# "Does this work?": next-morning recovery after 'hard training OK' days vs 'easy or rest' days,
+# tested with Welch's t-test. A consistency check, not independent proof — recovery shares HRV and
+# resting HR with the answer.
+def build_readiness_check(series, recovery_by_day):
+    groups = {'hard': [], 'easy': []}
+    for p in series:
         nxt = (datetime.fromisoformat(p['date']) + timedelta(days=1)).date().isoformat()
-        if nxt not in recovery_by_day:
-            continue
-        for name, lo, hi in calls:
-            if lo <= p['v'] < hi:
-                groups[name].append(recovery_by_day[nxt])
-    rows = [{'call': name, 'avg_next_recovery': round(mean(groups[name]), 1) if groups[name] else None,
-             'days': len(groups[name]), 'low_confidence': len(groups[name]) < CHECK_MIN_DAYS}
-            for name, _, _ in calls]
-    overlaps = [[a['call'], b['call']] for a, b in zip(rows, rows[1:])
-                if a['avg_next_recovery'] is not None and b['avg_next_recovery'] is not None
-                and a['avg_next_recovery'] - b['avg_next_recovery'] < CHECK_SEPARATION]
-    return {'calls': rows, 'overlaps': overlaps, 'days': sum(r['days'] for r in rows)}
+        if nxt in recovery_by_day:
+            groups[p['answer']].append(recovery_by_day[nxt])
+    p = welch_p(groups['hard'], groups['easy'])
+    enough = len(groups['hard']) >= MIN_GROUP and len(groups['easy']) >= MIN_GROUP
+    return {
+        'answers': [{'answer': k, 'avg_next_recovery': round(mean(v), 1) if v else None, 'days': len(v)}
+                    for k, v in groups.items()],
+        'days': sum(len(v) for v in groups.values()),
+        'enough': enough,
+        'significant': bool(enough and p is not None and p < SIGNIFICANCE),
+        'hard_higher': bool(groups['hard'] and groups['easy'] and mean(groups['hard']) > mean(groups['easy'])),
+    }
 
 
 def build_sleep_composition(sleep, now):
@@ -531,109 +410,66 @@ def build_sleep_composition(sleep, now):
     } for wk in weeks]
 
 
-STRENGTH_SPORTS = {'weightlifting', 'weightlifting_msk', 'powerlifting'}
-
-
-def build_zone_distribution(wo, now):
-    """Weekly time-in-heart-rate-zone breakdown from workout.score.zone_durations
-    (WHOOP's own zone_zero..zone_five, each a band of % of max heart rate — WHOOP
-    records this per workout but never aggregates it into a trend). Bucketed into
-    easy (zones 0-2), moderate (zone 3) and hard (zones 4-5) — the same split session_intensity
-    uses — for a polarized-training
-    read: many endurance coaches use roughly 80% easy / 20% moderate-hard as a
-    reference split, not a hard medical rule."""
-    ZONE_KEYS_EASY = ['zone_zero_milli', 'zone_one_milli', 'zone_two_milli']
-    ZONE_KEYS_MOD = ['zone_three_milli']
-    ZONE_KEYS_HARD = ['zone_four_milli', 'zone_five_milli']
-
-    def bucket_hours(zd):
-        easy = sum((zd.get(k) or 0) for k in ZONE_KEYS_EASY) / 3600000
-        mod = sum((zd.get(k) or 0) for k in ZONE_KEYS_MOD) / 3600000
-        hard = sum((zd.get(k) or 0) for k in ZONE_KEYS_HARD) / 3600000
-        return easy, mod, hard
-
+def build_zone_distribution(wo, now, max_hr, rest_hr_for):
+    """Weekly easy / moderate / hard hours (Seiler's three zones, see intensity_minutes), all
+    workouts except strength sessions, whose rest between sets would read as easy time."""
     week_totals = defaultdict(lambda: [0.0, 0.0, 0.0])
     all_time = [0.0, 0.0, 0.0]
     for w in wo:
-        zd = w['score'].get('zone_durations')
-        if not zd or w['sport_name'] in STRENGTH_SPORTS:   # mostly rest between sets, counted as "easy"
+        if w['sport_name'] in STRENGTH_SPORTS:
             continue
-        easy, mod, hard = bucket_hours(zd)
+        split = intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(day(w['created_at'])))
+        if not split:
+            continue
         key = iso_week_key(parse(w['created_at']))
-        week_totals[key][0] += easy
-        week_totals[key][1] += mod
-        week_totals[key][2] += hard
-        all_time[0] += easy
-        all_time[1] += mod
-        all_time[2] += hard
-
+        for i in range(3):
+            week_totals[key][i] += split[i] / 60
+            all_time[i] += split[i] / 60
     current_key = iso_week_key(now)
     weeks = last_n_iso_weeks(now.date(), 8)          # every week, including ones without workouts
     weekly = [{'week': wk, 'start': iso_week_monday(wk),
-               'easy_h': round(week_totals[wk][0], 2),
-               'mod_h': round(week_totals[wk][1], 2),
-               'hard_h': round(week_totals[wk][2], 2),
-               'is_current': wk == current_key} for wk in weeks]
+               'easy_h': round(week_totals[wk][0], 2), 'mod_h': round(week_totals[wk][1], 2),
+               'hard_h': round(week_totals[wk][2], 2), 'is_current': wk == current_key} for wk in weeks]
     total_h = sum(all_time)
-    all_time_pct = {
-        'easy_pct': round(100 * all_time[0] / total_h, 1) if total_h else 0,
-        'mod_pct': round(100 * all_time[1] / total_h, 1) if total_h else 0,
-        'hard_pct': round(100 * all_time[2] / total_h, 1) if total_h else 0,
-        'total_h': round(total_h, 1),
-    }
-    return {'weekly': weekly, 'all_time': all_time_pct}
+    pct = lambda i: round(100 * all_time[i] / total_h, 1) if total_h else 0
+    return {'weekly': weekly, 'all_time': {'easy_pct': pct(0), 'mod_pct': pct(1), 'hard_pct': pct(2),
+                                           'total_h': round(total_h, 1)}}
 
 
-def build_rest_day_stat(cyc):
-    """Days since the last day with strain at or below this athlete's own 15th
-    percentile — a 'true rest day' defined against their own history, not an
-    arbitrary fixed number. Excludes the current in-progress cycle (no 'end' yet)
-    since its strain hasn't finished accumulating."""
-    completed = [c for c in cyc if c.get('end') is not None]
-    if len(completed) < 20:
-        return None
-    strains_sorted = sorted(c['score']['strain'] for c in completed)
-    threshold = strains_sorted[int(len(strains_sorted) * 0.15)]
-    last_rest_idx = None
-    for i in range(len(completed) - 1, -1, -1):
-        if completed[i]['score']['strain'] <= threshold:
-            last_rest_idx = i
-            break
-    if last_rest_idx is None:
-        return None
-    today = parse(cyc[-1]['created_at']).date()
-    days_since = (today - parse(completed[last_rest_idx]['created_at']).date()).days
-    return {
-        'last_rest_date': day(completed[last_rest_idx]['created_at']),
-        'days_since': days_since,
-        'threshold': round(threshold, 1),
-    }
+def build_rest_day_stat(cyc, workout_days):
+    """The most recent finished day with no logged workout — a plain fact, no threshold."""
+    today = day(cyc[-1]['created_at'])
+    for c in reversed(cyc):
+        d = day(c['created_at'])
+        if d != today and d not in workout_days:
+            return {'last_rest_date': d,
+                    'days_since': (datetime.fromisoformat(today) - datetime.fromisoformat(d)).days}
+    return None
 
 
-def build_today_snapshot(cyc, wo):
-    """Right-now context: today's cycle strain (still accumulating if the day isn't
-    over) and full detail on every workout logged today, including the same
-    easy/moderate/hard HR-zone breakdown used in the weekly zone chart, scoped to
-    just that session. Not historical — this is what happened today, specifically."""
+SLEEP_MIN_HOURS = 7   # adults: 7+ hours a night (AASM & Sleep Research Society, Watson et al. 2015)
+
+
+def build_sleep_nights(sleep, today):
+    """Nights in the last 7 days with 7+ hours asleep."""
+    recent = [s for s in sleep if 0 <= (datetime.fromisoformat(today) - datetime.fromisoformat(day(s['created_at']))).days < 7]
+    return {'nights_7h': sum(1 for s in recent if asleep_ms(s) >= SLEEP_MIN_HOURS * 3600000),
+            'nights': len(recent), 'min_hours': SLEEP_MIN_HOURS}
+
+
+def build_today_snapshot(cyc, wo, max_hr, rest_hr_for):
+    """Right-now context: today's cycle strain (still accumulating if the day isn't over) and
+    every workout logged today with its easy / moderate / hard minutes and intensity."""
     if not cyc:
         return None
     latest_cycle = cyc[-1]
     today = day(latest_cycle['created_at'])
-    in_progress = latest_cycle.get('end') is None
-
-    ZONE_EASY = ['zone_zero_milli', 'zone_one_milli', 'zone_two_milli']   # same split as the zone chart
-    ZONE_MOD = ['zone_three_milli']
-    ZONE_HARD = ['zone_four_milli', 'zone_five_milli']
-
     todays_workouts = []
     for w in wo:
         if day(w['created_at']) != today:
             continue
         sc = w['score']
-        zd = sc.get('zone_durations') or {}
-        zone_easy = sum((zd.get(k) or 0) for k in ZONE_EASY) / 60000
-        zone_mod = sum((zd.get(k) or 0) for k in ZONE_MOD) / 60000
-        zone_hard = sum((zd.get(k) or 0) for k in ZONE_HARD) / 60000
+        split = intensity_minutes(sc.get('zone_durations'), max_hr, rest_hr_for(today)) or [0.0, 0.0, 0.0]
         todays_workouts.append({
             'sport': sport_label(w['sport_name']),
             'start': w['start'],
@@ -644,18 +480,17 @@ def build_today_snapshot(cyc, wo):
             'max_hr': sc.get('max_heart_rate'),
             'kcal': round(sc['kilojoule'] / 4.184) if sc.get('kilojoule') else None,
             'dist_km': round(sc['distance_meter'] / 1000, 2) if sc.get('distance_meter') else None,
-            'zone_easy_min': round(zone_easy),
-            'zone_mod_min': round(zone_mod),
-            'zone_hard_min': round(zone_hard),
-            'intensity': session_intensity(zone_hard, zone_hard + zone_mod, sc.get('strain')),
+            'zone_easy_min': round(split[0]),
+            'zone_mod_min': round(split[1]),
+            'zone_hard_min': round(split[2]),
+            'intensity': session_level(split) if w['sport_name'] not in STRENGTH_SPORTS else None,
         })
     todays_workouts.sort(key=lambda w: w['start'])
-
     return {
         'date': today,
         'cycle_start': latest_cycle['start'],
         'strain_so_far': round(latest_cycle['score']['strain'], 1),
-        'in_progress': in_progress,
+        'in_progress': latest_cycle.get('end') is None,
         'workouts': todays_workouts,
     }
 
@@ -780,21 +615,45 @@ def build_summary(d):
     rhr_by_day = {day(r['created_at']): r['score']['resting_heart_rate'] for r in rec}
     rr_by_day = {day(s['created_at']): s['score']['respiratory_rate'] for s in sleep if s['score'].get('respiratory_rate') is not None}
 
+    max_hr = (d.get('body') or {}).get('max_heart_rate')
+    usual_rhr = mean(rhr_by_day.values()) if rhr_by_day else None
+    rest_hr_for = lambda dd: rhr_by_day.get(dd) or usual_rhr
+
+    # each day's hardest session and its intensity; strength sessions have no zone-based intensity
+    day_sessions, hard_days, load_by_day = {}, set(), defaultdict(float)
+    by_day_wo = defaultdict(list)
+    for w in wo:
+        by_day_wo[day(w['created_at'])].append(w)
+        load_by_day[day(w['created_at'])] += w['score']['strain']
+    for dd, ws in by_day_wo.items():
+        levels = [session_level(intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(dd)))
+                  for w in ws if w['sport_name'] not in STRENGTH_SPORTS]
+        if any(l in ('moderate', 'hard') for l in levels):
+            hard_days.add(dd)
+        top = max(ws, key=lambda w: w['score']['strain'])
+        if top['sport_name'] not in STRENGTH_SPORTS:
+            day_sessions[dd] = (sport_label(top['sport_name']),
+                                session_level(intensity_minutes(top['score'].get('zone_durations'), max_hr, rest_hr_for(dd))))
+
     acwr = build_acwr(strain_by_day)
-    monotony = build_monotony(strain_by_day)
-    sport_recovery_cost = build_sport_recovery_cost(wo, recovery_by_day)
+    monotony = build_monotony(load_by_day, strain_by_day.keys())
+    sport_recovery_cost = build_sport_recovery_cost(day_sessions, recovery_by_day)
     sleep_composition = build_sleep_composition(sleep, now)
-    zone_distribution = build_zone_distribution(wo, now)
-    rest_day_stat = build_rest_day_stat(cyc)
-    today_snapshot = build_today_snapshot(cyc, wo)
-    anomalies = build_anomalies(hrv_by_day, rhr_by_day, rr_by_day)
-    sleep_perf_by_day, nap_h_by_day = sleep_with_naps(sleep, naps)
-    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, sleep_perf_by_day, nap_h_by_day)
-    warning = build_warning(hrv_by_day, rhr_by_day, rr_by_day)
-    full['readiness'] = readiness_series
+    zone_distribution = build_zone_distribution(wo, now, max_hr, rest_hr_for)
+    today = day(cyc[-1]['created_at'])
+    rest_day_stat = build_rest_day_stat(cyc, set(by_day_wo))
+    today_snapshot = build_today_snapshot(cyc, wo, max_hr, rest_hr_for)
+    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days)
     readiness_check = build_readiness_check(readiness_series, recovery_by_day)
-    cutoff_14d = (parse(latest_rec['created_at']) - timedelta(days=14)).date().isoformat()
-    recent_anomalies = [a for a in anomalies if a['date'] >= cutoff_14d]
+    for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
+        entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(
+            intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(entry['date'])))
+    # last night, shown as information next to the answer (not part of the decision)
+    last_sleep = sleep[-1]
+    naps_after = [n for n in naps if day(n['created_at']) == day(last_sleep['created_at']) and n['start'] >= last_sleep['end']]
+    last_night = {'hrv': round(latest_rec['score']['hrv_rmssd_milli']), 'rhr': latest_rec['score']['resting_heart_rate'],
+                  'recovery': latest_rec['score']['recovery_score'], 'asleep_h': round(asleep_ms(last_sleep) / 3600000, 2),
+                  'nap_h': round(sum(asleep_ms(n) for n in naps_after) / 3600000, 2)}
 
     records = {
         'best_recovery': {'v': best_rec['score']['recovery_score'], 'date': day(best_rec['created_at'])},
@@ -846,8 +705,10 @@ def build_summary(d):
         'body': d['body'],
         'full_series': full,
         'readiness': readiness,
-        'warning': warning,
+        'readiness_progress': readiness_progress(hrv_by_day),
         'readiness_check': readiness_check,
+        'last_night': last_night,
+        'sleep_nights': build_sleep_nights(sleep, today),
         'workout_log': workout_log,
         'monthly': monthly,
         'monthly_count_with_data': months_with_data,
@@ -857,9 +718,6 @@ def build_summary(d):
         'acwr': acwr,
         'monotony': monotony,
         'sport_recovery_cost': sport_recovery_cost,
-        'anomalies_recent': recent_anomalies,
-        'anomalies_total_flagged': len(anomalies),
-        'anomalies_total_scored': len(set(hrv_by_day) & set(rhr_by_day) & set(rr_by_day)),
         'sleep_composition': sleep_composition,
         'zone_distribution': zone_distribution,
         'rest_day_stat': rest_day_stat,

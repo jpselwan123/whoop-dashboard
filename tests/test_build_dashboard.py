@@ -20,7 +20,7 @@ class BuildDashboardTest(unittest.TestCase):
         self.assertIn('"asOf"', html)
 
     def test_core_fields_present(self):
-        for key in ("latest", "avg30", "full_series", "acwr", "monotony", "anomalies_recent",
+        for key in ("latest", "avg30", "full_series", "acwr", "monotony", "readiness", "readiness_check",
                     "sport_recovery_cost", "rest_day_stat", "today_snapshot", "records"):
             self.assertIn(key, self.summary)
 
@@ -31,12 +31,6 @@ class BuildDashboardTest(unittest.TestCase):
             self.assertTrue(0 <= p["v"] <= 21)
         for p in self.summary["acwr"]:
             self.assertGreater(p["v"], 0)
-
-    def test_anomaly_flags_carry_plain_unit_limits(self):
-        data = build_dashboard.build_summary(generate(200, seed=1))
-        for flag in data["anomalies_recent"]:
-            for key in ("hrv", "rhr", "rr", "hrv_low", "rhr_high", "rr_high"):
-                self.assertIn(key, flag)
 
     def test_no_workouts_does_not_crash(self):
         raw = generate(60)

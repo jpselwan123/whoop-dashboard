@@ -381,7 +381,7 @@
   </header>
 
   <div class="daytype-panel" id="readyPanel">
-    <div class="dt-title">Readiness <span class="tnum" id="rpScore"></span></div>
+    <div class="dt-title">Today <span class="tnum" id="rpScore"></span></div>
     <div class="dt-sub" id="rpSub"></div>
     <div id="rpRows"></div>
   </div>
@@ -397,19 +397,19 @@
   <section class="hero" id="heroCard">
     <div class="flank" id="flankBody"></div>
     <div class="orb-col">
-      <div class="orb-stage" id="orbStage" role="button" tabindex="0" aria-haspopup="true" aria-label="How readiness is calculated">
+      <div class="orb-stage" id="orbStage" role="button" tabindex="0" aria-haspopup="true" aria-label="How today's answer is decided">
         <canvas id="orb" width="440" height="440"></canvas>
         <div class="orb-readout"><div class="num tnum" id="orbNum">—</div><div class="cap" id="orbCap">Readiness</div></div>
       </div>
       <div class="ready-scale" id="readyScale" aria-hidden="true">
-        <div class="rs-track"><span class="rs-seg rest"></span><span class="rs-seg easy"></span><span class="rs-seg train"></span><span class="rs-seg push"></span><span class="rs-marker" id="rsMarker"></span></div>
-        <div class="rs-ticks"><span id="rsT1">—</span><span id="rsT2">—</span><span id="rsT3">—</span></div>
+        <div class="rs-track"><span class="rs-seg easy" style="flex:1"></span><span class="rs-seg train" style="flex:1"></span><span class="rs-seg push" style="flex:1"></span><span class="rs-marker" id="rsMarker"></span></div>
+        <div class="rs-ticks"><span id="rsT1">—</span><span id="rsT2">—</span></div>
       </div>
     </div>
     <div class="flank right" id="flankLoad"></div>
     <div class="hero-halves" id="heroHalves" hidden>
-      <div class="hh-row"><span>Last night <b id="hhNight">—</b></span><span>Recent week <b id="hhWeek">—</b></span><span class="hh-result">→ <b id="hhScore">—</b></span></div>
-      <div class="hh-cap">Readiness weighs last night and your recent week equally.</div>
+      <div class="hh-row" id="hhRow"></div>
+      <div class="hh-cap">Hard training is OK when your 7-day HRV and resting HR are within or better than your last 4 weeks.</div>
     </div>
     <div class="hero-legend"><span><b class="up">▲</b><b class="down">▼</b> vs your 30-day average</span></div>
   </section>
@@ -439,7 +439,7 @@
 
   <section class="card">
     <div class="section-head"><h2>Acute:Chronic Workload Ratio</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">A sports-science measure of injury risk from ramping load too fast — WHOOP doesn't track this.</div>
+    <div class="section-sub">Last 7 days of strain vs the last 28 — a widely used injury-risk measure, though later research disputes how well these bands predict injury.</div>
     <div class="metric-row">
       <span class="big tnum" id="acwrValue">—</span>
       <span class="zone-badge" id="acwrZone">—</span>
@@ -455,14 +455,14 @@
 
   <section class="card">
     <div class="section-head"><h2>Training variety, last 7 days</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Hard training every day with no lighter days raises injury/illness risk more than the same total effort spread out — even at the same weekly load.</div>
+    <div class="section-sub">Training load each day (workout strain, 0 on days off). Nearly the same load every day raises illness risk more than the same total with lighter days in between.</div>
     <div class="chart-wrap" id="last7ChartWrap" style="margin-bottom:14px;"><div class="chart-tooltip" id="last7Tooltip"></div></div>
     <div id="monotonyFlag"></div>
   </section>
 
   <section class="card">
     <div class="section-head"><h2>Time in heart-rate zones</h2><span class="n" id="zoneTotal"></span></div>
-    <div class="section-sub">WHOOP records which of its 6 heart-rate zones every workout minute falls in but never totals it. Grouped here into easy (zones 0–2), moderate (3) and hard (4–5), the same split that rates each session — some endurance coaches use roughly 80% easy / 20% moderate-hard as a reference split, not a fixed rule. Strength sessions are left out — most of their time is rest between sets.</div>
+    <div class="section-sub">Easy is below about 82% of your max heart rate, moderate 82–87%, hard above 87% — the three zones used in endurance research, converted from WHOOP's zones with your own resting and max heart rate. Strength sessions are left out, since most of their time is rest between sets.</div>
     <div class="explorer-stats" id="zoneSplitRow"></div>
     <div class="chart-wrap" id="zoneChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="zoneTooltip"></div></div>
     <div class="legend">
@@ -510,7 +510,7 @@
 
   <section class="card" id="checkCard">
     <div class="section-head"><h2>Does this work?</h2><span class="n" id="checkDays"></span></div>
-    <div class="section-sub">Average recovery the next morning, after days the model made each call.</div>
+    <div class="section-sub">Average recovery the next morning, after days with each answer.</div>
     <div class="chart-wrap" id="checkChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="checkTooltip"></div></div>
     <div class="section-sub" id="checkCaption" style="margin-top:8px;"></div>
   </section>
@@ -530,8 +530,8 @@
   </section>
 
   <section class="card">
-    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery cost by sport, at similar intensity</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportCostMonths"></span></div>
-    <div class="section-sub">Next-morning recovery after each sport, compared only with days of similar heart rate. Faded bars are gaps too small to tell apart from normal day-to-day swings.</div>
+    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery cost by sport, at the same intensity</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportCostMonths"></span></div>
+    <div class="section-sub">Next-morning recovery after each sport, compared with other days of the same intensity. Faded bars could be chance.</div>
     <div id="sportCostRows" style="margin-top:14px;"></div>
   </section>
 
@@ -554,7 +554,7 @@
   <footer>
     <div class="grp">
       <b>Measured vs. modeled</b>
-      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness is the one model: how ready you are to train today — last night's HRV, resting HR and sleep hours vs needed plus their recent trend, each vs your own last 60 days, lowered by warning signs or today's context. Click the orb for the numbers.</span>
+      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Today's answer follows the HRV-guided training trials: your 7-day HRV and resting HR against your previous 4 weeks, plus a breathing-rate illness sign and a limit of 2 hard days in a row. Click the orb for the numbers.</span>
     </div>
     <div class="grp"><span id="baselineNote"></span></div>
     <div class="grp"><span id="coverageNote"></span></div>
@@ -631,188 +631,128 @@ const lastDays = (series, n) => {
 const SVGNS = "http://www.w3.org/2000/svg";
 const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; };
 
-// Readiness = how ready you are to train today, on one 0–100 scale, and the only thing the
-// daily answer is read from.
-//   1. Body score (build_readiness in build_dashboard.py): half last night (HRV, resting HR,
-//      sleep), half recent trend (7-day HRV and resting HR, 3-night sleep), each vs your own
-//      last 60 days, equal weights, 50 = normal. Until ~5 weeks
-//      of data exist, WHOOP recovery stands in.
-//   2. Lowered (never raised) by today's context: a *confirmed* warning sign (build_warning:
-//      same vital out of range on 2 of the last 3 nights, or 2+ vitals out together, and
-//      still out last night) caps it between 37 and 24 depending on how far out it is;
-//      a hard session today (intensity from build_today_snapshot, after Stanley et al. 2013),
-//      today's strain above the 7-day average, or 7+ days without rest + an unusually hard
-//      week + load ratio above 1.3 together, caps it at 37; a moderate session caps it at 62
-//      (no Push). Easy sessions change nothing. A one-off night is only watched.
-//   3. Answer from the final number: 63+ Push (≥ +½ SD) · 38–62 Train · 25–37 Go easy
-//      (below −½ SD) · under 25 Rest (below −1 SD).
-const READY_BANDS = { push: 63, train: 38, easy: 25 };
-const READY_CAPS = { context: 37, moderate: 62 };   // warning caps (37→24, graded) come from DATA.warning
+// Readiness = the HRV-guided training protocol (build_readiness in build_dashboard.py):
+//   - 7-day HRV and 7-day resting HR, each vs your previous 4 weeks (±0.5 SD, updated weekly);
+//   - hard training OK when both are within or better than normal, breathing rate isn't 3+ above
+//     your usual, and you haven't done 2 hard days in a row; otherwise easy or rest;
+//   - after a moderate/high-intensity session today: done for today (Stanley et al. 2013).
+// Every rule and source is in the README. Last night's numbers are shown as information only.
 const ACTIONS = {
-  push:  {label:'Push',    c:'var(--good)',     bg:'var(--good-bg)',     headline:'Ready to push.'},
-  train: {label:'Train',   c:'var(--accent)',   bg:'var(--accent-soft)', headline:'Ready to train.'},
-  easy:  {label:'Go easy', c:'var(--warn)',     bg:'var(--warn-bg)',     headline:'Go easy today.'},
-  rest:  {label:'Rest',    c:'var(--critical)', bg:'var(--critical-bg)', headline:'Rest today.'},
+  hard:     {label:'Train hard',   c:'var(--good)',   bg:'var(--good-bg)',     headline:'Hard training is OK.'},
+  easy:     {label:'Easy or rest', c:'var(--warn)',   bg:'var(--warn-bg)',     headline:'Keep it easy or rest.'},
+  learning: {label:'Learning',     c:'var(--accent)', bg:'var(--accent-soft)', headline:'Learning your normal.'},
 };
-function actionFor(score){
-  return score >= READY_BANDS.push ? 'push' : score >= READY_BANDS.train ? 'train' : score >= READY_BANDS.easy ? 'easy' : 'rest';
-}
+const INTENSITY_WORD = {easy:'easy', moderate:'moderate-intensity', hard:'high-intensity'};
 
 function computeReadiness(){
-  const L = DATA.latest, R = DATA.readiness;
-  const strainRatio = DATA.avg30.strain ? DATA.avg7_strain / DATA.avg30.strain : 1; // context for tips only
-  const base = R ? R.score : Math.round(L.recovery_score);
-
+  const R = DATA.readiness;
   const snap = DATA.today_snapshot;
   const snapIsToday = !!(snap && snap.date === todayLocalISO());
   const sessions = snapIsToday ? (snap.workouts || []) : [];
-  const hardSessions = sessions.filter(w => w.intensity === 'hard');
-  const moderateSessions = sessions.filter(w => w.intensity === 'moderate');
-  const dayStrainHigh = snapIsToday && snap.strain_so_far > DATA.avg7_strain;
-  const alreadyTrainedHard = dayStrainHigh || hardSessions.length > 0;
-  const trainedModerate = !alreadyTrainedHard && moderateSessions.length > 0;
-  const sessionText = arr => arr.map(w => `${w.sport} today was ${w.intensity} (${w.dur_min} min, strain ${fmt1(w.strain)})`).join(' and ');
-  const rest = DATA.rest_day_stat;
-  const restOverdue = !!(rest && rest.days_since >= 7);
-  const acwrElevated = acwrZoneLabel === 'Caution' || acwrZoneLabel === 'High risk';
-  const overloadCombo = restOverdue && monotonyHighFlag && acwrElevated;
-  const W = DATA.warning;
-  const fatigueFlagged = !!(W && W.confirmed);
-  const sigText = x => `${x.name.charAt(0).toLowerCase() + x.name.slice(1)} ${x.value}${x.unit === 'ms' || x.unit === 'bpm' ? ' ' : ''}${x.unit} (flags at ${x.limit}${x.direction === 'low' ? ' or lower' : '+'})`;
-  const warnWhen = W ? (W.date === todayLocalISO() ? 'last night' : `on ${new Date(W.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}`) : '';
-  const watch = W && !W.confirmed ? W.signals : [];
-
-  const caps = [];
-  if(fatigueFlagged){
-    const parts = W.signals.map(x => sigText(x) + (W.reason === 'repeated' && W.nights_out[x.name] >= 2 ? ` on ${W.nights_out[x.name]} of the last ${W.nights_checked} nights` : ''));
-    const joined = parts.join(' and ') + (W.reason === 'multiple' ? ` ${warnWhen}` : '');
-    caps.push({key:'warning', max:W.cap, text:joined});
-  }
-  if(alreadyTrainedHard) caps.push({key:'trained', max:READY_CAPS.context, text: hardSessions.length
-    ? sessionText(hardSessions) : `today's strain (${fmt1(snap.strain_so_far)}) is already above your 7-day average (${fmt1(DATA.avg7_strain)})`});
-  else if(trainedModerate) caps.push({key:'trained', max:READY_CAPS.moderate, text:sessionText(moderateSessions)});
-  if(overloadCombo) caps.push({key:'overload', max:READY_CAPS.context, text:`${rest.days_since} days without rest, an unusually hard week and load ratio above 1.3×`});
-  const limit = caps.length ? Math.min(...caps.map(c => c.max)) : 100;
-  const readiness = Math.min(base, limit);
-  const lowering = caps.filter(c => c.max < base);           // only caps that actually changed the number
-
-  return { readiness, base, action: actionFor(readiness), caps, lowering, fallback: !R, strainRatio,
-           snap, snapIsToday, sessions, dayStrainHigh, alreadyTrainedHard, rest, overloadCombo, fatigueFlagged, watch, warnWhen, sigText };
+  const hardToday = sessions.filter(w => w.intensity === 'moderate' || w.intensity === 'hard');
+  if(!R) return { action:'learning', reasons:[], sessions, hardToday, R:null };
+  const reasons = [...R.reasons];
+  if(hardToday.length) reasons.push('session');
+  return { action: reasons.length ? 'easy' : 'hard', reasons, sessions, hardToday, R };
 }
 
+const one = v => (Math.round(v * 10) / 10).toFixed(1);
+function reasonText(calc, key){
+  const R = calc.R;
+  if(key === 'hrv') return `7-day HRV is below your normal (${R.hrv.value} ms, normal ${R.hrv.normal[0]}–${R.hrv.normal[1]})`;
+  if(key === 'rhr') return `7-day resting HR is above your normal (${one(R.rhr.value)} bpm, normal ${one(R.rhr.normal[0])}–${one(R.rhr.normal[1])})`;
+  if(key === 'breathing') return `last night's breathing rate was ${one(R.breathing.value)} /min, 3 or more above your usual ${one(R.breathing.usual)} — a possible sign of illness`;
+  if(key === 'streak') return `you've trained hard ${R.hard_days_in_a_row} days in a row (limit ${R.max_hard_days})`;
+  if(key === 'session') return `you already did a ${INTENSITY_WORD[calc.hardToday[0].intensity]} session today (${calc.hardToday[0].sport})`;
+  return '';
+}
+const sentence = t => t.charAt(0).toUpperCase() + t.slice(1) + '.';
+const listAnd = arr => arr.length > 1 ? arr.slice(0,-1).join(', ') + ' and ' + arr[arr.length-1] : (arr[0] || '');
+
 function decisionWhy(calc){
-  const R = DATA.readiness;
-  if(calc.lowering.length){
-    const t = calc.lowering.map(c => c.text);
-    const joined = t.length > 1 ? t.slice(0,-1).join(', ') + ' and ' + t[t.length-1] : t[0];
-    return joined.charAt(0).toUpperCase() + joined.slice(1) + '.';
+  if(calc.action === 'learning'){
+    const P = DATA.readiness_progress;
+    return `Readiness needs 4 full weeks of HRV to learn your normal — day ${Math.min(P.days, P.needed)} of ${P.needed}.`;
   }
-  if(!R) return `Based on WHOOP recovery (<b>${calc.base}</b>) until there's about 5 weeks of data.`;
-  const nameOf = {hrv:'HRV', rhr:'resting HR', sleep:'sleep vs need'};
-  const val = (m, c) => m === 'hrv' ? `${c.value} ms` : m === 'rhr' ? `${c.value.toFixed(1)} bpm` : `${Math.round(c.value)}%${c.nap_h ? ` with a ${fmtHM(c.nap_h)} nap` : ''}`;
-  const rng = (m, c) => m === 'hrv' ? `${c.normal[0]}–${c.normal[1]}` : m === 'rhr' ? `${c.normal[0].toFixed(1)}–${c.normal[1].toFixed(1)}` : `${Math.round(c.normal[0])}–${Math.round(c.normal[1])}%`;
-  const list = arr => arr.length > 1 ? arr.slice(0,-1).join(', ') + ' and ' + arr[arr.length-1] : arr[0];
-  // one clause per part, e.g. "last night HRV 137 ms (normal 71–100) and resting HR 58.0 bpm (…)"
-  const clause = (P, when, test) => {
-    if(!P) return null;
-    const items = ['hrv','rhr','sleep'].filter(m => P.z[m] != null && P.components[m] && test(P.z[m]))
-      .map(m => `${nameOf[m]} ${val(m, P.components[m])} (normal ${rng(m, P.components[m])})`);
-    return items.length ? `${when} ${list(items)}` : null;
-  };
-  const parts = test => [clause(R.last_night, 'last night', test), clause(R.trend, '7-day trend', test)].filter(Boolean);
-  const low = parts(z => z < -0.5), high = parts(z => z > 0.5);
-  if(calc.action === 'push') return high.length ? `Above your normal: ${high.join('; ')}.` : 'Your body is above your normal.';
-  if(calc.action === 'train') return low.length ? `Mostly normal. Watch: ${low.join('; ')}.` : high.length ? `Above normal: ${high.join('; ')}.` : 'HRV, resting HR and sleep are within your normal range.';
-  return low.length ? `Below your normal: ${low.join('; ')}.` : 'Your body is below your normal.';
+  const R = calc.R;
+  if(calc.reasons.length) return sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))));
+  const rhr = R.rhr ? ` and resting HR (${one(R.rhr.value)} bpm, normal ${one(R.rhr.normal[0])}–${one(R.rhr.normal[1])})` : '';
+  return `7-day HRV (${R.hrv.value} ms, normal ${R.hrv.normal[0]}–${R.hrv.normal[1]})${rhr} are within or better than your normal.`;
 }
 
 function renderDecision(){
   const calc = computeReadiness();
   const A = ACTIONS[calc.action];
-
   $('decisionCard').style.setProperty('--state-color', A.c);
   $('statePill').style.setProperty('--state-color', A.c);
   $('statePill').style.setProperty('--state-bg', A.bg);
   $('statePill').textContent = A.label;
-  $('decisionHeadline').textContent = calc.alreadyTrainedHard && calc.action !== 'push' && calc.action !== 'train'
-    ? 'Done for today — recover.' : A.headline;
+  $('decisionHeadline').textContent = calc.reasons.includes('session') ? 'Done for today — recover.' : A.headline;
   $('decisionWhy').innerHTML = decisionWhy(calc);
 
-  countUp($('orbNum'), calc.readiness, v => String(Math.round(v)));
-  $('orbCap').textContent = 'Readiness';
-  // scale: four bands, marker at today's readiness
-  const segs = $('readyScale').querySelectorAll('.rs-seg');
-  const widths = [READY_BANDS.easy, READY_BANDS.train - READY_BANDS.easy, READY_BANDS.push - READY_BANDS.train, 100 - READY_BANDS.push];
-  segs.forEach((el, i) => { el.style.flex = String(widths[i]); });
-  $('rsMarker').style.left = clamp(calc.readiness, 0, 100) + '%';
-  [['rsT1', READY_BANDS.easy], ['rsT2', READY_BANDS.train], ['rsT3', READY_BANDS.push]].forEach(([id, v]) => {
-    $(id).style.left = v + '%'; $(id).textContent = v;
-  });
-  drawOrb(calc.readiness);
-  renderHalves(calc);
-  renderSuggestions(calc, calc.alreadyTrainedHard, calc.overloadCombo, calc.rest);
+  // orb: the 7-day HRV that drives the call; the scale shows it against your normal range
+  const R = calc.R;
+  if(R){
+    countUp($('orbNum'), R.hrv.value, v => String(Math.round(v)));
+    $('orbCap').textContent = 'HRV · 7-day';
+    const [lo, hi] = R.hrv.normal, w = Math.max(hi - lo, 1);
+    $('rsMarker').style.left = clamp((R.hrv.value - (lo - w)) / (3 * w) * 100, 0, 100) + '%';
+    $('rsT1').style.left = '33.33%'; $('rsT1').textContent = lo;
+    $('rsT2').style.left = '66.67%'; $('rsT2').textContent = hi;
+    $('readyScale').hidden = false;
+  } else {
+    $('orbNum').textContent = '—';
+    $('orbCap').textContent = 'Learning';
+    $('readyScale').hidden = true;
+  }
+  drawSphere('orb', calc.action === 'hard' ? 148 : calc.action === 'easy' ? 42 : 222);
+  renderMarkers(calc);
+  renderSuggestions(calc);
   window.__readinessCalc = calc;
 }
 
-// The two halves of readiness in words (same lines as the answer bands), so a strong night
-// after a weak week explains itself without showing any arithmetic.
-function renderHalves(calc){
-  const R = DATA.readiness, box = $('heroHalves');
-  if(!R || !R.last_night || !R.trend){ box.hidden = true; return; }
-  const word = s => s >= READY_BANDS.push ? ['Strong','good'] : s >= READY_BANDS.train ? ['Normal',''] : s >= READY_BANDS.easy ? ['Below normal','warn'] : ['Low','bad'];
-  const put = (id, s) => { const [w, cls] = word(s); $(id).textContent = w; $(id).className = cls; };
-  put('hhNight', R.last_night.score);
-  put('hhWeek', R.trend.score);
-  $('hhScore').textContent = calc.lowering.length ? `${calc.base}, lowered to ${calc.readiness}` : `${calc.readiness}`;
+// Under the orb: each rule of the protocol in words, then the answer.
+function renderMarkers(calc){
+  const R = calc.R, box = $('heroHalves');
+  if(!R){ box.hidden = true; return; }
+  const span = (k, v, cls) => `<span>${k} <b class="${cls}">${v}</b></span>`;
+  const state = (st, worse) => st === worse ? ['Worse than normal', 'warn'] : st === 'within' ? ['Normal', ''] : ['Better than normal', 'good'];
+  const parts = [span('HRV', ...state(R.hrv.state, 'below'))];
+  if(R.rhr) parts.push(span('Resting HR', ...state(R.rhr.state, 'above')));
+  if(calc.reasons.includes('breathing')) parts.push(span('Breathing', 'Raised', 'bad'));
+  if(calc.reasons.includes('streak')) parts.push(span('Hard days in a row', `${R.hard_days_in_a_row}`, 'warn'));
+  if(calc.reasons.includes('session')) parts.push(span('Today', 'Hard session done', 'warn'));
+  parts.push(`<span class="hh-result">→ <b>${ACTIONS[calc.action].label}</b></span>`);
+  $('hhRow').innerHTML = parts.join('');
   box.hidden = false;
 }
 
-function renderSuggestions(calc, alreadyTrainedHard, overloadCombo, rest){
-  const groups = DATA.sport_recovery_cost.groups || [];
-  const lower = groups.find(g => g.intensity === 'lower'), higher = groups.find(g => g.intensity === 'higher');
+function renderSuggestions(calc){
   const sEl = $('sportSuggestSignal'), sTxt = $('sportSuggestText');
-  const fatigueFlagged = !!(DATA.warning && DATA.warning.confirmed);
-
-  if(alreadyTrainedHard && overloadCombo){
-    sEl.className = 'signal warn';
-    sTxt.innerHTML = `<b>You're done for today — and make tomorrow a rest day.</b> ${rest.days_since} days since your last true rest day, ${monotonyWeekName.charAt(0).toLowerCase() + monotonyWeekName.slice(1)} was unusually hard-every-day, and your ACWR is in ${acwrZoneLabel}.`;
-  } else if(alreadyTrainedHard){
-    sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>You're done for today.</b> You've already trained hard — no need for another session.`;
-  } else if(overloadCombo){
-    sEl.className = 'signal warn';
-    sTxt.innerHTML = `<b>Take a rest or easy day.</b> ${rest.days_since} days since your last true rest day, ${monotonyWeekName.charAt(0).toLowerCase() + monotonyWeekName.slice(1)} was unusually hard-every-day, and your ACWR is in ${acwrZoneLabel} — that combination calls for backing off, not another hard session.`;
-  } else if(calc.action === 'easy' || calc.action === 'rest' || fatigueFlagged){
-    sEl.className = 'signal warn';
-    sTxt.innerHTML = fatigueFlagged
-      ? `<b>Skip hard training today.</b> HRV, resting HR or breathing rate left your normal range recently — let it settle first.`
-      : `<b>Keep today easy or rest.</b> Readiness is below your normal range.`;
-  } else if(calc.action === 'push'){
-    sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>A higher-intensity session fits today.</b> You're cleared to push.`;
-  } else if(lower && higher){
-    sEl.className = 'signal ok';
-    sTxt.innerHTML = lower.avg_next_recovery > higher.avg_next_recovery
-      ? `<b>A lower-intensity session fits today.</b> Your lower-heart-rate days are followed by better recovery (${Math.round(lower.avg_next_recovery)} vs ${Math.round(higher.avg_next_recovery)}), whatever the sport.`
-      : `<b>A normal session fits today.</b> Your recovery doesn't depend much on how intense the day was.`;
-  } else {
+  if(calc.action === 'learning'){
     sEl.className = 'signal';
-    sTxt.innerHTML = `<b>A normal session fits today.</b> Not enough training history yet to compare intensities.`;
+    sTxt.innerHTML = `<b>Train as usual while your normal is being learned.</b>`;
+  } else if(calc.reasons.includes('session')){
+    sEl.className = 'signal ok';
+    sTxt.innerHTML = `<b>You're done for today.</b> Heart and nervous-system recovery takes 24–48 hours after a moderate or high-intensity session.`;
+  } else if(calc.action === 'easy'){
+    sEl.className = 'signal warn';
+    sTxt.innerHTML = `<b>Keep today easy or rest.</b> ${sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))))}`;
+  } else {
+    sEl.className = 'signal ok';
+    sTxt.innerHTML = `<b>Hard training is OK today.</b> Your body is within its normal range.`;
   }
 
   const tips = [];
-  const L = DATA.latest;
-  if(L.sleep_debt_hours > 1.5) tips.push(`Sleep debt is ${fmtHM(L.sleep_debt_hours)} — an earlier night tonight helps reset it.`);
-  if(!overloadCombo && calc.strainRatio > 1.15) tips.push(alreadyTrainedHard
-    ? `Keep tomorrow light — you've trained harder than usual this week.`
-    : `You're training harder than usual this week — favor technique or mobility over volume.`);
-  if(DATA.warning && DATA.warning.confirmed) tips.push(`Body signals are outside your normal range — prioritize sleep tonight.`);
-  if(!overloadCombo && monotonyHighFlag) tips.push(`${monotonyWeekName} was unusually hard-every-day for you — build an easy day in soon.`);
-  if(tips.length === 0) tips.push(overloadCombo ? `Prioritize sleep tonight.` : `Nothing unusual in your numbers today — a normal week, stick to your plan.`);
+  const S = DATA.sleep_nights;
+  if(S && S.nights && S.nights_7h < S.nights)
+    tips.push(`${S.nights_7h} of your last ${S.nights} nights had ${S.min_hours}+ hours asleep — adults need ${S.min_hours}+ hours regularly.`);
+  const M = DATA.monotony.length ? DATA.monotony[DATA.monotony.length-1] : null;
+  if(M && M.high) tips.push(`${monotonyWeekName} had almost the same training load every day — plan lighter days in between.`);
+  if(tips.length === 0) tips.push(`Nothing unusual in your sleep or training pattern this week.`);
   const tEl = $('tipsSignal'), tTxt = $('tipsText');
-  const allClear = tips.length===1 && tips[0].startsWith('Nothing');
-  tEl.className = allClear ? 'signal ok' : 'signal warn';
-  tTxt.innerHTML = '<b>Recovery tips:</b><br>' + tips.slice(0,3).map(t=>'· '+t).join('<br>');
+  tEl.className = tips[0].startsWith('Nothing') ? 'signal ok' : 'signal warn';
+  tTxt.innerHTML = '<b>Recovery tips:</b><br>' + tips.map(t => '· ' + t).join('<br>');
 }
 
 // One-time count-up on first paint. The final value is written first, so if animation
@@ -833,19 +773,6 @@ function countUp(el, target, format){
 }
 function reduceMotionPref(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
 
-// Sleep debt direction over 14 days: the last 7 days' average vs the 7 before, in one word.
-// 15 minutes either way counts as a real change (a design choice).
-function debtDirection(){
-  const pts = lastDays(DATA.full_series.sleep_debt || [], 14);
-  if(!pts.length) return null;
-  const split = new Date(pts[pts.length-1].date + 'T00:00:00Z'); split.setUTCDate(split.getUTCDate() - 6);
-  const from = split.toISOString().slice(0,10);
-  const recent = pts.filter(p => p.date >= from).map(p => p.v), before = pts.filter(p => p.date < from).map(p => p.v);
-  if(recent.length < 4 || before.length < 4) return null;
-  const avg = a => a.reduce((x,y)=>x+y,0) / a.length, diff = avg(recent) - avg(before);
-  return diff > 0.25 ? 'building' : diff < -0.25 ? 'clearing' : 'holding';
-}
-
 function renderStats(){
   const L = DATA.latest, A = DATA.avg30, F = DATA.full_series;
   $('athleteName').textContent = DATA.profile.name;
@@ -859,24 +786,28 @@ function renderStats(){
   // better: +1 = higher is better, -1 = lower is better, 0 = neutral (no good/bad color)
   const stats = {
     body: [
-      {label:'Recovery', value:L.recovery_score, avg:A.recovery_score, series:'recovery', fmt:int, dfmt:int, better:1, tol:2},
-      {label:'HRV', unit:'ms', value:L.hrv_rmssd_milli, avg:A.hrv_rmssd_milli, series:'hrv', fmt:int, dfmt:int, better:1, tol:2},
-      {label:'Resting HR', unit:'bpm', value:L.resting_heart_rate, avg:A.resting_heart_rate, series:'rhr', fmt:int, dfmt:int, better:-1, tol:1},
+      {label:'Recovery', value:L.recovery_score, avg:A.recovery_score, series:'recovery', fmt:int, dfmt:int, better:1},
+      {label:'HRV', unit:'ms', value:L.hrv_rmssd_milli, avg:A.hrv_rmssd_milli, series:'hrv', fmt:int, dfmt:int, better:1},
+      {label:'Resting HR', unit:'bpm', value:L.resting_heart_rate, avg:A.resting_heart_rate, series:'rhr', fmt:int, dfmt:int, better:-1},
     ],
     load: [
-      {label:'Sleep', unit:'%', value:L.sleep_performance_percentage, avg:A.sleep_performance_percentage, series:'sleep_performance', fmt:int, dfmt:int, better:1, tol:2},
-      {label: debtDirection() ? `Sleep debt · ${debtDirection()}` : 'Sleep debt', value:L.sleep_debt_hours, avg:meanOf(lastN('sleep_debt', 30)), series:'sleep_debt', fmt:fmtHM, dfmt:fmtHM, better:-1, tol:0.1},
-      {label:'Strain · 7-day avg', value:DATA.avg7_strain, avg:A.strain, series:'strain', fmt:fmt1, dfmt:fmt1, better:0, tol:0.3},
+      {label:'Sleep', unit:'%', value:L.sleep_performance_percentage, avg:A.sleep_performance_percentage, series:'sleep_performance', fmt:int, dfmt:int, better:1},
+      {label:'Sleep debt', value:L.sleep_debt_hours, avg:meanOf(lastN('sleep_debt', 30)), series:'sleep_debt', fmt:fmtHM, dfmt:fmtHM, better:-1},
+      {label:'Strain · 7-day avg', value:DATA.avg7_strain, avg:A.strain, series:'strain', fmt:fmt1, dfmt:fmt1, better:0},
     ],
   };
 
   function statHTML(st, i){
     const ok = st.value != null && isFinite(st.value);
     let delta = '';
-    // a "vs 30-day average" only means something once there's a real baseline (2+ weeks)
-    if(ok && st.avg != null && isFinite(st.avg) && (F[st.series] || []).length >= 14){
+    // vs your 30-day average, once there are 4 weeks of data; within ±0.5 SD of those 30 days
+    // (the same smallest-worthwhile-change line readiness uses) counts as "about average"
+    const recent = lastN(st.series, 30).map(p => p.v).filter(x => x != null && isFinite(x));
+    if(ok && st.avg != null && isFinite(st.avg) && (F[st.series] || []).length >= 28 && recent.length >= 2){
       const d = st.value - st.avg;
-      if(Math.abs(d) < st.tol){
+      const m = recent.reduce((a,b)=>a+b,0) / recent.length;
+      const sd = Math.sqrt(recent.reduce((a,b)=>a+(b-m)*(b-m),0) / recent.length);
+      if(Math.abs(d) <= 0.5 * sd){
         delta = `<span class="delta" title="about your 30-day average">= avg</span>`;
       } else {
         const cls = st.better === 0 ? '' : ((d > 0) === (st.better > 0) ? 'good' : 'bad');
@@ -966,7 +897,6 @@ function renderRightNow(){
 
 /* ---------------- orb ---------------- */
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-function hueForReadiness(r){ const t = clamp(r,0,100)/100; if(t<0.5) return 6+(42-6)*(t/0.5); return 42+(148-42)*((t-0.5)/0.5); }
 function buildSpherePoints(n){ const pts=[]; const golden=Math.PI*(3-Math.sqrt(5));
   for(let i=0;i<n;i++){ const y=1-(i/(n-1))*2; const radius=Math.sqrt(1-y*y); const theta=golden*i; pts.push({x:Math.cos(theta)*radius,y,z:Math.sin(theta)*radius}); }
   return pts; }
@@ -998,7 +928,6 @@ function drawSphere(canvasId, hue){
   }
   frame();
 }
-function drawOrb(readiness){ drawSphere('orb', hueForReadiness(readiness)); }
 
 /* ================= generic charts ================= */
 function niceTicks(min,max,count){
@@ -1223,7 +1152,6 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
 
 /* ================= trend explorer ================= */
 const METRICS = [
-  {key:'readiness', label:'Body score', unit:'', decimals:0, refLines:'readiness', bounds:[0,100], formula:'Half last night, half recent trend (7-day HRV and resting HR, 3-night sleep vs need), each vs your 60-day normal (50 = normal), before any same-day lowering.'},
   {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
   {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:"WHOOP's Sleep Performance. Since WHOOP's 2025 update it blends hours vs needed with consistency, efficiency and sleep stress; readiness uses hours vs needed on its own."},
@@ -1278,9 +1206,7 @@ function renderExplorer(){
     <div class="es"><span class="k">Window high</span><span class="v tnum">${f(max)}${unit}</span></div>
   `;
 
-  const refLines = metricDef.refLines==='readiness'
-    ? [{v:READY_BANDS.push, color:'var(--good)'},{v:READY_BANDS.train, color:'var(--warn)'},{v:READY_BANDS.easy, color:'var(--critical)'}]
-    : metricDef.refLines;
+  const refLines = metricDef.refLines;
   const fixedTicks = (metricDef.bounds && metricDef.bounds[0]===0 && metricDef.bounds[1]===100) ? [0,25,50,75,100] : null;
   lineChart('explorerChartWrap','explorerTooltip', points, {color:'var(--accent)', unit:metricDef.unit, decimals:dec, refLines, valueFormatter:metricDef.formatter, bounds:metricDef.bounds, fixedTicks});
 }
@@ -1297,65 +1223,57 @@ function renderStageChart(){
 
 /* ================= today's signals (not in the WHOOP app) ================= */
 function renderTodaySignals(){
-  const flags = DATA.anomalies_recent;
-  const aEl = $('anomalySignal'), aTxt = $('anomalyText');
-  if(flags.length === 0){
-    aEl.className = 'signal ok';
-    aTxt.innerHTML = `<b>No fatigue signal.</b> HRV, resting HR and breathing rate all stayed in your normal range for the last 14 days.`;
+  // warning signs: the protocol's markers plus the published breathing-rate illness sign
+  const R = DATA.readiness, aEl = $('anomalySignal'), aTxt = $('anomalyText');
+  if(!R){
+    aEl.className = 'signal';
+    aTxt.textContent = 'Warning signs start once 4 full weeks of data have set your normal range.';
   } else {
-    const W = DATA.warning;
-    const confirmed = !!(W && W.confirmed);
-    aEl.className = confirmed ? 'signal warn' : 'signal';
-    const f = flags[flags.length-1];
-    const has = f.hrv_low != null;
-    const parts = [];
-    if(f.z_hrv <= -1.5) parts.push(`HRV <b>${Math.round(f.hrv)} ms</b>${has?` (flags at ${f.hrv_low} or lower)`:''}`);
-    if(f.z_rhr >= 1.5) parts.push(`resting HR <b>${Math.round(f.rhr)} bpm</b>${has?` (flags at ${f.rhr_high}+)`:''}`);
-    if(f.z_rr >= 1.5) parts.push(`breathing rate <b>${fmt1(f.rr)} /min</b>${has?` (flags at ${fmt1(f.rr_high)}+)`:''}`);
-    const when = f.date === todayLocalISO() ? 'today' : 'on ' + fmtDate(f.date);
-    aTxt.innerHTML = confirmed
-      ? `<b>Fatigue signal ${when}:</b> ${parts.join(', ')}. Confirmed over several nights, so readiness is lowered.`
-      : `<b>Watching ${when}:</b> ${parts.join(', ')}. A single night — it lowers readiness only if it repeats.`;
+    const signs = [];
+    if(R.hrv.state === 'below') signs.push(`7-day HRV <b>${R.hrv.value} ms</b> is below your normal (${R.hrv.normal[0]}–${R.hrv.normal[1]})`);
+    if(R.rhr && R.rhr.state === 'above') signs.push(`7-day resting HR <b>${one(R.rhr.value)} bpm</b> is above your normal (${one(R.rhr.normal[0])}–${one(R.rhr.normal[1])})`);
+    if(R.breathing && R.breathing.flagged) signs.push(`breathing rate <b>${one(R.breathing.value)} /min</b> last night, 3+ above your usual ${one(R.breathing.usual)} — a possible sign of illness`);
+    if(signs.length){
+      aEl.className = 'signal warn';
+      aTxt.innerHTML = `<b>Warning sign${signs.length > 1 ? 's' : ''}:</b> ${listAnd(signs)}.`;
+    } else {
+      aEl.className = 'signal ok';
+      const br = R.breathing ? ` Breathing rate ${one(R.breathing.value)} /min (usual ${one(R.breathing.usual)}).` : '';
+      aTxt.innerHTML = `<b>No warning signs.</b> 7-day HRV and resting HR are within or better than your normal.${br}`;
+    }
   }
 
+  // yesterday's hardest session, and what usually follows a day of that intensity
   const sEl = $('sportCostSignal'), sTxt = $('sportCostText');
   const asOfDay = DATA.asOf.slice(0,10);
   const isExportToday = asOfDay === todayLocalISO();
   const yesterday = new Date(new Date(asOfDay).getTime() - 86400000).toISOString().slice(0,10);
   const dayLabel = isExportToday ? 'Yesterday' : new Date(yesterday+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
   const sessions = DATA.workout_log.filter(w => w.date === yesterday);
+  sEl.className = 'signal';
   if(sessions.length === 0){
-    sEl.className = 'signal';
     sTxt.innerHTML = `No session logged ${isExportToday?'yesterday':`on ${dayLabel}`} (${yesterday}) — nothing to compare.`;
   } else {
-    const dominant = sessions.reduce((a,b)=> b.strain>a.strain?b:a);
-    const g = (DATA.sport_recovery_cost.groups || []).find(x => dominant.avg_hr != null
-      && (x.hr_from == null || dominant.avg_hr >= x.hr_from) && (x.hr_to == null || dominant.avg_hr < x.hr_to));
-    sEl.className = 'signal';
-    if(g){
-      const name = `${g.intensity}-intensity`;
-      sTxt.innerHTML = `${dayLabel}'s hardest session was <b>${dominant.sport}</b> (avg HR ${dominant.avg_hr}, ${name}). After your ${name} days, recovery the next morning averages <b>${Math.round(g.avg_next_recovery)}</b> — correlation, not a guarantee.`;
-    } else {
-      sTxt.innerHTML = `${dayLabel}'s hardest session was <b>${dominant.sport}</b> — not enough history yet to say what typically follows a day like it.`;
-    }
+    const top = sessions.reduce((a,b)=> b.strain>a.strain?b:a);
+    const g = top.intensity && (DATA.sport_recovery_cost.groups || []).find(x => x.intensity === top.intensity);
+    sTxt.innerHTML = g
+      ? `${dayLabel}'s hardest session was <b>${top.sport}</b> (${INTENSITY_WORD[top.intensity]}). After your ${INTENSITY_WORD[top.intensity]} days, recovery the next morning averages <b>${Math.round(g.avg_next_recovery)}</b> — correlation, not a guarantee.`
+      : `${dayLabel}'s hardest session was <b>${top.sport}</b>${top.intensity ? '' : ' (strength — no heart-rate intensity)'}.`;
   }
 
+  // rest day: a plain fact — the last finished day with no logged workout
   const rEl = $('restDaySignal'), rTxt = $('restDayText');
   const rest = DATA.rest_day_stat;
+  rEl.className = 'signal';
   if(!rest){
-    rEl.className = 'signal';
-    rTxt.textContent = 'Not enough history yet to tell what a rest day looks like for you.';
-  } else if(rest.days_since <= 1){
-    rEl.className = 'signal ok';
-    rTxt.innerHTML = `<b>Your last true rest day was ${rest.days_since === 0 ? 'today' : 'yesterday'}.</b> (Strain at or below ${rest.threshold} — your own bottom 15%.)`;
+    rTxt.textContent = 'No day without a workout in your history yet.';
   } else {
-    rEl.className = rest.days_since >= 10 ? 'signal warn' : 'signal';
-    rTxt.innerHTML = `<b>${rest.days_since} days since your last true rest day</b> (${fmtDate(rest.last_rest_date)}, strain ≤ ${rest.threshold} — your own bottom 15%).`;
+    const when = rest.days_since === 1 ? 'yesterday' : `${rest.days_since} days ago (${fmtDate(rest.last_rest_date)})`;
+    rTxt.innerHTML = `<b>Last day without a workout: ${when}.</b>`;
   }
 }
 
 /* ================= ACWR ================= */
-let acwrZoneLabel = null;
 function renderACWR(){
   const series = DATA.acwr;
   if(series.length === 0){
@@ -1365,7 +1283,6 @@ function renderACWR(){
     badge.textContent = 'Not enough data yet';
     badge.style.color = 'var(--ink-faint)';
     badge.style.background = 'var(--surface-2)';
-    acwrZoneLabel = null;
     $('acwrChartWrap').querySelectorAll('svg').forEach(s=>s.remove());
     return;
   }
@@ -1378,7 +1295,6 @@ function renderACWR(){
     {max:Infinity, label:'High risk', c:'var(--critical)', bg:'var(--critical-bg)'},
   ];
   const zone = zones.find(z=>latest<z.max);
-  acwrZoneLabel = zone.label;
   const badge = $('acwrZone');
   badge.textContent = zone.label;
   badge.style.color = zone.c;
@@ -1395,35 +1311,26 @@ function renderACWR(){
     refLines:[{v:1.3,color:'var(--warn)'},{v:1.5,color:'var(--critical)'}]});
 }
 
-/* ================= training variety (last 7 days) ================= */
-let monotonyHighFlag = false;
-let monotonyPct = null;
+/* ================= training variety (Foster's monotony) ================= */
 let monotonyWeekName = 'This week';
 function renderMonotony(){
-  const strain7 = lastDays(DATA.full_series.strain, 7);
-  const cats = strain7.map(p => new Date(p.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}));
-  barChart('last7ChartWrap','last7Tooltip', cats, strain7.map(p=>p.v), {color:'var(--accent)', decimals:1, highlightLast:true, width:760, height:130});
+  // training load per day for the last 7 days: workout strain, 0 on days without a workout
+  const load = {};
+  for(const w of DATA.workout_log) load[w.date] = (load[w.date] || 0) + w.strain;
+  const days = lastDays(DATA.full_series.strain, 7).map(p => p.date);
+  const cats = days.map(d => new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}));
+  barChart('last7ChartWrap','last7Tooltip', cats, days.map(d => Math.round((load[d] || 0) * 10) / 10), {color:'var(--accent)', decimals:1, highlightLast:true, width:760, height:130});
 
-  const m = DATA.monotony.filter(w=>w.monotony!=null);
-  const loadStrains = m.map(w=>w.load_strain);
-  const current = loadStrains[loadStrains.length-1];
-  const rest = loadStrains.slice(0,-1).slice(-16);
-  const pct = rest.length ? Math.round(100*rest.filter(v=>v<current).length/rest.length) : 50;
-  monotonyHighFlag = pct >= 80;
-  monotonyPct = pct;
   const flagEl = $('monotonyFlag');
-  if(!m.length){ flagEl.innerHTML = ''; return; }
-  // the newest week with 5+ days of data — often last week early in a new week, so name it
-  const judged = m[m.length-1];
+  const M = DATA.monotony.length ? DATA.monotony[DATA.monotony.length-1] : null;
+  if(!M){ flagEl.innerHTML = ''; return; }
   const last = new Date(DATA.date_range[1]+'T00:00:00');
   const thisMonday = new Date(last); thisMonday.setDate(last.getDate() - ((last.getDay() + 6) % 7));
   const mondayISO = `${thisMonday.getFullYear()}-${String(thisMonday.getMonth()+1).padStart(2,'0')}-${String(thisMonday.getDate()).padStart(2,'0')}`;
-  const weekName = monotonyWeekName = judged.start >= mondayISO ? 'This week' : `The week of ${weekRangeLabel(judged.start)}`;
-  if(pct >= 80){
-    flagEl.innerHTML = `<div class="signal warn"><span class="dot"></span><span class="txt"><b>${weekName} was unusually hard-every-day for you</b> — more concentrated than ${pct}% of your previous weeks. Worth building in a genuinely easy day.</span></div>`;
-  } else {
-    flagEl.innerHTML = `<div class="signal ok"><span class="dot"></span><span class="txt">${weekName} had a normal mix of harder and easier days for you — nothing unusual.</span></div>`;
-  }
+  const weekName = monotonyWeekName = M.start >= mondayISO ? 'This week' : `The week of ${weekRangeLabel(M.start)}`;
+  flagEl.innerHTML = M.high
+    ? `<div class="signal warn"><span class="dot"></span><span class="txt"><b>${weekName} had almost the same training load every day</b> — monotony ${fmt1(M.monotony)}, above the 2.0 risk line. Plan lighter days in between.</span></div>`
+    : `<div class="signal ok"><span class="dot"></span><span class="txt">${weekName} mixed harder and lighter days — monotony ${M.monotony == null ? '—' : fmt1(M.monotony)}, under the 2.0 risk line.</span></div>`;
 }
 
 /* ================= time in heart-rate zones ================= */
@@ -1443,26 +1350,24 @@ function renderZoneDistribution(){
 }
 
 /* ================= sport recovery cost ================= */
-const INTENSITY_NAME = {lower:'Lower intensity', moderate:'Moderate intensity', higher:'Higher intensity'};
-const hrRange = g => g.hr_from == null ? `avg HR under ${g.hr_to}` : g.hr_to == null ? `avg HR ${g.hr_from}+` : `avg HR ${g.hr_from}–${g.hr_to - 1}`;
 function renderSportCost(){
   const d = DATA.sport_recovery_cost;
   $('sportCostMonths').textContent = `${DATA.monthly_count_with_data} months tracked`;
   const groups = (d.groups || []).filter(g => g.sports.length);
   if(!groups.length){
-    $('sportCostRows').innerHTML = `<div class="section-sub" style="margin:0;">Not enough sessions yet to compare sports at similar intensity.</div>`;
+    $('sportCostRows').innerHTML = `<div class="section-sub" style="margin:0;">Not enough days yet to compare sports at the same intensity (30 days per sport).</div>`;
     return;
   }
   const maxAbs = Math.max(...groups.flatMap(g => g.sports.map(s => Math.abs(s.delta))), 1);
   $('sportCostRows').innerHTML = groups.map(g => `
-    <div class="dt-section" style="margin-top:6px;"><span>${INTENSITY_NAME[g.intensity]} · ${hrRange(g)}</span><span>recovery ${Math.round(g.avg_next_recovery)}</span></div>` +
+    <div class="dt-section" style="margin-top:6px;"><span>${INTENSITY_WORD[g.intensity]} days</span><span>recovery ${Math.round(g.avg_next_recovery)}</span></div>` +
     g.sports.map(s => {
       const pct = Math.abs(s.delta)/maxAbs*50, isNeg = s.delta < 0;
       const color = isNeg ? 'var(--critical)' : 'var(--good)', left = isNeg ? (50-pct) : 50;
-      return `<div class="div-row"${s.low_confidence ? ' style="opacity:.45"' : ''}>
+      return `<div class="div-row"${s.significant ? '' : ' style="opacity:.45"'}>
         <span class="name">${s.sport}</span>
         <span class="div-track"><span class="zero" style="left:50%"></span><span class="fill" style="left:${left}%;width:${pct}%;background:${color};"></span></span>
-        <span class="val tnum">${s.delta>0?'+':''}${s.delta}<span class="n">${s.n} sessions</span></span>
+        <span class="val tnum">${s.delta>0?'+':''}${s.delta}<span class="n">${s.n} days</span></span>
       </div>`;
     }).join('')).join('');
 }
@@ -1561,19 +1466,17 @@ function renderReadinessCheck(){
   const C = DATA.readiness_check, card = $('checkCard');
   if(!C || !C.days){ card.hidden = true; return; }
   card.hidden = false;
-  const rows = C.calls;
+  const label = {hard:'Train hard', easy:'Easy or rest'};
+  const rows = C.answers;
   $('checkDays').textContent = `${C.days} days`;
-  barChart('checkChartWrap', 'checkTooltip', rows.map(r => r.call), rows.map(r => r.avg_next_recovery),
-    {color:'var(--accent)', decimals:0, height:150, partial: rows.map(r => r.low_confidence),
-     tooltipText: i => `${rows[i].call} · recovery ${Math.round(rows[i].avg_next_recovery)} · ${rows[i].days} days${rows[i].low_confidence ? ' (few days)' : ''}`});
-  const q = s => `"${s}"`;
-  const filled = rows.filter(r => r.avg_next_recovery != null);
-  const pairs = Math.max(filled.length - 1, 0);
-  let caption;
-  if(!C.overlaps.length) caption = 'Each call steps down from the one above it — the calls are doing real work.';
-  else if(C.overlaps.length >= pairs) caption = "The calls don't step down yet — next-morning recovery isn't lower after the lower calls, so treat them with caution.";
-  else caption = `Each call steps down except ${C.overlaps.map(p => `${q(p[0])} and ${q(p[1])}`).join('; ')}, which land in about the same place — the line between them isn't doing much work yet.`;
-  $('checkCaption').textContent = caption;
+  barChart('checkChartWrap', 'checkTooltip', rows.map(r => label[r.answer]), rows.map(r => r.avg_next_recovery),
+    {color:'var(--accent)', decimals:0, height:150, partial: rows.map(() => !C.significant),
+     tooltipText: i => `${label[rows[i].answer]} · recovery ${Math.round(rows[i].avg_next_recovery)} · ${rows[i].days} days`});
+  $('checkCaption').textContent = !C.enough
+    ? 'Needs at least 30 days of each answer before the two can be compared.'
+    : !C.significant ? 'No clear difference yet — the gap could be chance.'
+    : C.hard_higher ? 'Recovery the next morning is higher after "Train hard" days, and the gap is too large to be chance.'
+    : 'Recovery is lower after "Train hard" days — most likely because those are the days you train hard.';
 }
 
 function renderRecords(){
@@ -1651,7 +1554,7 @@ function renderLog(){
 function renderCoverage(){
   const [start,end] = DATA.date_range;
   $('coverageNote').textContent = `Pulled from ${DATA.n_days_total} days of WHOOP history, ${fmtDate(start)} → ${fmtDate(end)}. Body stats on file: ${DATA.body.height_meter}m, ${DATA.body.weight_kilogram}kg.`;
-  $('baselineNote').textContent = `Readiness compares today to your own recent normal — expect about one day in four to read below it. History-wide figures cover your ${DATA.monthly_count_with_data} tracked months, not every month since you started.`;
+  $('baselineNote').textContent = `Readiness compares your last 7 days with your own previous 4 weeks, so it shows change, not fitness level. History-wide figures cover your ${DATA.monthly_count_with_data} tracked months, not every month since you started.`;
   $('totalDaysNote').textContent = `${DATA.n_days_total} days on record (${fmtDate(start)} → ${fmtDate(end)})`;
 }
 
@@ -1678,7 +1581,7 @@ firstPaint = false;
 window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); renderReadinessCheck(); renderACWR(); renderMonotony(); renderZoneDistribution(); });
 
 /* ================= readiness panel (click the orb) ================= */
-// The one place that explains today: last night, the recent trend, anything that lowered it, and the bands.
+// The one place that explains today's answer: each rule of the protocol, then last night as information.
 (function(){
   const panel = $('readyPanel');
   const triggers = [$('orbStage')];
@@ -1686,80 +1589,35 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
   const row = (k, v, lim, cls) =>
     `<div class="dt-row${cls?' '+cls:''}"><span class="k">${k}</span><span class="v tnum">${v}${lim?` <span class="lim">/ ${lim}</span>`:''}</span></div>`;
   const section = (l, r) => `<div class="dt-section"><span>${l}</span><span>${r||''}</span></div>`;
-  const one = v => (Math.round(v * 10) / 10).toFixed(1);
 
   function render(){
     const calc = window.__readinessCalc; if(!calc) return;
-    const R = DATA.readiness;
-    $('rpScore').textContent = '· ' + calc.readiness;
-    $('rpSub').textContent = 'How ready you are to train today.';
+    const R = calc.R, L = DATA.last_night;
+    $('rpScore').textContent = '· ' + ACTIONS[calc.action].label;
+    $('rpSub').textContent = 'Hard training or an easy day, from HRV-guided training research.';
     const out = [];
-
-    if(R){
-      const w = R.weights || {last_night:0.5, trend:0.5};
-      const block = (P, title, labels) => {
-        out.push(section(title, P ? 'value / normal' : ''));
-        if(!P){ out.push(`<div class="rp-note">Not enough single nights yet to judge last night — readiness uses the trend only.</div>`); return; }
-        const c = P.components, z = P.z;
-        const cls = m => z[m] == null ? '' : z[m] < -0.5 ? 'flagged' : z[m] > 0.5 ? 'good' : '';
-        out.push(c.hrv ? row(labels.hrv, `${c.hrv.value} ms`, `${c.hrv.normal[0]}–${c.hrv.normal[1]}`, cls('hrv')) : row(labels.hrv, '—', '', ''));
-        out.push(c.rhr ? row(labels.rhr, `${one(c.rhr.value)} bpm`, `${one(c.rhr.normal[0])}–${one(c.rhr.normal[1])}`, cls('rhr')) : row(labels.rhr, '—', '', ''));
-        out.push(c.sleep ? row(labels.sleep, `${one(c.sleep.value)}%`, `${one(c.sleep.normal[0])}–${one(c.sleep.normal[1])}`, cls('sleep')) : row(labels.sleep, '—', '', ''));
-        out.push(row(labels.score, `${P.score}`, '50 = normal', ''));
-      };
-      const nap = R.last_night && R.last_night.components.sleep && R.last_night.components.sleep.nap_h;
-      block(R.last_night, 'Last night', {score:'Last night score', hrv:'HRV', rhr:'Resting HR', sleep: nap ? `Sleep vs need · incl. ${fmtHM(nap)} nap` : 'Sleep vs need'});
-      block(R.trend, 'Recent trend', {score:'7-day trend score', hrv:'HRV · 7-day avg', rhr:'Resting HR · 7-day avg', sleep:'Sleep vs need · 3-night avg'});
-      out.push(row('Body score', `${calc.base}`, R.last_night ? `${Math.round(w.last_night*100)}% last night + ${Math.round(w.trend*100)}% trend` : 'trend only', 'current'));
+    if(!R){
+      const P = DATA.readiness_progress;
+      out.push(section('Learning your normal', ''));
+      out.push(row('Days of HRV data', `${Math.min(P.days, P.needed)}`, `${P.needed} needed`, 'current'));
     } else {
-      out.push(row('WHOOP recovery', `${calc.base}`, '', 'current'));
-      out.push(`<div class="rp-note">Needs about 5 weeks of data to learn your normal.</div>`);
-    }
-
-    if(calc.sessions.length || calc.dayStrainHigh){
-      out.push(section('Today so far', 'sessions'));
+      out.push(section('The rules', 'today / limit'));
+      out.push(row('HRV · 7-day avg', `${R.hrv.value} ms`, `normal ${R.hrv.normal[0]}–${R.hrv.normal[1]}`, R.hrv.state === 'below' ? 'flagged' : R.hrv.state === 'above' ? 'good' : ''));
+      if(R.rhr) out.push(row('Resting HR · 7-day avg', `${one(R.rhr.value)} bpm`, `normal ${one(R.rhr.normal[0])}–${one(R.rhr.normal[1])}`, R.rhr.state === 'above' ? 'flagged' : R.rhr.state === 'below' ? 'good' : ''));
+      if(R.breathing) out.push(row('Breathing rate · last night', `${one(R.breathing.value)} /min`, `flags at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
+      out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
       for(const w of calc.sessions)
-        out.push(row(`${w.sport} · ${w.intensity}`, `${w.dur_min} min`, `strain ${fmt1(w.strain)}`, w.intensity === 'hard' ? 'flagged' : ''));
-      if(calc.dayStrainHigh) out.push(row('Strain today', fmt1(calc.snap.strain_so_far), `avg ${fmt1(DATA.avg7_strain)}`, 'flagged'));
-      const t = calc.caps.find(c => c.key === 'trained');
-      if(!t) out.push(`<div class="rp-note" style="margin-top:4px">Easy sessions don't lower readiness.</div>`);
-      else out.push(row('Readiness at most', `${t.max}`, t.max < calc.base ? '' : 'already below', t.max < calc.base ? 'current' : ''));
+        out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, w.intensity === 'moderate' || w.intensity === 'hard' ? 'flagged' : ''));
+      out.push(row("Today's answer", ACTIONS[calc.action].label, '', 'current'));
     }
-
-    const otherLowering = calc.lowering.filter(c => c.key !== 'trained');
-    if(otherLowering.length){
-      out.push(section('Lowered today', ''));
-      for(const cap of otherLowering){
-        if(cap.key === 'warning'){
-          const W = DATA.warning;
-          for(const x of W.signals){
-            const label = W.reason === 'repeated' ? `${x.name} · ${W.nights_out[x.name]} of ${W.nights_checked} nights` : `${x.name} · ${calc.warnWhen.replace(/^on /,'')}`;
-            out.push(row(label, `${x.value}${x.unit}`, `${x.limit}${x.direction === 'low' ? ' or less' : '+'}`, 'flagged'));
-          }
-          out.push(row('Readiness at most', `${cap.max}`, '', 'current'));
-        } else if(cap.key === 'overload'){
-          const acwr = DATA.acwr.length ? DATA.acwr[DATA.acwr.length-1].v : null;
-          out.push(row('Days since rest', `${calc.rest.days_since}`, '7+', 'flagged'));
-          out.push(row('Week harder than past', `${monotonyPct}%`, '80%+', 'flagged'));
-          out.push(row('Last 7 days vs 28', acwr != null ? `${acwr.toFixed(2)}×` : '—', '1.3×', 'flagged'));
-          out.push(row('Readiness at most', `${cap.max}`, '', 'current'));
-        }
-      }
+    if(L){
+      out.push(section('Last night', 'information only'));
+      out.push(row('HRV', `${L.hrv} ms`, '', ''));
+      out.push(row('Resting HR', `${Math.round(L.rhr)} bpm`, '', ''));
+      out.push(row('Asleep', fmtHM(L.asleep_h), L.nap_h ? `+ ${fmtHM(L.nap_h)} nap` : '', ''));
+      out.push(row('WHOOP recovery', `${Math.round(L.recovery)}`, '', ''));
     }
-
-    if(calc.watch.length){
-      out.push(section('Watching', ''));
-      for(const x of calc.watch) out.push(row(`${x.name} · ${calc.warnWhen.replace(/^on /,'')}`, `${x.value}${x.unit}`, `${x.limit}${x.direction === 'low' ? ' or less' : '+'}`, ''));
-      out.push(`<div class="rp-note" style="margin-top:4px">Lowers readiness only if it repeats or another signal joins it.</div>`);
-    }
-
-    out.push(section("Today's answer", ''));
-    const b = READY_BANDS, cur = calc.action;
-    out.push(row('Push', `${b.push}+`, '', cur === 'push' ? 'current' : ''));
-    out.push(row('Train', `${b.train}–${b.push - 1}`, '', cur === 'train' ? 'current' : ''));
-    out.push(row('Go easy', `${b.easy}–${b.train - 1}`, '', cur === 'easy' ? 'current' : ''));
-    out.push(row('Rest', `under ${b.easy}`, '', cur === 'rest' ? 'current' : ''));
-    out.push(`<div class="rp-note">A confirmed warning sign caps readiness at 37 to 24 depending on how far out it is; a hard session today or an overload week caps it at ${READY_CAPS.context}, a moderate session at ${READY_CAPS.moderate}.</div>`);
+    out.push(`<div class="rp-note">Your normal is your previous 4 weeks, updated each Monday. Hard training is OK when HRV and resting HR are within or better than normal, breathing rate is under 3 above your usual, and you haven't trained hard 2 days in a row. After a moderate or high-intensity session, the rest of the day is for recovery.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 

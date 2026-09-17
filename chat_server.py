@@ -57,31 +57,31 @@ sleep_debt_hours 2.13 → 2h 08m) before quoting it.
 2025 update a blend of hours vs needed, consistency, efficiency and sleep stress) and "hours vs \
 needed" (vs_needed = time asleep ÷ sleep need). Name which one you quote.
 
-Dashboard terms they may ask about:
-- Readiness = how ready they are to train today (differs from recovery). Body score = 50% last \
-night (that night's ln(RMSSD) HRV, resting HR and sleep hours vs needed vs single nights of the \
-previous 60 days) + 50% recent trend (7-day rolling HRV and resting HR, 3-night sleep hours vs needed, vs the \
-previous 60 days); normal = mean ± 0.5 SD, equal weights, 50 + 25 × average (50 = normal) — \
-dashboard_summaries.readiness.score, with .last_night and .trend parts. The page then lowers it: a confirmed warning (dashboard_summaries.warning — same vital past \
-1.5 SD vs the last 30 nights on 2 of the last 3 nights, or 2+ vitals on the same night, and \
-still out last night) caps it at warning.cap (37 just over the line → 24 far out); a one-off \
-night is only 'watching' and does not lower it. Sessions today \
-(dashboard_summaries.today_snapshot.workouts[].intensity, after Stanley et al. 2013): hard = 10+ min \
-in zones 4–5 or strain 14+, or today's total strain above the 7-day average → at most 37; moderate = \
-20+ min in zones 3–5 or strain 10+ → at most 62; easy → no change. Naps after waking add their sleep \
-time to that day's hours vs needed (capped at 100%). Also at most 37 if 7+ days without rest AND \
-this week harder than 80% of recent weeks AND load ratio above 1.3× all hold. Answer from the final \
-number: 63+ Push, 38–62 Train, 25–37 Go easy, under 25 Rest.
-- Load ratio (ACWR): last-7-days average strain ÷ last-28-days average. 0.8–1.3 is the usual \
-safe band; above 1.3 caution; above 1.5 high.
-- Rest day: a day with strain in their own bottom 15%.
-- Recovery cost by sport, at similar intensity (dashboard_summaries.sport_recovery_cost.groups): days \
-are split into their own lower / moderate / higher thirds by the hardest session's average heart \
-rate; each sport's next-morning recovery is compared only within its group. low_confidence = the gap \
-is too small to tell apart from normal day-to-day swings. Intensity matters more than the sport here.
-- Heart-rate zone split: zones 0–2 easy, 3 moderate, 4–5 hard; strength sessions are excluded.
-- "Does this work?" (dashboard_summaries.readiness_check): average next-morning recovery after days \
-with each call (body score before same-day lowering). A consistency check, not independent proof."""
+Dashboard terms they may ask about (every rule below is taken from published research):
+- Readiness (dashboard_summaries.readiness) follows the HRV-guided training trials: 7-day average \
+ln(RMSSD) HRV and 7-day resting HR, each compared with a normal range = mean ± 0.5 SD of the daily \
+values over the 4 weeks before the current week (updated weekly; 3+ readings per week needed). Answer \
+"Train hard" when HRV is within/above normal AND resting HR within/below normal (Javaloyes 2019, \
+Kiviniemi 2007, Alfonso 2025); otherwise "Easy or rest". Also easy if breathing rate last night is \
+3+ breaths/min above the usual (average of nights 30–90 days before; Natarajan 2021, an illness sign), \
+or after 2 hard days in a row (Carrasco-Poyatos 2020). After a moderate/high-intensity session today \
+the page says done for today (Stanley 2013: 24–48 h recovery). readiness.reasons lists why; \
+last_night is information only. There is no 0–100 readiness score.
+- Intensity: Seiler's three zones — easy below ~82% of max HR, moderate 82–87%, hard above 87% — \
+converted from WHOOP's heart-rate-reserve zones with the person's resting and max HR. A session's \
+intensity is where most of its time was; strength sessions have none.
+- Training variety: Foster's monotony = weekly mean ÷ SD of daily training load (workout strain, 0 on \
+days off), complete weeks only; above 2.0 is the risk line.
+- Load ratio (ACWR): last-7-days average strain ÷ last-28-days average; bands 0.8 / 1.3 / 1.5 are \
+widely used but disputed.
+- Rest day: the last finished day with no logged workout (no threshold).
+- Sleep: nights with 7+ hours asleep in the last 7 (AASM/SRS adult recommendation).
+- Recovery cost by sport: next-morning recovery after days whose hardest session was each sport, \
+compared with other days of the same intensity; a gap is real only if Welch's t-test gives p < 0.05 \
+(30+ days per group).
+- "Does this work?" (readiness_check): next-morning recovery after "Train hard" vs "Easy or rest" days, \
+same test. A consistency check, not independent proof.
+- Heart-rate zone split excludes strength sessions."""
 
 
 def env_value(key):

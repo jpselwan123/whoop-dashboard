@@ -45,44 +45,44 @@ a good or bad day to push — in numbers you can check.
 
 This dashboard pulls your full history straight from the official WHOOP API and
 answers those questions. Every call it makes shows the exact numbers and thresholds
-behind it, calibrated to **your own** history rather than generic cut-offs.
+behind it, compared with **your own** history — and every rule and threshold comes from
+published research, cited below. Where a study doesn't give a number, the dashboard doesn't
+invent one.
 
 ## Features
 
 ### Daily — today's call
-- **Readiness — how ready you are to train today**, one 0–100 number that sets the
-  day's answer: **Push · Train · Go easy · Rest**. It weighs last night and your recent week
-  equally (shown in words under the orb) and is lowered when a warning sign or today's
-  context calls for it.
-- **Click the orb** to see every input next to its normal range, anything
-  that lowered readiness today, and the four bands.
-- **Today's plan** — what intensity fits today, based on how *you* have recovered after
-  lower- and higher-heart-rate days.
-- **Fatigue signal** — flags nights when HRV, resting heart rate, or breathing rate
-  leave your personal normal range.
+- **Today's answer: Train hard · Easy or rest** — the decision rule from HRV-guided training
+  trials, using your 7-day HRV and resting HR against your previous 4 weeks.
+- **Click the orb** (your 7-day HRV) to see every rule next to its limit, and last night's
+  numbers as information.
+- **Warning signs** — HRV or resting HR outside your normal range, or breathing rate 3+ above
+  your usual (a published illness sign).
+- **Today's plan** — hard-training or easy-day advice, sleep (nights with 7+ hours), the last
+  day without a workout.
 
 ### Weekly — load and injury-risk signals
 
 <img src="docs/screenshots/weekly.png" alt="Weekly view: acute:chronic workload ratio and training variety" width="880">
 
 - **Acute:Chronic Workload Ratio** with safe / caution / high-risk bands.
-- **Training variety** (Foster monotony) — warns when a week has been unusually
-  hard-every-day *for you*.
-- Heart-rate zone time (strength sessions left out — their rest between sets would count as
-  easy), sessions per week, training mix, sleep composition — all on Monday–Sunday weeks.
+- **Training variety** (Foster monotony) — warns when a week had almost the same training
+  load every day.
+- Heart-rate zone time in research zones (strength sessions left out — their rest between sets
+  would count as easy), sessions per week, training mix, sleep composition — all on
+  Monday–Sunday weeks.
 
 ### Monthly — long-range trends
 
-<img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap and recovery cost by sport at similar intensity" width="880">
+<img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap and recovery cost by sport at the same intensity" width="880">
 
 - **Recovery calendar heatmap** of every day on record.
-- **Does this work?** — average next-morning recovery after days the model said Push,
-  Train, Go easy or Rest, with a plain note when two calls don't separate. A consistency
-  check (recovery shares HRV and resting HR with readiness), not independent proof.
-- **Recovery cost by sport, at similar intensity** — each sport compared only with days of
-  similar heart rate (your own lower / middle / upper third), with gaps too small to trust faded.
-- Trend explorer for any metric (including the body score before same-day lowering),
-  personal records, and the full training log.
+- **Does this work?** — average next-morning recovery after "Train hard" vs "Easy or rest"
+  days, and whether the gap passes a standard significance test. A consistency check
+  (recovery shares HRV and resting HR with the answer), not independent proof.
+- **Recovery cost by sport, at the same intensity** — each sport compared only with days of
+  the same intensity; gaps that could be chance are faded.
+- Trend explorer for any metric, personal records, and the full training log.
 
 ### App experience
 - **Native macOS app** (Swift + WebKit) that refreshes on launch.
@@ -186,84 +186,44 @@ reasoning effort are configurable: `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`,
 
 ## How the numbers work
 
-Everything is computed from your own history. Thresholds adapt to you.
+Every rule and threshold below comes from a published study or consensus statement. Where the
+papers leave a detail open, the dashboard follows the original method paper they cite, and
+says so.
 
-| Metric | Definition | Flags at |
+### Today's answer — the HRV-guided training protocol
+
+| Rule | What the dashboard does | Source |
 |---|---|---|
-| **Readiness** | Half last night, half recent trend (7-day HRV (ln RMSSD) and resting HR, 3-night sleep hours vs needed) — each vs your previous 60 days, equal weights (see [below](#how-readiness-is-calculated)) | Above normal 63+ (½ SD above) · below normal under 38 · Recovery under 38 (½ SD below) |
-| **Load ratio (ACWR)** | Average strain over the last 7 calendar days ÷ last 28 (needs 21+ days of data in the window) | Safe 0.8–1.3 · Caution 1.3–1.5 · High > 1.5 |
-| **Training variety** | Foster monotony (weekly mean ÷ SD of daily strain) × weekly load | This week above 80% of your last 16 weeks |
-| **Fatigue signal** | Each night's HRV, resting HR, and breathing rate vs the 30 days before it (needs 21+ nights recorded) | Outside ±1.5 standard deviations (shown in the app as plain limits, e.g. "flags at 16.4+ /min") |
-| **Rest day** | A day in your bottom 15% of strain | 7+ days without one |
-| **Sport recovery cost** | Average next-morning recovery after days whose hardest session was that sport, vs other days of similar heart rate (your own lower / middle / upper third of session average HR) | 10+ sessions in a group; faded when the gap is under about 2 standard errors |
-| **Does this work?** | Average next-morning recovery after days the body score said Push, Train, Go easy or Rest | Neighbouring calls less than 3 points apart are named as not separating |
-| **Sleep debt direction** | Last 7 days' average sleep debt vs the 7 before | Building / clearing when it moved 15+ minutes, otherwise holding |
+| HRV measure | 7-day average of ln(RMSSD), valid with 3+ readings in the 7 days | [Plews et al., 2012](https://link.springer.com/article/10.1007/s00421-012-2354-4); [Plews et al., 2014](https://www.researchgate.net/publication/259319333_Monitoring_Training_With_Heart-Rate_Variability_How_Much_Compliance_Is_Needed_for_Valid_Assessment) |
+| Your normal | Mean ± 0.5 SD of the daily values over the 4 weeks before the current week (each week needs 3+ readings), so it updates weekly | 4 baseline weeks: [Javaloyes et al., 2019](https://pubmed.ncbi.nlm.nih.gov/29809080/); weekly update and ±0.5 SD: [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/); daily values: Plews 2012 |
+| Decision | HRV within or above normal → **Train hard**; below → **Easy or rest** | Javaloyes 2019; [Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/) |
+| Resting HR | Judged the same way (above normal = worse); hard training needs both markers in range | [Alfonso et al., 2025](https://www.nature.com/articles/s41598-025-13540-z) (hard sessions only when all markers were within or better than baseline) |
+| Hard days in a row | No more than 2 moderate/high-intensity days in a row | Carrasco-Poyatos 2020 |
+| Illness sign | Breathing rate last night 3+ breaths/min above your usual (average of the nights 30–90 days before, 30+ nights) → Easy or rest | [Natarajan et al., 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8443549/) |
+| Session today | After a moderate or high-intensity session, the rest of the day is for recovery | [Stanley, Peake & Buchheit, 2013](https://link.springer.com/article/10.1007/s40279-013-0083-4) (24–48 h+ recovery) |
 
-**Readiness is the answer.** It's one number for how ready you are to train today, and
-the day's label comes straight from it:
+Last night's HRV, resting HR, sleep and WHOOP recovery are shown next to the answer as
+information only — none of the trials used them in the decision.
 
-| Readiness | Answer |
-|---|---|
-| 63+ | **Push** |
-| 38–62 | **Train** |
-| 25–37 | **Go easy** |
-| under 25 | **Rest** |
+### Other metrics
 
-It starts from your **body score** (below) and can only be *lowered* by today's context:
-
-- **At most 37 → 24** — a *confirmed* warning sign: the same vital (HRV, resting HR, or
-  breathing rate) past its line on 2 of the last 3 nights, or 2+ vitals past it on the same
-  night, and still past it last night. Just over the line → at most 37; a full SD further
-  or more → at most 24. A one-off night is only shown as *watching* — single nights brushing
-  the line are common noise, and wearable illness detection relies on changes across
-  several nights ([Miller et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33301493/)).
-- **Sessions today** — each workout logged today is classed easy, moderate or hard, following
-  the three recovery time courses in [Stanley, Peake & Buchheit, 2013](https://link.springer.com/article/10.1007/s40279-013-0083-4)
-  (cardiac autonomic recovery: up to 24 h after low-intensity, 24–48 h after threshold-intensity,
-  48 h+ after high-intensity exercise):
-
-  | Session | Rule (WHOOP heart-rate zones, strain) | Readiness for the rest of today |
-  |---|---|---|
-  | Easy | anything below moderate | no change |
-  | Moderate | 20+ min in zones 3–5, or strain 10+ | at most 62 (no Push) |
-  | Hard | 10+ min in zones 4–5, or strain 14+ — or today's total strain above your 7-day average | at most 37 |
-
-  The heart-rate zone chart uses the same split: zones 0–2 easy, zone 3 moderate, zones 4–5 hard.
-
-  The strain lines are WHOOP's own scale (10–13.9 moderate, 14+ high); the minute lines and
-  treating zone 3 / zones 4–5 as roughly "threshold" / "above threshold" are design choices.
-- **At most 37** — all three of 7+ days since rest, a week harder than 80% of recent weeks,
-  and ACWR above 1.3.
-
-### How readiness is calculated
-
-Readiness and WHOOP recovery are different numbers. Readiness asks the two questions
-HRV-guided training studies act on: **how did last night compare with your normal, and is
-your recent trend inside, above, or below it?** Each counts for half.
-
-| Step | What happens | Evidence |
+| Metric | Definition | Source |
 |---|---|---|
-| 1. Smooth (trend half) | 7-day rolling average of ln(RMSSD) HRV and of resting HR; 3-night average of sleep **hours vs needed** (time asleep ÷ WHOOP's sleep need — not WHOOP's Sleep Performance, which since WHOOP's 2025 update also blends in consistency, efficiency and sleep stress) | The 7-day rolling ln RMSSD average is what HRV-guided training trials act on ([Javaloyes et al., 2019](https://pubmed.ncbi.nlm.nih.gov/29809080/); [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Sleep loss impairs performance ([Fullagar et al., 2015](https://pubmed.ncbi.nlm.nih.gov/25315456/); [Walsh et al., 2021](https://www.researchgate.net/publication/345351246_Sleep_and_the_athlete_narrative_review_and_2021_expert_consensus_recommendations)); the 3-night window is a design choice |
-| 2. Compare to *your* normal | Baseline = your rolling values over the 60 days before this week. Normal range = baseline mean ± 0.5 SD | ±0.5 SD is the "smallest worthwhile change" these trials use to choose hard vs easy days (mean ± 0.5 × SD, following Plews et al., 2012 — see [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/)). Trials used a ~4-week baseline; 60 days is a steadier choice for everyday life |
-| 3. Add resting HR and sleep | Each input expressed in SD units (resting HR flipped: lower = better), capped at ±3 | Adding resting HR (and well-being) to HRV gave the largest gains in a 2025 cyclist trial ([Alfonso et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12485039/)) |
-| 4. Last night (other half) | The same three markers from last night alone, vs the single nights of your previous 60 days. Naps taken after waking count toward sleep: their sleep time is added to last night's hours vs needed, capped at 100% — a nap restores performance, most clearly after a short night ([Botonis et al., 2021](https://onlinelibrary.wiley.com/doi/10.1111/sms.14060)) | Averaging hides individual next-day responses; single-day values are recommended for short-term responses ([Schneider et al., 2019](https://pmc.ncbi.nlm.nih.gov/articles/PMC6538885/)), and the first HRV-guided trial decided each day from that morning's HRV ([Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/)). Acute sleep loss (6 h or less) lowers exercise performance by ~8% on average ([Craven et al., 2022](https://pubmed.ncbi.nlm.nih.gov/35708888/)) |
-| 5. Combine | Equal-weight average within each half, then **50% last night + 50% trend** → score = 50 + 25 × average, 0–100 | Single nights are noisy and can mislead on their own ([Plews et al., 2012](https://link.springer.com/article/10.1007/s00421-012-2354-4)); rolling averages lose next-day detail (Schneider 2019). No study has validated a split or specific weights, and the 2021 meta-analysis calls daily vs rolling an open question ([Manresa-Rocamora et al., 2021](https://pubmed.ncbi.nlm.nih.gov/34639599/)) — so equal weights, the robust default when none exist ([Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making)) |
-| 6. Bands | 63+ Push (≥ +0.5 SD) · 38–62 Train · 25–37 Go easy (< −0.5 SD) · under 25 Rest (< −1 SD) | ±0.5 SD is the trials' above / within / below rule; the −1 SD Rest line, the 2-of-3-nights rule, and the 37 / 24 caps are design choices |
+| **Intensity zones** | Easy below ~82% of max HR, moderate 82–87%, hard above 87%. WHOOP's zones are % of heart-rate *reserve*, so each is converted with your resting and max HR and its minutes split across the lines in proportion. A session's intensity is where most of its time was. | [Seiler & Kjerland, 2006](https://pubmed.ncbi.nlm.nih.gov/16430681/); Seiler 2010; [WHOOP zones use heart-rate reserve](https://www.whoop.com/us/en/thelocker/why-whoop-uses-heart-rate-reserve-not-max-heart-rate/) |
+| **Training variety** | Foster's monotony = a week's mean daily training load ÷ its SD, 0 on days without training, complete weeks only; above 2.0 flagged. WHOOP workout strain stands in for Foster's session RPE × minutes. | [Foster et al., 2001](https://www.researchgate.net/publication/11645805_A_New_Approach_to_Monitoring_Exercise_Training) |
+| **Load ratio (ACWR)** | Average strain over the last 7 calendar days ÷ last 28 (21+ days of data); bands 0.8 / 1.3 / 1.5 | Gabbett 2016 — predictive value disputed by [Impellizzeri et al., 2020](https://www.researchgate.net/publication/341936245_AcuteChronic_Workload_Ratio_Conceptual_Issues_and_Fundamental_Pitfalls) |
+| **Sleep** | Nights in the last 7 with 7+ hours asleep | [AASM & Sleep Research Society, Watson et al., 2015](http://jcsm.aasm.org/doi/10.5664/jcsm.4758) |
+| **Rest day** | The last finished day with no logged workout — a fact, no threshold | — |
+| **Sport recovery cost** | Next-morning recovery after days whose hardest session was each sport, vs other days of the same intensity. Shown with 30+ days per group; a gap counts only if Welch's t-test gives p < 0.05 | Standard statistical conventions |
+| **Does this work?** | Next-morning recovery after "Train hard" vs "Easy or rest" days, same test | Standard statistical conventions |
+| **▲▼ vs 30-day average** | Shown after 28 days; "= avg" when within ±0.5 SD of the last 30 days | Same smallest-worthwhile-change line as the protocol |
 
-**What it deliberately leaves out**
-- **Training load (ACWR).** Its ability to predict injury is disputed
-  ([Impellizzeri et al., 2020](https://www.researchgate.net/publication/341936245_AcuteChronic_Workload_Ratio_Conceptual_Issues_and_Fundamental_Pitfalls)),
-  so load, rest days, and illness-type signals (breathing rate —
-  [Miller et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33301493/); resting HR —
-  [Radin et al., 2020](https://pubmed.ncbi.nlm.nih.gov/33334565/)) lower readiness instead of being hidden inside it.
-- **How you feel.** Self-reported well-being is the most sensitive marker of training
-  response ([Saw et al., 2016](https://pubmed.ncbi.nlm.nih.gov/26423706/)), but WHOOP's API
-  doesn't provide it.
-
-**Honest limits:** the method comes from endurance-athlete trials, WHOOP's HRV is measured
-during sleep rather than on waking, and the equal weights (including the 50/50 split between
-last night and the trend) are a principled default rather than a validated optimum. Until you have about 5 weeks of data, the page falls back to
-WHOOP's recovery zones.
+**Honest limits.** The protocol comes from endurance-athlete trials that measured HRV on waking;
+WHOOP measures it during sleep (overnight values track training at least as well —
+[Nuuttila et al., 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11541970/)). The exact resting-HR
+rule in Alfonso 2025 is in their supplement, so resting HR uses the same ±0.5 SD rule as HRV. Zone
+conversion assumes minutes are evenly spread inside each WHOOP zone. Self-reported well-being, which
+the trials also used, isn't available from the WHOOP API.
 
 ## Architecture
 
@@ -355,6 +315,7 @@ python3 scripts/privacy_scan.py
 - The local server uses port `8934`; if something else uses it, change `PORT` in
   `chat_server.py` and the matching URLs in `dashboard_template.html`.
 - Sport comparisons and the "Does this work?" check are correlations, not controlled experiments.
+- Intensity zones depend on the max heart rate stored in your WHOOP profile; if it's wrong, zones shift.
 
 ## License & disclaimer
 
