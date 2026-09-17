@@ -455,7 +455,7 @@
 
   <section class="card">
     <div class="section-head"><h2>Training variety, last 7 days</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Training load each day (workout strain, 0 on days off). Nearly the same load every day raises illness risk more than the same total with lighter days in between.</div>
+    <div class="section-sub">Your strain each day. The check below uses training load — minutes in each heart-rate zone, weighted by intensity, 0 on days without a workout. Nearly the same load every day raises illness risk more than the same total with lighter days in between.</div>
     <div class="chart-wrap" id="last7ChartWrap" style="margin-bottom:14px;"><div class="chart-tooltip" id="last7Tooltip"></div></div>
     <div id="monotonyFlag"></div>
   </section>
@@ -531,7 +531,7 @@
 
   <section class="card">
     <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery cost by sport, at the same intensity</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportCostMonths"></span></div>
-    <div class="section-sub">Next-morning recovery after each sport, compared with other days of the same intensity. Faded bars could be chance.</div>
+    <div class="section-sub">Next-morning recovery after days each sport was your hardest session, compared with other days of the same intensity. Faded bars could be chance.</div>
     <div id="sportCostRows" style="margin-top:14px;"></div>
   </section>
 
@@ -1314,12 +1314,10 @@ function renderACWR(){
 /* ================= training variety (Foster's monotony) ================= */
 let monotonyWeekName = 'This week';
 function renderMonotony(){
-  // training load per day for the last 7 days: workout strain, 0 on days without a workout
-  const load = {};
-  for(const w of DATA.workout_log) load[w.date] = (load[w.date] || 0) + w.strain;
-  const days = lastDays(DATA.full_series.strain, 7).map(p => p.date);
-  const cats = days.map(d => new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}));
-  barChart('last7ChartWrap','last7Tooltip', cats, days.map(d => Math.round((load[d] || 0) * 10) / 10), {color:'var(--accent)', decimals:1, highlightLast:true, width:760, height:130});
+  // your WHOOP day strain for the last 7 days; monotony below uses Edwards TRIMP (strain can't be added up)
+  const strain7 = lastDays(DATA.full_series.strain, 7);
+  const cats = strain7.map(p => new Date(p.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}));
+  barChart('last7ChartWrap','last7Tooltip', cats, strain7.map(p => p.v), {color:'var(--accent)', decimals:1, highlightLast:true, width:760, height:130});
 
   const flagEl = $('monotonyFlag');
   const M = DATA.monotony.length ? DATA.monotony[DATA.monotony.length-1] : null;
@@ -1355,21 +1353,26 @@ function renderSportCost(){
   $('sportCostMonths').textContent = `${DATA.monthly_count_with_data} months tracked`;
   const groups = (d.groups || []).filter(g => g.sports.length);
   if(!groups.length){
-    $('sportCostRows').innerHTML = `<div class="section-sub" style="margin:0;">Not enough days yet to compare sports at the same intensity (30 days per sport).</div>`;
+    $('sportCostRows').innerHTML = `<div class="section-sub" style="margin:0;">No workouts with a next-morning recovery yet.</div>`;
     return;
   }
-  const maxAbs = Math.max(...groups.flatMap(g => g.sports.map(s => Math.abs(s.delta))), 1);
-  $('sportCostRows').innerHTML = groups.map(g => `
-    <div class="dt-section" style="margin-top:6px;"><span>${INTENSITY_WORD[g.intensity]} days</span><span>recovery ${Math.round(g.avg_next_recovery)}</span></div>` +
+  const title = {easy:'Easy days', moderate:'Moderate-intensity days', hard:'High-intensity days', strength:'Strength days'};
+  const maxAbs = Math.max(...groups.flatMap(g => g.sports.map(s => Math.abs(s.delta || 0))), 1);
+  const html = groups.map(g => `
+    <div class="dt-section" style="margin-top:6px;"><span>${title[g.intensity]} · ${g.days}</span><span>recovery ${Math.round(g.avg_next_recovery)}${g.intensity === 'strength' ? ' · vs all other days' : ''}</span></div>` +
     g.sports.map(s => {
-      const pct = Math.abs(s.delta)/maxAbs*50, isNeg = s.delta < 0;
+      const delta = s.delta == null ? 0 : s.delta;
+      const pct = Math.abs(delta)/maxAbs*50, isNeg = delta < 0;
       const color = isNeg ? 'var(--critical)' : 'var(--good)', left = isNeg ? (50-pct) : 50;
       return `<div class="div-row"${s.significant ? '' : ' style="opacity:.45"'}>
         <span class="name">${s.sport}</span>
         <span class="div-track"><span class="zero" style="left:50%"></span><span class="fill" style="left:${left}%;width:${pct}%;background:${color};"></span></span>
-        <span class="val tnum">${s.delta>0?'+':''}${s.delta}<span class="n">${s.n} days</span></span>
+        <span class="val tnum">${s.delta == null ? '—' : (s.delta>0?'+':'') + s.delta}<span class="n">${s.n} ${s.n === 1 ? 'day' : 'days'}</span></span>
       </div>`;
     }).join('')).join('');
+  const never = (d.never_hardest || []).length
+    ? `<div class="section-sub" style="margin-top:10px;">Never the hardest session of a day, so no next-morning comparison: ${d.never_hardest.join(', ')}.</div>` : '';
+  $('sportCostRows').innerHTML = html + never;
 }
 
 /* ================= recovery heatmap ================= */
@@ -1617,7 +1620,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(row('Asleep', fmtHM(L.asleep_h), L.nap_h ? `+ ${fmtHM(L.nap_h)} nap` : '', ''));
       out.push(row('WHOOP recovery', `${Math.round(L.recovery)}`, '', ''));
     }
-    out.push(`<div class="rp-note">Your normal is your previous 4 weeks, updated each Monday. Hard training is OK when HRV and resting HR are within or better than normal, breathing rate is under 3 above your usual, and you haven't trained hard 2 days in a row. After a moderate or high-intensity session, the rest of the day is for recovery.</div>`);
+    out.push(`<div class="rp-note">Your normal is the range of your 7-day averages over the previous 4 weeks, updated each Monday. Hard training is OK when HRV and resting HR are within or better than normal, breathing rate is under 3 above your usual, and you haven't trained hard 2 days in a row. After a moderate or high-intensity session, the rest of the day is for recovery.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 

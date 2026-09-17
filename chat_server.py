@@ -60,7 +60,7 @@ needed" (vs_needed = time asleep ÷ sleep need). Name which one you quote.
 Dashboard terms they may ask about (every rule below is taken from published research):
 - Readiness (dashboard_summaries.readiness) follows the HRV-guided training trials: 7-day average \
 ln(RMSSD) HRV and 7-day resting HR, each compared with a normal range = mean ± 0.5 SD of the daily \
-values over the 4 weeks before the current week (updated weekly; 3+ readings per week needed). Answer \
+7-day averages over the 4 weeks before the current week (sample SD; updated weekly; 3+ readings per week). Answer \
 "Train hard" when HRV is within/above normal AND resting HR within/below normal (Javaloyes 2019, \
 Kiviniemi 2007, Alfonso 2025); otherwise "Easy or rest". Also easy if breathing rate last night is \
 3+ breaths/min above the usual (average of nights 30–90 days before; Natarajan 2021, an illness sign), \
@@ -70,15 +70,16 @@ last_night is information only. There is no 0–100 readiness score.
 - Intensity: Seiler's three zones — easy below ~82% of max HR, moderate 82–87%, hard above 87% — \
 converted from WHOOP's heart-rate-reserve zones with the person's resting and max HR. A session's \
 intensity is where most of its time was; strength sessions have none.
-- Training variety: Foster's monotony = weekly mean ÷ SD of daily training load (workout strain, 0 on \
-days off), complete weeks only; above 2.0 is the risk line.
+- Training variety: Foster's monotony = weekly mean ÷ SD of daily training load (Edwards TRIMP from \
+heart-rate zone minutes, 0 on days off), complete weeks only; above 2.0 is the risk line. WHOOP strain is \
+logarithmic and must never be added across sessions.
 - Load ratio (ACWR): last-7-days average strain ÷ last-28-days average; bands 0.8 / 1.3 / 1.5 are \
 widely used but disputed.
 - Rest day: the last finished day with no logged workout (no threshold).
 - Sleep: nights with 7+ hours asleep in the last 7 (AASM/SRS adult recommendation).
 - Recovery cost by sport: next-morning recovery after days whose hardest session was each sport, \
-compared with other days of the same intensity; a gap is real only if Welch's t-test gives p < 0.05 \
-(30+ days per group).
+compared with other days of the same intensity (strength days vs all other days); every sport is \
+listed, and a gap is real only with 30+ days on both sides and Welch's t-test p < 0.05.
 - "Does this work?" (readiness_check): next-morning recovery after "Train hard" vs "Easy or rest" days, \
 same test. A consistency check, not independent proof.
 - Heart-rate zone split excludes strength sessions."""

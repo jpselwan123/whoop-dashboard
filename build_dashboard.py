@@ -7,7 +7,7 @@ Usage: python3 build_dashboard.py [data_dir]   (default: current directory)
 """
 import json, math, os
 from datetime import datetime, timedelta, timezone
-from statistics import mean, pstdev, variance
+from statistics import mean, pstdev, stdev, variance
 from collections import Counter, defaultdict
 from env_config import atomic_write, atomic_write_json
 
@@ -204,9 +204,28 @@ def session_level(split):
 
 # ---- Training monotony (Foster) -----------------------------------------------------------
 # Foster's monotony = a week's mean daily training load ÷ its standard deviation, with 0 on days
-# without training (Foster 1998; Foster et al. 2001). Session load here is WHOOP workout strain
-# (Foster used session RPE × minutes, which WHOOP doesn't record). Monotony above 2.0 is the
-# commonly used risk line (Foster 2001 and later studies).
+# without training (Foster 1998; Foster et al. 2001); above 2.0 is the commonly used risk line.
+# Training load is Edwards' TRIMP (Edwards 1993): minutes at 50–60 / 60–70 / 70–80 / 80–90 /
+# 90–100% of max HR × 1 / 2 / 3 / 4 / 5. Foster's session RPE isn't recorded by WHOOP, and WHOOP
+# strain can't be added across sessions (it's a logarithmic 0–21 scale), while TRIMP minutes can.
+EDWARDS_ZONES = ((0.5, 0.6, 1), (0.6, 0.7, 2), (0.7, 0.8, 3), (0.8, 0.9, 4), (0.9, 1.01, 5))
+
+
+def edwards_trimp(zone_durations, max_hr, rest_hr):
+    """Edwards TRIMP for one workout from WHOOP's heart-rate-reserve zones, each zone's minutes
+    split across the %-of-max-HR bands in proportion (time assumed even inside a zone)."""
+    if not zone_durations or not max_hr or not rest_hr or max_hr <= rest_hr:
+        return None
+    total = 0.0
+    for key, lo, hi in WHOOP_ZONES_HRR:
+        minutes = (zone_durations.get(key) or 0) / 60000
+        if not minutes:
+            continue
+        a, b = rest_hr + lo * (max_hr - rest_hr), rest_hr + hi * (max_hr - rest_hr)
+        for z_lo, z_hi, weight in EDWARDS_ZONES:
+            overlap = max(0.0, min(b, z_hi * max_hr) - max(a, z_lo * max_hr))
+            total += minutes * overlap / (b - a) * weight
+    return total
 FOSTER_MONOTONY_LIMIT = 2.0
 
 
@@ -222,40 +241,46 @@ def build_monotony(load_by_day, tracked_days):
         vals = [load_by_day.get(d, 0.0) for d in weeks[wk]]
         sd = pstdev(vals)
         monotony = round(mean(vals) / sd, 2) if sd > 0 else None
-        out.append({'week': wk, 'start': iso_week_monday(wk), 'monotony': monotony, 'load': round(sum(vals), 1),
+        out.append({'week': wk, 'start': iso_week_monday(wk), 'monotony': monotony, 'load': round(sum(vals)),
                     'high': bool(monotony is not None and monotony > FOSTER_MONOTONY_LIMIT)})
     return out
 
 
 # ---- Sport recovery cost, at the same intensity ---------------------------------------------
-def build_sport_recovery_cost(day_sessions, recovery_by_day):
-    """Next-morning recovery after days whose hardest session was each sport, compared only with
-    other days whose hardest session had the same intensity (Seiler zones). A sport is shown once
-    it has 30+ such days; its gap counts as real only if Welch's test gives p < 0.05."""
+SPORT_GROUPS = ('easy', 'moderate', 'hard', 'strength')
+
+
+def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
+    """Next-morning recovery after days whose hardest session was each sport, compared with the
+    other days of the same intensity (strength days have no heart-rate intensity, so they are
+    compared with every other day). Every sport is listed; a gap counts as real only with 30+ days
+    on both sides and Welch's t-test p < 0.05."""
     groups = defaultdict(list)
     for d, (sport, level) in day_sessions.items():
         nxt = (datetime.fromisoformat(d) + timedelta(days=1)).date().isoformat()
         if level and nxt in recovery_by_day:
             groups[level].append((sport, recovery_by_day[nxt]))
-    out = {'groups': []}
-    for level in ('easy', 'moderate', 'hard'):
+    everything = [x for rows in groups.values() for x in rows]
+    out = {'groups': [], 'never_hardest': sorted(set(all_sports) - {s for s, _ in everything})}
+    for level in SPORT_GROUPS:
         rows = groups.get(level, [])
         if not rows:
             continue
-        vals = [r for _, r in rows]
         sports = []
-        for sport in sorted({s for s, _ in rows}):
+        for sport in {s for s, _ in rows}:
             mine = [r for s, r in rows if s == sport]
             others = [r for s, r in rows if s != sport]
-            if len(mine) < MIN_GROUP or len(others) < MIN_GROUP:
-                continue
-            p = welch_p(mine, others)
+            vs_all = not others
+            if vs_all:
+                others = [r for s, r in everything if s != sport]
+            # the test is only trusted with 30+ days on both sides; smaller samples stay listed but faded
+            p = welch_p(mine, others) if len(mine) >= MIN_GROUP and len(others) >= MIN_GROUP else None
             sports.append({'sport': sport, 'n': len(mine), 'avg_next_recovery': round(mean(mine), 1),
-                           'delta': round(mean(mine) - mean(others), 1),
-                           'significant': p is not None and p < SIGNIFICANCE})
-        sports.sort(key=lambda x: x['delta'])
-        out['groups'].append({'intensity': level, 'days': len(rows), 'avg_next_recovery': round(mean(vals), 1),
-                              'sports': sports})
+                           'delta': round(mean(mine) - mean(others), 1) if others else None,
+                           'significant': p is not None and p < SIGNIFICANCE, 'vs_all': vs_all})
+        sports.sort(key=lambda x: (-x['n'], x['sport']))
+        out['groups'].append({'intensity': level, 'days': len(rows),
+                              'avg_next_recovery': round(mean(r for _, r in rows), 1), 'sports': sports})
     return out
 
 
@@ -263,9 +288,9 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day):
 # Exactly the decision rule tested in HRV-guided training trials:
 #   - 7-day average of ln(RMSSD) HRV (Plews et al. 2012; Javaloyes et al. 2019), valid with at
 #     least 3 readings in the 7 days (Plews et al. 2014).
-#   - Normal range = mean ± 0.5 SD of the daily values over the 4 weeks before the current week,
-#     so it updates weekly (Javaloyes et al. 2019: 4 baseline weeks; Carrasco-Poyatos et al. 2020:
-#     range updated weekly; daily values as in Plews et al. 2012).
+#   - Normal range = mean ± 0.5 SD of the 7-day averages over the 4 weeks before the current week
+#     (28 baseline values of the same 7-day average: Vesterinen et al. 2016; Javaloyes et al. 2019;
+#     tabulated in Manresa-Rocamora et al. 2021), updated weekly (Carrasco-Poyatos et al. 2020).
 #   - Within or above normal → hard training OK; below → easy or rest (Javaloyes 2019;
 #     Kiviniemi et al. 2007). Resting HR is judged the same way (above normal = worse), and hard
 #     training needs both markers in range (Alfonso et al. 2025).
@@ -291,16 +316,26 @@ def _in_range(src, first, last):
     return [v for k, v in src.items() if first <= k <= last]
 
 
-def judge_marker(src, d, worse):
-    """7-day average vs the 4 weeks before this week, ±0.5 SD. None until both are valid."""
+def rolling_7(src, d):
+    """7-day average ending on d, valid with 3+ readings (Plews et al. 2014)."""
     window = _in_range(src, _date_minus(d, READY_WINDOW_DAYS - 1), d)
+    return mean(window) if len(window) >= READY_MIN_READINGS else None
+
+
+def judge_marker(src, d, worse):
+    """Today's 7-day average vs the 7-day averages of the 4 weeks before this week: mean ± 0.5 SD
+    (sample SD). The trials built the range from 28 baseline values of the same 7-day average
+    they compared (Vesterinen 2016; Javaloyes 2019, 2020 — Manresa-Rocamora et al. 2021, table 2)."""
+    avg = rolling_7(src, d)
     monday = _date_minus(d, datetime.fromisoformat(d).weekday())
-    base = _in_range(src, _date_minus(monday, READY_BASELINE_DAYS), _date_minus(monday, 1))
     weeks_ok = all(len(_in_range(src, _date_minus(monday, 7 * (k + 1)), _date_minus(monday, 7 * k + 1))) >= READY_MIN_READINGS
                    for k in range(READY_BASELINE_DAYS // 7))   # each of the 4 baseline weeks needs 3+ readings
-    if len(window) < READY_MIN_READINGS or not weeks_ok:
+    if avg is None or not weeks_ok:
         return None
-    avg, m, sd = mean(window), mean(base), pstdev(base)
+    base = [v for v in (rolling_7(src, _date_minus(monday, k)) for k in range(1, READY_BASELINE_DAYS + 1)) if v is not None]
+    if len(base) < 2:
+        return None
+    m, sd = mean(base), stdev(base)
     lo, hi = m - READY_SWC * sd, m + READY_SWC * sd
     state = 'below' if avg < lo else 'above' if avg > hi else 'within'
     return {'avg': avg, 'lo': lo, 'hi': hi, 'state': state, 'worse': state == worse}
@@ -624,20 +659,19 @@ def build_summary(d):
     by_day_wo = defaultdict(list)
     for w in wo:
         by_day_wo[day(w['created_at'])].append(w)
-        load_by_day[day(w['created_at'])] += w['score']['strain']
+        load_by_day[day(w['created_at'])] += edwards_trimp(w['score'].get('zone_durations'), max_hr, rest_hr_for(day(w['created_at']))) or 0.0
     for dd, ws in by_day_wo.items():
         levels = [session_level(intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(dd)))
                   for w in ws if w['sport_name'] not in STRENGTH_SPORTS]
         if any(l in ('moderate', 'hard') for l in levels):
             hard_days.add(dd)
         top = max(ws, key=lambda w: w['score']['strain'])
-        if top['sport_name'] not in STRENGTH_SPORTS:
-            day_sessions[dd] = (sport_label(top['sport_name']),
-                                session_level(intensity_minutes(top['score'].get('zone_durations'), max_hr, rest_hr_for(dd))))
+        day_sessions[dd] = (sport_label(top['sport_name']), 'strength' if top['sport_name'] in STRENGTH_SPORTS else
+                            session_level(intensity_minutes(top['score'].get('zone_durations'), max_hr, rest_hr_for(dd))))
 
     acwr = build_acwr(strain_by_day)
     monotony = build_monotony(load_by_day, strain_by_day.keys())
-    sport_recovery_cost = build_sport_recovery_cost(day_sessions, recovery_by_day)
+    sport_recovery_cost = build_sport_recovery_cost(day_sessions, recovery_by_day, {sport_label(w['sport_name']) for w in wo})
     sleep_composition = build_sleep_composition(sleep, now)
     zone_distribution = build_zone_distribution(wo, now, max_hr, rest_hr_for)
     today = day(cyc[-1]['created_at'])

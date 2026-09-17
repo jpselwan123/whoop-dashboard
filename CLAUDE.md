@@ -45,8 +45,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   the README; where no study defines something, show a plain fact instead (e.g. rest day = last day
   without a workout). Statistical comparisons use Welch's t-test, p < 0.05, 30+ per group.
 - **Readiness = the HRV-guided training protocol** (`build_readiness`): 7-day ln-RMSSD HRV and 7-day
-  resting HR (3+ readings) vs mean ± 0.5 SD of daily values over the 4 weeks before the current week
-  (each week 3+ readings). Two answers only: "Train hard" / "Easy or rest" — no 0–100 score. Easy if HRV
+  resting HR (3+ readings) vs mean ± 0.5 SD (sample SD) of the 7-day averages over the 4 weeks before the
+  current week (each week 3+ readings). Two answers only: "Train hard" / "Easy or rest" — no 0–100 score. Easy if HRV
   below or resting HR above normal, breathing rate 3+ above usual (nights 30–90 days back), 2 hard days in a
   row, or (page) a moderate/high session already today. Last night is information only. Sources in README.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
@@ -80,8 +80,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - Every rolling window is **calendar days**, never "last N records" (`_calendar_window`, `lastDays` in the
   template) — the real export has a 7-month gap (Mar–Oct 2025). Weekly charts keep empty weeks as gaps.
 - Easy/moderate/hard = Seiler zones everywhere (zone chart, session view, readiness), via `intensity_minutes`.
-- Sports are compared only within the same intensity (`build_sport_recovery_cost`); never recommend a
-  specific sport. Strength sessions are out of the zone split.
+- Sports are compared only within the same intensity (`build_sport_recovery_cost`), every sport listed; never
+  recommend a specific sport. WHOOP strain is logarithmic — never add it across sessions (use Edwards TRIMP). Strength sessions are out of the zone split.
 - UI rules from the revision brief: no formulas/stat notation in the UI, net element count must not grow,
   never shrink spacing to fit, one idea per card, no new colors.
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.

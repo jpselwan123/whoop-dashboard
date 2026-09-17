@@ -43,6 +43,21 @@ class IntensityTest(unittest.TestCase):
         self.assertEqual(out['all_time']['hard_pct'], 100)
 
 
+class TrimpTest(unittest.TestCase):
+    def test_edwards_weights_minutes_by_percent_of_max_hr(self):
+        # rest 0, max 200 makes heart-rate reserve equal % of max: zone 4 (80–90%) × 4, zone 1 (50–60%) × 1
+        self.assertAlmostEqual(bd.edwards_trimp({'zone_four_milli': 10 * MIN}, 200, 0.0001), 40, places=2)
+        self.assertAlmostEqual(bd.edwards_trimp({'zone_one_milli': 30 * MIN}, 200, 0.0001), 30, places=2)
+
+    def test_time_below_50_percent_counts_nothing(self):
+        self.assertAlmostEqual(bd.edwards_trimp({'zone_zero_milli': 30 * MIN}, 200, 0.0001), 0, places=2)
+
+    def test_trimp_adds_up_unlike_strain(self):
+        a = bd.edwards_trimp({'zone_three_milli': 20 * MIN}, 190, 55)
+        both = bd.edwards_trimp({'zone_three_milli': 40 * MIN}, 190, 55)
+        self.assertAlmostEqual(both, 2 * a)
+
+
 class MonotonyTest(unittest.TestCase):
     def test_foster_uses_zero_on_days_off_and_complete_weeks_only(self):
         week = [(date(2026, 3, 2) + timedelta(days=i)).isoformat() for i in range(10)]   # Mon … next Wed
@@ -97,12 +112,25 @@ class SportCostTest(unittest.TestCase):
         by = {s['sport']: s for s in g['sports']}
         self.assertTrue(by['Soccer']['significant'] and by['Soccer']['delta'] < 0)
 
-    def test_sport_needs_30_days(self):
-        day_sessions = {(date(2026, 1, 1) + timedelta(days=i)).isoformat(): ('Soccer' if i < 10 else 'Tennis', 'easy') for i in range(60)}
-        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): 50 for i in range(60)}
+    def test_every_sport_is_listed_but_small_samples_are_never_called_real(self):
+        day_sessions = {(date(2026, 1, 1) + timedelta(days=i)).isoformat(): ('Table-Tennis' if i < 2 else 'Tennis', 'easy')
+                        for i in range(60)}
+        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): (5 if i < 2 else 50 + i % 3) for i in range(60)}
         g = bd.build_sport_recovery_cost(day_sessions, rec)['groups'][0]
-        self.assertEqual(g['sports'], [])
+        by = {s['sport']: s for s in g['sports']}
+        self.assertEqual(by['Table-Tennis']['n'], 2)
+        self.assertFalse(by['Table-Tennis']['significant'])
 
+    def test_strength_days_are_compared_with_all_other_days(self):
+        day_sessions, rec = {}, {}
+        for i in range(120):
+            d = (date(2026, 1, 1) + timedelta(days=i)).isoformat()
+            day_sessions[d] = ('Weightlifting', 'strength') if i % 2 else ('Soccer', 'easy')
+            rec[(date(2026, 1, 2) + timedelta(days=i)).isoformat()] = (70 if i % 2 else 45) + i % 4
+        out = bd.build_sport_recovery_cost(day_sessions, rec, {'Weightlifting', 'Soccer', 'Yoga'})
+        strength = [g for g in out['groups'] if g['intensity'] == 'strength'][0]['sports'][0]
+        self.assertTrue(strength['vs_all'] and strength['significant'] and strength['delta'] > 0)
+        self.assertEqual(out['never_hardest'], ['Yoga'])
 
 if __name__ == '__main__':
     unittest.main()

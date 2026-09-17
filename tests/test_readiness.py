@@ -9,15 +9,19 @@ def days(n, start=date(2026, 1, 5)):          # a Monday
     return [(start + timedelta(days=i)).isoformat() for i in range(n)]
 
 
-# a 7-day repeating pattern: every 7-day window has exactly the same average as the baseline
+# day-to-day pattern plus a slow drift, like real data
 LN_PATTERN = (0.0, 0.05, -0.05, 0.1, -0.1, 0.03, -0.03)
 HR_PATTERN = (0.0, 1.0, -1.0, 2.0, -2.0, 0.5, -0.5)
 
 
 def steady(n=70, hrv=80.0, rhr=55.0, rr=15.0):
     ds = days(n)
-    return ({d: hrv * math.exp(LN_PATTERN[i % 7]) for i, d in enumerate(ds)},
-            {d: rhr + HR_PATTERN[i % 7] for i, d in enumerate(ds)},
+    last_week = (n - 1) // 7
+    # weekly level alternates up/down so the baseline 7-day averages have a spread; the latest week sits
+    # exactly at the middle of that spread (a normal week)
+    drift = lambda i: 0.0 if i // 7 == last_week else (0.04 if (i // 7) % 2 == 0 else -0.04)
+    return ({d: hrv * math.exp(LN_PATTERN[i % 7] + drift(i)) for i, d in enumerate(ds)},
+            {d: rhr + HR_PATTERN[i % 7] + 12 * drift(i) for i, d in enumerate(ds)},
             {d: rr + HR_PATTERN[i % 7] * 0.1 for i, d in enumerate(ds)}, ds)
 
 
@@ -52,9 +56,9 @@ class ProtocolTest(unittest.TestCase):
         self.assertEqual(latest['answer'], 'easy')
         self.assertEqual(latest['reasons'], ['rhr'])
 
-    def test_one_bad_night_is_diluted_by_the_7_day_average(self):
+    def test_a_slightly_low_night_is_diluted_by_the_7_day_average(self):
         h, r, b, ds = steady()
-        h[ds[-1]] *= 0.85
+        h[ds[-1]] *= 0.93
         latest, _ = bd.build_readiness(h, r, b, set())
         self.assertEqual(latest['answer'], 'hard')
 
@@ -70,13 +74,19 @@ class ProtocolTest(unittest.TestCase):
                 ranges.add(tuple(latest['hrv']['normal']))
         self.assertEqual(len(ranges), 1)
 
-    def test_baseline_is_the_4_weeks_before_this_week(self):
+    def test_range_is_built_from_the_7_day_averages_of_the_4_weeks_before_this_week(self):
         h, r, b, ds = steady()
+        for i, d in enumerate(ds):            # vary the weekly level so the 7-day averages have a spread
+            h[d] *= math.exp(0.02 * (i // 7 % 3))
         d = ds[-1]
         monday = date.fromisoformat(d) - timedelta(days=date.fromisoformat(d).weekday())
-        base = [math.log(v) for k, v in h.items() if monday - timedelta(days=28) <= date.fromisoformat(k) < monday]
+        ln = {k: math.log(v) for k, v in h.items()}
+        def roll(day):
+            vals = [v for k, v in ln.items() if day - timedelta(days=6) <= date.fromisoformat(k) <= day]
+            return sum(vals) / len(vals)
+        base = [roll(monday - timedelta(days=k)) for k in range(1, 29)]
         m = sum(base) / len(base)
-        sd = math.sqrt(sum((x - m) ** 2 for x in base) / len(base))
+        sd = math.sqrt(sum((x - m) ** 2 for x in base) / (len(base) - 1))   # sample SD
         latest, _ = bd.build_readiness(h, r, b, set())
         self.assertEqual(latest['hrv']['normal'], [round(math.exp(m - 0.5 * sd)), round(math.exp(m + 0.5 * sd))])
 
