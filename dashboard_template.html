@@ -1299,15 +1299,18 @@ function renderTodaySignals(){
       : `${dayLabel}'s hardest session was <b>${top.sport}</b>${top.intensity ? '' : ' (strength — no heart-rate intensity)'}.`;
   }
 
-  // rest day: a plain fact — the last finished day with no logged workout
+  // rest day: a plain fact — the last finished day with no logged workout. Say "day off" and name
+  // the date: "2 days ago" alone was read as the last day they trained, which is the opposite.
   const rEl = $('restDaySignal'), rTxt = $('restDayText');
   const rest = DATA.rest_day_stat;
   rEl.className = 'signal';
   if(!rest){
-    rTxt.textContent = 'No day without a workout in your history yet.';
+    rTxt.textContent = 'You have trained every day in your history so far.';
   } else {
-    const when = rest.days_since === 1 ? 'yesterday' : `${rest.days_since} days ago (${fmtDate(rest.last_rest_date)})`;
-    rTxt.innerHTML = `<b>Last day without a workout: ${when}.</b>`;
+    const when = rest.days_since === 1 ? 'yesterday' : `${fmtDate(rest.last_rest_date)}, ${rest.days_since} days ago`;
+    const since = rest.days_since - 1;   // finished days since, all of which had a session
+    rTxt.innerHTML = `<b>Your last day off was ${when}</b> — no session logged that day.`
+      + (since === 1 ? ' You trained yesterday.' : since > 1 ? ` You have trained every day since — ${since} days.` : '');
   }
 }
 

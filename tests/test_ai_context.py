@@ -61,6 +61,21 @@ class DurationFormatTest(unittest.TestCase):
         import chat_server
         self.assertIn("never decimal hours", chat_server.SYSTEM_PROMPT.replace("\n", " "))
 
+    def test_prompt_forbids_blaming_the_dashboard(self):
+        """It once explained a figure it had misread as a "date/time or refresh mismatch"."""
+        import chat_server
+        prompt = chat_server.SYSTEM_PROMPT.replace("\n", " ")
+        self.assertIn("Never explain a number by guessing at a bug", prompt)
+        for word in ("refresh lag", "time-zone slip", "date mismatch"):
+            self.assertIn(word, prompt)
+
+    def test_prompt_defines_the_rest_day_card(self):
+        """"Last day off" is the last day with no workout — the opposite of the last day trained."""
+        import chat_server
+        prompt = chat_server.SYSTEM_PROMPT.replace("\n", " ")
+        self.assertIn("last day off", prompt)
+        self.assertIn("It is not the last day they trained", prompt)
+
 
 
 if __name__ == "__main__":
