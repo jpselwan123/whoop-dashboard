@@ -55,7 +55,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   (<7) or sustained — 3rd day in a row below the band (`DAYS_LOW_TO_REST`), never 3 rest days in a row
   (`MAX_REST_DAYS_IN_A_ROW`; Manresa-Rocamora 2021 "low intensity or passive rest"; Plews 2013/Buchheit 2014
   sustained not single-day; Kiviniemi 2007 caps consecutive rest days). Rest on breathing +3/min; Go easy after 2 hard days in a row. Once any session is
-  logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Last night is information only. JP wants ONE score from all
+  logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Before a session, today's
+  live load ratio (`build_load_today`, strain so far) steps the plan down: >1.3 hard→as planned, >1.5 → Go easy. Last night is information only. JP wants ONE score from all
   measures AND every rule sourced — keep both.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
   (`intensity_minutes`, proportional split); session level = where most time was. Strength sessions: none.
@@ -80,6 +81,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - WKWebView blocks `fetch()` of `file://` → the page gets fresh data from `GET /data`.
 - macOS ATS blocks `http://127.0.0.1` without `NSAllowsLocalNetworking` in Info.plist ("Load failed").
 - Don't step `Date` objects day-by-day across DST (hour drift); compare `YYYY-MM-DD` strings.
+- "Today" on the page = the open WHOOP cycle (`snapIsCurrent`), not the calendar date — WHOOP's day runs
+  sleep to sleep, so at 1am the previous day is still in progress. Don't compare `snap.date` to the clock.
 - Dashboard dates = UTC calendar day of `created_at`; `ai_context.py` matches that convention.
 - Heatmap/month labels collide on partial months — drop the older label when < 3 cells apart.
 - WHOOP `sleep_performance_percentage` = hours vs needed only until ~Oct 2025; after that it's WHOOP's blended

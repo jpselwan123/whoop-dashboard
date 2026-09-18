@@ -620,6 +620,13 @@ const todayLocalISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 };
+// WHOOP's day runs from one sleep to the next, not midnight to midnight: the latest cycle is today
+// while it is still open, even at 1am. A cycle that began more than 30 hours ago means the export is
+// old (WHOOP closes the day at the next sleep), so fall back to the calendar date.
+const WHOOP_DAY_MAX_H = 30;
+const snapIsCurrent = snap => !!snap && (snap.in_progress
+  ? (Date.now() - Date.parse(snap.cycle_start)) < WHOOP_DAY_MAX_H * 3600e3
+  : snap.date === todayLocalISO());
 const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
 // Points from the last n calendar days of a {date, v} series (ending on its newest date) —
 // calendar days, not a count of records, so a gap in wear never stretches a "30D" window.
@@ -652,15 +659,41 @@ const MARKER_NAME = {hrv:'HRV', rhr:'resting HR', sleep:'sleep'};
 function computeReadiness(){
   const R = DATA.readiness;
   const snap = DATA.today_snapshot;
-  const snapIsToday = !!(snap && snap.date === todayLocalISO());
+  const snapIsToday = snapIsCurrent(snap);
   const sessions = snapIsToday ? (snap.workouts || []) : [];
-  if(!R) return { action:'learning', plan:'learning', reasons:[], sessions, R:null };
+  // today's load ratio, recomputed from the strain so far on every refresh
+  const load = (snapIsToday && DATA.load_today && DATA.load_today.date === snap.date) ? DATA.load_today : null;
+  if(!R) return { action:'learning', plan:'learning', reasons:[], sessions, load, R:null };
+  let plan = R.answer, reasons = [...R.reasons];
+  // As today's strain climbs, the load-ratio bands the card uses (Gabbett 2016) step the plan down:
+  // past the caution line no hard session, past the high-risk line go easy for the rest of the day.
+  // Only before a session: afterwards the strain is the session itself, the plan is spent, and the
+  // ratio is reported as information rather than rewriting what the morning plan was.
+  const trained = sessions.length > 0;
+  if(!trained && load && load.ratio > load.bands.high && (plan === 'hard' || plan === 'moderate')){
+    plan = 'easy'; reasons = ['load'];
+  } else if(!trained && load && load.ratio > load.bands.caution && plan === 'hard'){
+    plan = 'moderate'; reasons = ['load_caution'];
+  }
   // The score prescribes one session a day, the way the HRV-guided trials did. Once you have
   // trained, today's plan is spent — the answer stops asking for more (unless it says Rest,
   // which is about your body, not the plan).
-  const plan = R.answer, trained = sessions.length > 0;
   const action = (trained && plan !== 'rest') ? 'done' : plan;
-  return { action, plan, reasons:[...R.reasons], sessions, trained, R };
+  return { action, plan, reasons, sessions, trained, load, R };
+}
+
+// One sentence on where today's strain has left the load ratio and how much room is left.
+function loadText(calc){
+  const Ld = calc.load; if(!Ld || calc.reasons.includes('load') || calc.reasons.includes('load_caution')) return '';
+  const r = Ld.ratio.toFixed(2), B = Ld.bands, at = Ld.strain_at, s = Ld.strain.toFixed(1);
+  if(Ld.ratio > B.high)    return `Today's strain ${s} has taken your load ratio to ${r}, above ${B.high} — keep the rest of the day easy.`;
+  if(Ld.ratio > B.caution) return `Today's strain ${s} has taken your load ratio to ${r}, past the ${B.caution} caution line.`;
+  const training = calc.plan === 'hard' || calc.plan === 'moderate';
+  if(Ld.ratio < B.low) return training && at.low != null && at.low > Ld.strain && at.low < 21
+    ? `Load ratio ${r}, below ${B.low}: a day strain of ${at.low.toFixed(1)} brings it back into range.`
+    : `Load ratio ${r}, below ${B.low}.`;
+  if(at.caution == null || at.caution >= 21) return `Load ratio ${r}, in range — no strain today would take it past ${B.caution}.`;
+  return `Load ratio ${r}, in range — it passes ${B.caution} if today's strain goes over ${at.caution.toFixed(1)}.`;
 }
 
 const SESSION_RANK = {easy:1, strength:1, moderate:2, hard:3};
@@ -691,6 +724,8 @@ function reasonText(calc, key){
   }
   if(key === 'breathing') return `last night's breathing rate was ${one(R.breathing.value)} /min, 3 or more above your usual ${one(R.breathing.usual)} — a possible sign of illness`;
   if(key === 'streak') return `you've trained hard ${R.hard_days_in_a_row} days in a row (limit ${R.max_hard_days})`;
+  if(key === 'load_caution') return `today's strain of ${calc.load.strain.toFixed(1)} has taken your load ratio to ${calc.load.ratio.toFixed(2)}, past the ${calc.load.bands.caution} caution line — no hard session on top`;
+  if(key === 'load') return `today's strain of ${calc.load.strain.toFixed(1)} has taken your load ratio to ${calc.load.ratio.toFixed(2)}, above the ${calc.load.bands.high} high-risk line`;
   if(key === 'days_low') return `readiness has been below your normal ${R.days_below_normal} days in a row — a run of low days, not one low night, is what counts`;
   return '';
 }
@@ -715,7 +750,9 @@ function decisionWhy(calc){
   const why = calc.reasons.length ? listAnd(calc.reasons.map(k => reasonText(calc, k))) : scoreText(calc);
   if(calc.action !== 'done') return sentence(why);
   const done = sentence(`you've trained today — ${sessionsText(calc)}`);
-  const metPlan = (SESSION_RANK[hardestToday(calc).intensity || 'strength'] || 1) >= PLAN_RANK[calc.plan];
+  // one session a day is the plan; a second session always spends it, whatever its intensity
+  const metPlan = calc.sessions.length > 1 ||
+    (SESSION_RANK[hardestToday(calc).intensity || 'strength'] || 1) >= PLAN_RANK[calc.plan];
   return `${done} Today's plan was <b>${ACTIONS[calc.plan].label.toLowerCase()}</b> (${why})` +
          (metPlan ? ' — that’s done.' : ', so a harder session is still within it if you want one.');
 }
@@ -760,7 +797,8 @@ function renderSuggestions(calc){
   } else if(calc.action === 'done'){
     const level = hardestToday(calc).intensity;
     sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>You've trained today.</b> ` + (level === 'hard'
+    const n = calc.sessions.length;
+    sTxt.innerHTML = `<b>You've trained today${n > 1 ? ` — ${n} sessions` : ''}.</b> ` + (level === 'hard'
       ? 'Heart and nervous-system recovery takes about 48 hours after a high-intensity session, so keep tomorrow easy unless readiness says otherwise.'
       : level === 'moderate'
       ? 'Recovery from a moderate session takes about 24 hours — tomorrow’s score will show how you took it.'
@@ -771,12 +809,21 @@ function renderSuggestions(calc){
   } else if(calc.action === 'easy'){
     sEl.className = 'signal warn';
     sTxt.innerHTML = `<b>Keep today easy.</b> ${sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))))}`;
+  } else if(calc.action === 'moderate' && calc.reasons.includes('load_caution')){
+    sEl.className = 'signal warn';
+    sTxt.innerHTML = `<b>Train as planned, not hard.</b> ${sentence(reasonText(calc, 'load_caution'))}`;
   } else if(calc.action === 'moderate'){
     sEl.className = 'signal ok';
     sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is inside your normal range (${calc.R.lines.train}–${calc.R.lines.above - 1}) — no reason to push harder or hold back.`;
   } else {
     sEl.className = 'signal ok';
     sTxt.innerHTML = `<b>A hard session is OK today.</b> Readiness ${calc.R.score} is above your normal (${calc.R.lines.above}+).`;
+  }
+  // the part that moves through the day: where today's strain has left the load ratio
+  const lt = calc.action === 'learning' ? '' : loadText(calc);
+  if(lt){
+    sTxt.innerHTML += ' ' + lt;
+    if(calc.load.ratio > calc.load.bands.caution) sEl.className = 'signal warn';
   }
 
   const tips = [];
@@ -877,7 +924,7 @@ function renderRightNow(){
     $('rightNowBody').innerHTML = '';
     return;
   }
-  const isToday = snap.date === todayLocalISO();
+  const isToday = snapIsCurrent(snap);
   $('rightNowDate').textContent = isToday ? fmtDate(snap.date) : `last export: ${fmtDate(snap.date)}`;
   $('rnStrainNum').textContent = fmt1(snap.strain_so_far);
   $('rnStrainLabel').textContent = isToday
@@ -1283,8 +1330,9 @@ function renderTodaySignals(){
 
   // yesterday's hardest session, and what usually follows a day of that intensity
   const sEl = $('sportCostSignal'), sTxt = $('sportCostText');
-  const asOfDay = DATA.asOf.slice(0,10);
-  const isExportToday = asOfDay === todayLocalISO();
+  const snapNow = snapIsCurrent(DATA.today_snapshot);
+  const asOfDay = snapNow ? DATA.today_snapshot.date : DATA.asOf.slice(0,10);
+  const isExportToday = snapNow || asOfDay === todayLocalISO();
   const yesterday = new Date(new Date(asOfDay).getTime() - 86400000).toISOString().slice(0,10);
   const dayLabel = isExportToday ? 'Yesterday' : new Date(yesterday+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
   const sessions = DATA.workout_log.filter(w => w.date === yesterday);
@@ -1337,7 +1385,10 @@ function renderACWR(){
   ];
   const zone = zones.find(z=>latest<z.max);
   const badge = $('acwrZone');
-  badge.textContent = zone.label;
+  // the newest point counts today's strain so far, so the ratio moves as the day does
+  const snap = DATA.today_snapshot;
+  const live = snapIsCurrent(snap) && snap.in_progress && series[series.length-1].date === snap.date;
+  badge.textContent = zone.label + (live ? ' · with today so far' : '');
   badge.style.color = zone.c;
   badge.style.background = zone.bg;
 
@@ -1679,6 +1730,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(section('Also checked', 'today / limit'));
       if(R.breathing) out.push(row('Breathing rate', `${one(R.breathing.value)} /min`, `rest at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
       out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
+      if(calc.load) out.push(row('Load ratio · with today', calc.load.ratio.toFixed(2), `go easy above ${calc.load.bands.high}`, calc.load.ratio > calc.load.bands.caution ? 'flagged' : ''));
       out.push(row('Days below your normal', `${R.days_below_normal}`, `rest at ${R.days_low_to_rest}`, R.days_below_normal >= R.days_low_to_rest ? 'flagged' : ''));
       for(const w of calc.sessions)
         out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));

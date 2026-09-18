@@ -86,7 +86,13 @@ intensity is where most of its time was; strength sessions have none.
 heart-rate zone minutes, 0 on days off), complete weeks only; above 2.0 is the risk line. WHOOP strain is \
 logarithmic and must never be added across sessions.
 - Load ratio (ACWR): last-7-days average strain ÷ last-28-days average; bands 0.8 / 1.3 / 1.5 are \
-widely used but disputed.
+widely used but disputed. The newest value includes today's strain so far, so it rises through the \
+day. dashboard_summaries.load_today gives today's ratio and strain_at = the day strain at which it \
+would cross each band (algebra on the band, not a new threshold). Before any session today the page \
+steps the plan down as it climbs: past 1.3 no hard session (Train hard becomes Train as planned), past \
+1.5 Go easy. After a session it is reported, not used to rewrite the plan.
+- "Today" is the current WHOOP day (from one sleep to the next, today_snapshot with in_progress), \
+not the calendar date - at 1am before sleeping they are still in the same WHOOP day.
 - Rest day ("last day off" on the page): the most recent finished day with NO workout logged. It is \
 not the last day they trained - their most recent workout is the newest row of the workouts table. \
 Read the card as "the last day they did nothing", never as "the last day they did something".

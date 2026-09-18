@@ -101,6 +101,45 @@ def build_acwr(strain_by_day):
     return out
 
 
+# Load-ratio bands as used on the page: sweet spot 0.8–1.3, caution to 1.5, high risk above
+# (Gabbett 2016; disputed as an injury predictor — Impellizzeri et al. 2020 — and labelled so).
+ACWR_BANDS = {'low': 0.8, 'caution': 1.3, 'high': 1.5}
+
+
+def build_load_today(strain_by_day, today):
+    """Today's load ratio from the strain so far, and the day strain at which it would cross each
+    band line — so the plan can say how much room is left as the day's strain climbs.
+
+    The ratio includes today in both windows (as `build_acwr` does), so with A / C the strain summed
+    over the other days in the 7 / 28-day windows and a / c the day counts including today, the day
+    strain S that puts the ratio exactly at r solves (A + S) / a = r (C + S) / c:
+        S = (r C / c − A / a) / (1 / a − r / c)
+    Pure algebra on the band lines above — no new threshold. Strain is WHOOP's day strain (0–21),
+    averaged across days, never summed across sessions."""
+    days = sorted(strain_by_day)
+    if not days or days[-1] != today:
+        return None
+    i = len(days) - 1
+    acute = [strain_by_day[days[j]] for j in _calendar_window(days, i, 6)]
+    chronic = [strain_by_day[days[j]] for j in _calendar_window(days, i, 27)]
+    a, c = len(acute) + 1, len(chronic) + 1
+    if a < ACWR_MIN_DAYS['acute'] or c < ACWR_MIN_DAYS['chronic']:
+        return None
+    A, C, S = sum(acute), sum(chronic), strain_by_day[today]
+    if C + S == 0:
+        return None
+
+    def strain_at(r):
+        den = 1 / a - r / c
+        if den <= 0:
+            return None
+        return round(max(0.0, min(21.0, (r * C / c - A / a) / den)), 1)
+
+    return {'date': today, 'strain': round(S, 1), 'ratio': round(((A + S) / a) / ((C + S) / c), 2),
+            'bands': dict(ACWR_BANDS),
+            'strain_at': {k: strain_at(v) for k, v in ACWR_BANDS.items()}}
+
+
 # ---- Statistics helpers ----------------------------------------------------------------
 # A difference is only called real when it passes a two-sided Welch's t-test at p < 0.05, the
 # standard convention in sport-science and medical research. Groups need at least 30 values
@@ -801,6 +840,7 @@ def build_summary(d):
                             session_level(intensity_minutes(top['score'].get('zone_durations'), max_hr, rest_hr_for(dd))))
 
     acwr = build_acwr(strain_by_day)
+    load_today = build_load_today(strain_by_day, day(cyc[-1]['created_at']))
     monotony = build_monotony(load_by_day, strain_by_day.keys())
     sport_recovery_cost = build_sport_recovery_cost(day_sessions, recovery_by_day, {sport_label(w['sport_name']) for w in wo})
     sleep_composition = build_sleep_composition(sleep, now)
@@ -886,6 +926,7 @@ def build_summary(d):
         'records': records,
         'total_workouts': len(wo),
         'acwr': acwr,
+        'load_today': load_today,
         'monotony': monotony,
         'sport_recovery_cost': sport_recovery_cost,
         'sleep_composition': sleep_composition,

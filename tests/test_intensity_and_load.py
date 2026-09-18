@@ -1,6 +1,6 @@
 """Seiler intensity zones from WHOOP heart-rate-reserve zones, Foster monotony, rest days, sleep
 nights and sport cost at the same intensity."""
-import unittest
+import json, unittest
 from datetime import date, datetime, timedelta, timezone
 from helpers import generate, build_dashboard as bd
 
@@ -147,3 +147,54 @@ class SportCostTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DayAdaptsTest(unittest.TestCase):
+    """What changes when the refresh button pulls new activity mid-day."""
+
+    def setUp(self):
+        self.raw = generate(120, 23)
+
+    def test_load_ratio_today_matches_the_card(self):
+        s = bd.build_summary(self.raw)
+        L = s['load_today']
+        self.assertEqual(L['date'], s['today_snapshot']['date'])
+        self.assertEqual(L['ratio'], s['acwr'][-1]['v'])
+        self.assertEqual(L['strain'], s['today_snapshot']['strain_so_far'])
+
+    def test_strain_lines_put_the_ratio_exactly_on_each_band(self):
+        """The 'passes 1.3 if today's strain goes over X' number is pure algebra on the band."""
+        s = bd.build_summary(self.raw)
+        today = s['load_today']['date']
+        strain = {p['date']: p['v'] for p in s['full_series']['strain']}
+        for band, r in bd.ACWR_BANDS.items():
+            x = s['load_today']['strain_at'][band]
+            if x is None or x in (0.0, 21.0):          # clamped: the line can't be reached today
+                continue
+            probe = dict(strain, **{today: x})
+            got = bd.build_load_today(probe, today)['ratio']
+            self.assertAlmostEqual(got, r, delta=0.011, msg=band)
+
+    def test_more_strain_today_raises_the_ratio(self):
+        s = bd.build_summary(self.raw)
+        today = s['load_today']['date']
+        strain = {p['date']: p['v'] for p in s['full_series']['strain']}
+        low = bd.build_load_today(dict(strain, **{today: 4.0}), today)['ratio']
+        high = bd.build_load_today(dict(strain, **{today: 18.0}), today)['ratio']
+        self.assertGreater(high, low)
+
+    def test_a_nap_today_moves_readiness(self):
+        """Readiness is measured overnight, but hours asleep count naps — a nap logged later in the
+        day changes today's score on the next refresh."""
+        before = bd.build_summary(self.raw)
+        today = before['readiness']['date']
+        night = [x for x in self.raw['sleep'] if not x['nap'] and bd.day(x['created_at']) == today][0]
+        end = bd.parse(night['end']) + timedelta(hours=7)
+        nap = json.loads(json.dumps(night))
+        nap.update({'id': 'nap-test', 'nap': True, 'start': (end - timedelta(hours=2)).isoformat(),
+                    'end': end.isoformat(), 'created_at': (end + timedelta(minutes=8)).isoformat()})
+        raw = dict(self.raw, sleep=self.raw['sleep'] + [nap])
+        after = bd.build_summary(raw)
+        self.assertEqual(after['readiness']['date'], today)
+        self.assertNotEqual(after['readiness']['score'], before['readiness']['score'])
+        self.assertGreater(after['last_night']['nap_h'], before['last_night']['nap_h'])
