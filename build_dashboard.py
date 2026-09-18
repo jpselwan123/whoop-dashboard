@@ -289,9 +289,12 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #     baseline (resting HR flipped, so higher = better); the score is their average with equal
 #     weights (no study gives validated weights: Dawes 1979) on the T scale, 50 + 10 × average
 #     — 50 = exactly your normal, 10 points = 1 SD.
-#   - Answer: within or above normal (45+, i.e. not below −0.5 SD) → Train hard; below → Go easy
-#     (Javaloyes 2019; Kiviniemi et al. 2007); 1.5 SD or more below (under 35) → Rest, the line
-#     Thornton et al. 2019 give for a change worth acting on.
+#   - Answer, the way the trials prescribed the day's session (Kiviniemi et al. 2007; Vesterinen
+#     et al. 2016; Javaloyes et al. 2019): above the normal band (55+, i.e. more than +0.5 SD, the
+#     smallest worthwhile change) → Train hard; inside the band (45–54) → Train as planned, the
+#     trials' moderate/prescribed session; below it (35–44) → Go easy; 1.5 SD or more below
+#     (under 35) → Rest, the line Thornton et al. 2019 give for a change worth acting on.
+#     One prescription per day: the trials read HRV each morning and set that day's session.
 #   - No more than 2 hard (moderate/high-intensity) days in a row (Carrasco-Poyatos et al. 2020).
 #   - Breathing rate 3+ breaths/min above the person's usual rate (average of the nights 30–90
 #     days before, at least 30 nights) — an illness sign (Natarajan et al. 2021) → Rest.
@@ -403,6 +406,8 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
             answer, reasons = 'easy', ['low']
         elif streak >= MAX_HARD_DAYS_IN_A_ROW:
             answer, reasons = 'easy', ['streak']
+        elif score < READY_LINES['above']:
+            answer, reasons = 'moderate', []
         else:
             answer, reasons = 'hard', []
         series.append({'date': d, 'v': score, 'answer': answer})
@@ -440,23 +445,25 @@ def readiness_progress(hrv_by_day):
 # tested with Welch's t-test. A consistency check, not independent proof — recovery shares HRV and
 # resting HR with the answer.
 def build_readiness_check(series, recovery_by_day):
-    """Next-morning recovery after days with each answer; Train hard vs the rest tested with Welch's
-    t-test. A consistency check, not independent proof (recovery shares HRV and resting HR)."""
-    groups = {'hard': [], 'easy': [], 'rest': []}
+    """Next-morning recovery after days with each answer; the green/blue answers vs the yellow/red
+    ones tested with Welch's t-test. A consistency check, not independent proof (recovery shares
+    HRV and resting HR)."""
+    groups = {'hard': [], 'moderate': [], 'easy': [], 'rest': []}
     for p in series:
         nxt = (datetime.fromisoformat(p['date']) + timedelta(days=1)).date().isoformat()
         if nxt in recovery_by_day:
             groups[p['answer']].append(recovery_by_day[nxt])
+    upper = groups['hard'] + groups['moderate']
     lower = groups['easy'] + groups['rest']
-    p = welch_p(groups['hard'], lower)
-    enough = len(groups['hard']) >= MIN_GROUP and len(lower) >= MIN_GROUP
+    p = welch_p(upper, lower)
+    enough = len(upper) >= MIN_GROUP and len(lower) >= MIN_GROUP
     return {
         'answers': [{'answer': k, 'avg_next_recovery': round(mean(v), 1) if v else None, 'days': len(v)}
                     for k, v in groups.items()],
         'days': sum(len(v) for v in groups.values()),
         'enough': enough,
         'significant': bool(enough and p is not None and p < SIGNIFICANCE),
-        'hard_higher': bool(groups['hard'] and lower and mean(groups['hard']) > mean(lower)),
+        'hard_higher': bool(upper and lower and mean(upper) > mean(lower)),
     }
 
 

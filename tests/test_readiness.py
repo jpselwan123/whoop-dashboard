@@ -1,6 +1,6 @@
 """Readiness: 7-day HRV, resting HR and sleep, each a standard score vs the 7-day averages of the
-previous 4 weeks, averaged on the T scale (50 = normal). 45+ Train hard, 35–44 Go easy, under 35 Rest;
-Rest on a breathing-rate illness sign, Go easy after 2 hard days in a row."""
+previous 4 weeks, averaged on the T scale (50 = normal). 55+ Train hard, 45–54 Train as planned,
+35–44 Go easy, under 35 Rest; Rest on a breathing-rate illness sign, Go easy after 2 hard days in a row."""
 import math, random, unittest
 from datetime import date, timedelta
 from helpers import generate, build_dashboard as bd
@@ -27,11 +27,13 @@ def steady(n=70, hrv=80.0, rhr=55.0, rr=15.0):
 
 
 class ProtocolTest(unittest.TestCase):
-    def test_normal_week_means_hard_training_ok(self):
+    def test_normal_week_means_train_as_planned(self):
+        """Inside the normal band the trials prescribed the planned session, not a hard one."""
         h, r, b, _ = steady()
         latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertEqual((latest['answer'], latest['reasons']), ('hard', []))
+        self.assertEqual((latest['answer'], latest['reasons']), ('moderate', []))
         self.assertEqual(latest['hrv']['state'], 'within')
+        self.assertTrue(45 <= latest['score'] < 55)
 
     def test_hrv_drop_over_the_week_means_easy(self):
         h, r, b, ds = steady()
@@ -43,7 +45,7 @@ class ProtocolTest(unittest.TestCase):
         self.assertLess(latest['score'], 45)
         self.assertEqual(latest['hrv']['state'], 'below')
 
-    def test_higher_hrv_is_still_hard_training_ok(self):
+    def test_hrv_above_the_band_means_train_hard(self):
         h, r, b, ds = steady()
         for d in ds[-7:]:
             h[d] *= 1.4
@@ -62,7 +64,7 @@ class ProtocolTest(unittest.TestCase):
         h, r, b, ds = steady()
         h[ds[-1]] *= 0.93
         latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertEqual(latest['answer'], 'hard')
+        self.assertEqual(latest['answer'], 'moderate')
 
     def test_normal_range_is_fixed_within_a_week(self):
         h, r, b, ds = steady(n=70)
@@ -120,7 +122,7 @@ class ProtocolTest(unittest.TestCase):
         latest, _ = bd.build_readiness(h, r, b, {ds[-2], ds[-3]})
         self.assertEqual((latest['answer'], latest['reasons']), ('easy', ['streak']))
         latest, _ = bd.build_readiness(h, r, b, {ds[-2], ds[-4]})
-        self.assertEqual(latest['answer'], 'hard')
+        self.assertEqual(latest['answer'], 'moderate')
 
     def test_breathing_rate_3_above_usual_means_easy(self):
         h, r, b, ds = steady(n=100)
@@ -148,7 +150,7 @@ class ProtocolTest(unittest.TestCase):
         summary = bd.build_summary(generate(120))
         for key in ('readiness', 'readiness_progress', 'readiness_check', 'last_night', 'sleep_nights'):
             self.assertIn(key, summary)
-        self.assertIn(summary['readiness']['answer'], ('hard', 'easy'))
+        self.assertIn(summary['readiness']['answer'], ('hard', 'moderate', 'easy', 'rest'))
 
 
 class ScoreTest(unittest.TestCase):
@@ -183,14 +185,23 @@ class ScoreTest(unittest.TestCase):
 
     def test_answer_lines_on_the_score(self):
         h, r, b, ds = steady()
-        for factor, expected in ((1.0, 'hard'), (0.93, 'easy'), (0.6, 'rest')):
+        for factor in (1.4, 1.0, 0.93, 0.6):
             hh = dict(h)
             for d in ds[-7:]:
                 hh[d] = h[d] * factor
             latest, _ = bd.build_readiness(hh, r, b, set())
             s = latest['score']
-            self.assertEqual(latest['answer'], 'hard' if s >= 45 else 'easy' if s >= 35 else 'rest', (factor, s))
+            want = 'hard' if s >= 55 else 'moderate' if s >= 45 else 'easy' if s >= 35 else 'rest'
+            self.assertEqual(latest['answer'], want, (factor, s))
         self.assertEqual(latest['lines'], {'above': 55, 'train': 45, 'rest': 35})
+
+    def test_the_four_bands_are_the_swc_and_rest_lines(self):
+        """Band edges are +0.5 SD, -0.5 SD and -1.5 SD on the T scale: 55 / 45 / 35."""
+        h, r, b, _ = steady()
+        latest, _ = bd.build_readiness(h, r, b, set())
+        L = latest['lines']
+        self.assertEqual([L['above'], L['train'], L['rest']],
+                         [50 + 10 * 0.5, 50 - 10 * 0.5, 50 - 10 * 1.5])
 
     def test_breathing_sign_means_rest_even_with_a_normal_score(self):
         h, r, b, ds = steady(n=100)
@@ -212,7 +223,7 @@ class ScoreTest(unittest.TestCase):
     def test_series_carries_score_and_answer(self):
         h, r, b, _ = steady()
         _, series = bd.build_readiness(h, r, b, set())
-        self.assertTrue(all(0 <= p['v'] <= 100 and p['answer'] in ('hard', 'easy', 'rest') for p in series))
+        self.assertTrue(all(0 <= p['v'] <= 100 and p['answer'] in ('hard', 'moderate', 'easy', 'rest') for p in series))
 
 
 class StatisticsTest(unittest.TestCase):

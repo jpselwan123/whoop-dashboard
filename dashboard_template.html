@@ -638,14 +638,16 @@ const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); 
 
 // Readiness (build_readiness in build_dashboard.py): 7-day HRV, resting HR and hours asleep, each as
 // a standard score vs your previous 4 weeks, averaged with equal weights on the T scale (50 = your
-// normal, 10 points = 1 SD; Thornton et al. 2019). 45+ Train hard, 35–44 Go easy, under 35 Rest.
-// Also Rest when breathing rate is 3+ above usual, Go easy after 2 hard days in a row, and done for
-// today after a moderate/high-intensity session. Sources are in the README.
+// normal, 10 points = 1 SD; Thornton et al. 2019). 55+ Train hard, 45–54 Train as planned,
+// 35–44 Go easy, under 35 Rest. Also Rest when breathing rate is 3+ above usual, and Go easy after
+// 2 hard days in a row. The plan is one session a day — once trained, it is Done. Sources: README.
 const ACTIONS = {
-  hard:     {label:'Train hard', c:'var(--good)',     bg:'var(--good-bg)',     headline:'Ready to train hard.'},
-  easy:     {label:'Go easy',    c:'var(--warn)',     bg:'var(--warn-bg)',     headline:'Go easy today.'},
-  rest:     {label:'Rest',       c:'var(--critical)', bg:'var(--critical-bg)', headline:'Rest today.'},
-  learning: {label:'Learning',   c:'var(--accent)',   bg:'var(--accent-soft)', headline:'Learning your normal.'},
+  hard:     {label:'Train hard',       c:'var(--good)',      bg:'var(--good-bg)',     headline:'Ready to train hard.'},
+  moderate: {label:'Train as planned', c:'var(--accent)',    bg:'var(--accent-soft)', headline:'Train as planned today.'},
+  easy:     {label:'Go easy',          c:'var(--warn)',      bg:'var(--warn-bg)',     headline:'Go easy today.'},
+  rest:     {label:'Rest',             c:'var(--critical)',  bg:'var(--critical-bg)', headline:'Rest today.'},
+  done:     {label:'Done for today',   c:'var(--ink-muted)', bg:'var(--surface-2)',   headline:'Today’s session is done.'},
+  learning: {label:'Learning',         c:'var(--accent)',    bg:'var(--accent-soft)', headline:'Learning your normal.'},
 };
 const INTENSITY_WORD = {easy:'easy', moderate:'moderate-intensity', hard:'high-intensity'};
 const MARKER_NAME = {hrv:'HRV', rhr:'resting HR', sleep:'sleep'};
@@ -655,12 +657,24 @@ function computeReadiness(){
   const snap = DATA.today_snapshot;
   const snapIsToday = !!(snap && snap.date === todayLocalISO());
   const sessions = snapIsToday ? (snap.workouts || []) : [];
-  const hardToday = sessions.filter(w => w.intensity === 'moderate' || w.intensity === 'hard');
-  if(!R) return { action:'learning', reasons:[], sessions, hardToday, R:null };
-  let action = R.answer, reasons = [...R.reasons];
-  if(hardToday.length && action === 'hard'){ action = 'easy'; reasons = ['session']; }
-  else if(hardToday.length) reasons.push('session');
-  return { action, reasons, sessions, hardToday, R };
+  if(!R) return { action:'learning', plan:'learning', reasons:[], sessions, R:null };
+  // The score prescribes one session a day, the way the HRV-guided trials did. Once you have
+  // trained, today's plan is spent — the answer stops asking for more (unless it says Rest,
+  // which is about your body, not the plan).
+  const plan = R.answer, trained = sessions.length > 0;
+  const action = (trained && plan !== 'rest') ? 'done' : plan;
+  return { action, plan, reasons:[...R.reasons], sessions, trained, R };
+}
+
+const SESSION_RANK = {easy:1, strength:1, moderate:2, hard:3};
+const PLAN_RANK = {rest:0, easy:1, moderate:2, hard:3};
+// What you did today, in words: "padel, 1h 47m, easy"
+function sessionsText(calc){
+  return listAnd(calc.sessions.map(w => `${w.sport} (${fmtHM(w.dur_min / 60)}, ${w.intensity ? INTENSITY_WORD[w.intensity] : 'strength'})`));
+}
+function hardestToday(calc){
+  return calc.sessions.reduce((a, w) =>
+    (SESSION_RANK[w.intensity || 'strength'] || 1) > (SESSION_RANK[a.intensity || 'strength'] || 1) ? w : a, calc.sessions[0]);
 }
 
 const one = v => (Math.round(v * 10) / 10).toFixed(1);
@@ -680,8 +694,17 @@ function reasonText(calc, key){
   }
   if(key === 'breathing') return `last night's breathing rate was ${one(R.breathing.value)} /min, 3 or more above your usual ${one(R.breathing.usual)} — a possible sign of illness`;
   if(key === 'streak') return `you've trained hard ${R.hard_days_in_a_row} days in a row (limit ${R.max_hard_days})`;
-  if(key === 'session') return `you already did a ${INTENSITY_WORD[calc.hardToday[0].intensity]} session today (${calc.hardToday[0].sport})`;
   return '';
+}
+
+// Why the score landed where it did — used when there is no flag to report.
+function scoreText(calc){
+  const R = calc.R;
+  const better = ['hrv','rhr','sleep'].filter(k => R[k] && R[k].state === (k === 'rhr' ? 'below' : 'above')).map(k => `7-day ${MARKER_NAME[k]}`);
+  const N = R.last_night;
+  if(N && N.state === 'above') better.unshift('last night');
+  return better.length ? `readiness ${R.score}, with ${listAnd(better)} above your normal`
+                       : `readiness ${R.score}, everything within your normal range`;
 }
 
 function decisionWhy(calc){
@@ -689,15 +712,12 @@ function decisionWhy(calc){
     const P = DATA.readiness_progress;
     return `Readiness needs 4 full weeks of data to learn your normal — day ${Math.min(P.days, P.needed)} of ${P.needed}.`;
   }
-  if(calc.reasons.length) return sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))));
-  const R = calc.R;
-  const better = ['hrv','rhr','sleep'].filter(k => R[k] && R[k].state === (k === 'rhr' ? 'below' : 'above')).map(k => `7-day ${MARKER_NAME[k]}`);
-  const N = R.last_night;
-  if(N && N.state !== 'within') better[N.state === 'above' ? 'unshift' : 'push'](`last night${N.state === 'below' ? ' (below normal)' : ''}`);
-  const above = better.filter(x => !x.includes('below'));
-  const inputs = ['HRV', 'resting HR', 'sleep'].concat(R.last_night ? ['last night'] : []);
-  return above.length ? `Readiness ${R.score}: ${listAnd(above)} better than your normal, the rest within it.`
-                      : `Readiness ${R.score}: ${listAnd(inputs)} are all within your normal range.`;
+  const why = calc.reasons.length ? listAnd(calc.reasons.map(k => reasonText(calc, k))) : scoreText(calc);
+  if(calc.action !== 'done') return sentence(why);
+  const done = sentence(`you've trained today — ${sessionsText(calc)}`);
+  const metPlan = (SESSION_RANK[hardestToday(calc).intensity || 'strength'] || 1) >= PLAN_RANK[calc.plan];
+  return `${done} Today's plan was <b>${ACTIONS[calc.plan].label.toLowerCase()}</b> (${why})` +
+         (metPlan ? ' — that’s done.' : ', so a harder session is still within it if you want one.');
 }
 
 function renderDecision(){
@@ -707,7 +727,7 @@ function renderDecision(){
   $('statePill').style.setProperty('--state-color', A.c);
   $('statePill').style.setProperty('--state-bg', A.bg);
   $('statePill').textContent = A.label;
-  $('decisionHeadline').textContent = calc.reasons.includes('session') ? 'Done for today — recover.' : A.headline;
+  $('decisionHeadline').textContent = A.headline;
   $('decisionWhy').innerHTML = decisionWhy(calc);
 
   const R = calc.R;
@@ -727,7 +747,8 @@ function renderDecision(){
     $('orbCap').textContent = 'Learning';
     $('readyScale').hidden = true;
   }
-  drawSphere('orb', {hard:148, easy:42, rest:6, learning:222}[calc.action]);
+  // the orb keeps the score's own colour, matching the scale under it, even when today is done
+  drawSphere('orb', {hard:148, moderate:222, easy:42, rest:6, learning:222}[calc.action === 'done' ? calc.plan : calc.action]);
   renderSuggestions(calc);
   window.__readinessCalc = calc;
 }
@@ -737,18 +758,26 @@ function renderSuggestions(calc){
   if(calc.action === 'learning'){
     sEl.className = 'signal';
     sTxt.innerHTML = `<b>Train as usual while your normal is being learned.</b>`;
-  } else if(calc.reasons.includes('session')){
+  } else if(calc.action === 'done'){
+    const level = hardestToday(calc).intensity;
     sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>You're done for today.</b> Heart and nervous-system recovery takes 24–48 hours after a moderate or high-intensity session.`;
+    sTxt.innerHTML = `<b>You've trained today.</b> ` + (level === 'hard'
+      ? 'Heart and nervous-system recovery takes about 48 hours after a high-intensity session, so keep tomorrow easy unless readiness says otherwise.'
+      : level === 'moderate'
+      ? 'Recovery from a moderate session takes about 24 hours — tomorrow’s score will show how you took it.'
+      : 'Low-intensity sessions are usually recovered from within 24 hours — tomorrow’s score will show how you took it.');
   } else if(calc.action === 'rest'){
     sEl.className = 'signal warn';
     sTxt.innerHTML = `<b>Rest today.</b> ${sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))))}`;
   } else if(calc.action === 'easy'){
     sEl.className = 'signal warn';
     sTxt.innerHTML = `<b>Keep today easy.</b> ${sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))))}`;
+  } else if(calc.action === 'moderate'){
+    sEl.className = 'signal ok';
+    sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is inside your normal range (${calc.R.lines.train}–${calc.R.lines.above - 1}) — no reason to push harder or hold back.`;
   } else {
     sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>Hard training is OK today.</b> Readiness ${calc.R.score} is within or above your normal.`;
+    sTxt.innerHTML = `<b>A hard session is OK today.</b> Readiness ${calc.R.score} is above your normal (${calc.R.lines.above}+).`;
   }
 
   const tips = [];
@@ -1479,8 +1508,8 @@ function renderReadinessCheck(){
   const C = DATA.readiness_check, card = $('checkCard');
   if(!C || !C.days){ card.hidden = true; return; }
   card.hidden = false;
-  const label = {hard:'Train hard', easy:'Go easy', rest:'Rest'};
-  const color = {hard:'var(--good)', easy:'var(--warn)', rest:'var(--critical)'};
+  const label = {hard:'Train hard', moderate:'Train as planned', easy:'Go easy', rest:'Rest'};
+  const color = {hard:'var(--good)', moderate:'var(--accent)', easy:'var(--warn)', rest:'var(--critical)'};
   const rows = C.answers.filter(r => r.days);
   $('checkDays').textContent = `${C.days} days`;
   $('checkRows').innerHTML = `<div class="check-row head"><span class="k">What readiness said</span><span class="d"></span><span class="v">recovery next morning</span></div>` + rows.map(r => `
@@ -1492,9 +1521,9 @@ function renderReadinessCheck(){
   const best = rows.reduce((a, b) => b.avg_next_recovery > a.avg_next_recovery ? b : a, rows[0]);
   $('checkCaption').textContent = !C.enough
     ? 'Not enough days yet to say whether the score is telling you anything.'
-    : !C.significant ? "So far the three groups recover about the same — the score hasn't proved itself yet."
-    : C.hard_higher ? `You recover best after "Train hard" days (${Math.round(rows[0].avg_next_recovery)}) and worst after the days it told you to back off — the pattern is too clear to be chance, so the score is tracking something real.`
-    : `You recover best after "${label[best.answer]}" days, not after "Train hard" days — most likely because Train hard days are when you train hardest.`;
+    : !C.significant ? "So far the groups recover about the same — the score hasn't proved itself yet."
+    : C.hard_higher ? `You recover best after the days it gave you a green light (${Math.round(rows[0].avg_next_recovery)}) and worst after the days it told you to back off — the pattern is too clear to be chance, so the score is tracking something real.`
+    : `You recover best after "${label[best.answer]}" days — most likely because the green-light days are when you train hardest.`;
 }
 
 function renderRecords(){
@@ -1611,7 +1640,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
   function render(){
     const calc = window.__readinessCalc; if(!calc) return;
     const R = calc.R, L = DATA.last_night;
-    $('rpScore').textContent = R ? `· ${R.score} · ${ACTIONS[calc.action].label}` : '· Learning';
+    $('rpScore').textContent = R ? `· ${R.score} · ${ACTIONS[calc.plan].label}` : '· Learning';
     $('rpSub').textContent = 'How ready you are to train today, 50 = your normal.';
     const out = [];
     if(!R){
@@ -1625,16 +1654,17 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
         out.push(R[k] ? row(label, markerValue(k, R[k]), markerRange(k, R[k]), cls(k)) : row(label, '—', 'not enough data', ''));
       if(R.last_night) out.push(row('Last night · all three', `${R.last_night.score}`, '50 = normal', R.last_night.state === 'below' ? 'flagged' : R.last_night.state === 'above' ? 'good' : ''));
       out.push(row('Readiness', `${R.score}`, '50 = normal', 'current'));
-      out.push(section('Answer', 'readiness'));
-      const cur = calc.action, L2 = R.lines;
-      out.push(row('Train hard', `${L2.train}+`, '', cur === 'hard' ? 'current' : ''));
+      out.push(section('Today’s plan', 'readiness'));
+      const cur = calc.plan, L2 = R.lines;
+      out.push(row('Train hard', `${L2.above}+`, '', cur === 'hard' ? 'current' : ''));
+      out.push(row('Train as planned', `${L2.train}–${L2.above - 1}`, '', cur === 'moderate' ? 'current' : ''));
       out.push(row('Go easy', `${L2.rest}–${L2.train - 1}`, '', cur === 'easy' ? 'current' : ''));
       out.push(row('Rest', `under ${L2.rest}`, '', cur === 'rest' ? 'current' : ''));
       out.push(section('Also checked', 'today / limit'));
       if(R.breathing) out.push(row('Breathing rate · last night', `${one(R.breathing.value)} /min`, `rest at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
       out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
       for(const w of calc.sessions)
-        out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, w.intensity === 'moderate' || w.intensity === 'hard' ? 'flagged' : ''));
+        out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));
     }
     if(L){
       out.push(section('Last night', 'information only'));
@@ -1643,7 +1673,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(row('Asleep', fmtHM(L.asleep_h), L.nap_h ? `+ ${fmtHM(L.nap_h)} nap` : '', ''));
       out.push(row('WHOOP recovery', `${Math.round(L.recovery)}`, '', ''));
     }
-    out.push(`<div class="rp-note">Each measure is compared with your previous 4 weeks (updated each Monday) — the 7-day average against your 7-day averages, last night against your single nights — and all six are averaged equally: every 10 points is one standard deviation from your normal. Breathing rate 3+ above your usual means rest; after 2 hard days in a row or a hard session today, go easy.</div>`);
+    out.push(`<div class="rp-note">Each measure is compared with your previous 4 weeks (updated each Monday) — the 7-day average against your 7-day averages, last night against your single nights — and all six are averaged equally: every 10 points is one standard deviation from your normal. Breathing rate 3+ above your usual means rest; after 2 hard days in a row, go easy. The plan is one session a day — once you have trained, it is done.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 

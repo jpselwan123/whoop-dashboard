@@ -46,9 +46,10 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   without a workout). Statistical comparisons use Welch's t-test, p < 0.05, 30+ per group.
 - **Readiness** (`build_readiness`) = one 0–100 score, 50 = normal: 7-day ln-RMSSD HRV, resting HR and hours
   asleep (3+ readings) each a standard score vs the 7-day averages of the 4 weeks before the current week
-  (sample SD, each week 3+ readings), RHR flipped, equal weights, T scale 50 + 10z (Thornton 2019). Answer:
-  45+ Train hard · 35–44 Go easy · <35 Rest (`READY_LINES`); Rest on breathing +3/min; Go easy after 2 hard
-  days in a row or (page) a hard session today. Last night is information only. JP wants ONE score from all
+  (sample SD, each week 3+ readings), RHR flipped, equal weights, T scale 50 + 10z (Thornton 2019). It sets
+  the day's plan, one session a day as in the trials: 55+ Train hard · 45–54 Train as planned · 35–44 Go easy ·
+  <35 Rest (`READY_LINES`); Rest on breathing +3/min; Go easy after 2 hard days in a row. Once any session is
+  logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Last night is information only. JP wants ONE score from all
   measures AND every rule sourced — keep both.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
   (`intensity_minutes`, proportional split); session level = where most time was. Strength sessions: none.

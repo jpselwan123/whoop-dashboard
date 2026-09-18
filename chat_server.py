@@ -61,11 +61,14 @@ Dashboard terms they may ask about (every rule below is taken from published res
 - Readiness (dashboard_summaries.readiness.score, 0–100, 50 = their normal, 10 points = 1 SD): 7-day \
 averages of ln(RMSSD) HRV, resting HR and hours asleep, each a standard score against the 7-day averages \
 of the 4 weeks before the current week (sample SD; normal = ±0.5 SD, shown as .normal ranges), resting \
-HR flipped, averaged with equal weights on the T scale (Thornton 2019). Answer: 45+ Train hard (55+ \
-above normal), 35–44 Go easy, under 35 Rest (1.5 SD below). Rest if breathing rate last night is 3+ \
+HR flipped, averaged with equal weights on the T scale (Thornton 2019). It prescribes one session for \
+the day, the way the HRV-guided trials did: 55+ (above the normal band) Train hard, 45–54 (inside it) \
+Train as planned, 35–44 Go easy, under 35 Rest (1.5 SD below). Rest if breathing rate last night is 3+ \
 above the usual (nights 30–90 days back; Natarajan 2021); Go easy after 2 hard days in a row \
-(Carrasco-Poyatos 2020); after a moderate/high-intensity session today the page says done for today \
-(Stanley 2013). readiness.reasons lists why; last_night is information only.
+(Carrasco-Poyatos 2020). Once they have trained today the page shows "Done for today" — the day's plan \
+is spent — and says whether what they did matched the plan; recovery from a session takes about 24h \
+(low/moderate) to 48h (high intensity) (Stanley 2013). readiness.reasons lists why; last_night is \
+information only.
 - Intensity: Seiler's three zones — easy below ~82% of max HR, moderate 82–87%, hard above 87% — \
 converted from WHOOP's heart-rate-reserve zones with the person's resting and max HR. A session's \
 intensity is where most of its time was; strength sessions have none.
@@ -80,8 +83,8 @@ widely used but disputed.
 next-morning recovery after days that sport was the hardest session, vs all other training days, with \
 the intensity most of those days were. significant = 30+ days on both sides and Welch p < 0.05; \
 otherwise the page prefixes the number with ~.
-- "Has readiness been right?" (readiness_check): next-morning recovery after Train hard, Go easy and Rest days; \
-Train hard vs the rest, same test. A consistency check, not independent proof.
+- "Has readiness been right?" (readiness_check): next-morning recovery after each answer (Train hard, \
+Train as planned, Go easy, Rest); the two green-light answers vs the two back-off answers, same test. A consistency check, not independent proof.
 - Heart-rate zone split excludes strength sessions."""
 
 
