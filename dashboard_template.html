@@ -137,7 +137,6 @@
   .rs-seg{height:100%;border-radius:2px;opacity:.55;}
   .rs-seg.rest{background:var(--critical);} .rs-seg.easy{background:var(--warn);} .rs-seg.train{background:var(--accent);} .rs-seg.push{background:var(--good);}
   .rs-marker{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px var(--surface);transition:left .6s cubic-bezier(.2,.7,.2,1);}
-  .rs-ticks{height:14px;margin-top:7px;text-align:center;font-size:10.5px;color:var(--ink-faint);letter-spacing:0.01em;}
   .hero-legend{grid-column:1 / -1;display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;
     padding-top:12px;border-top:1px solid var(--border);font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);}
   .hero-legend b{font-weight:600;font-size:9px;} .hero-legend .up{color:var(--good);} .hero-legend .down{color:var(--critical);margin-left:1px;}
@@ -411,7 +410,6 @@
       </div>
       <div class="ready-scale" id="readyScale" aria-hidden="true">
         <div class="rs-track"><span class="rs-seg rest"></span><span class="rs-seg easy"></span><span class="rs-seg train"></span><span class="rs-seg push"></span><span class="rs-marker" id="rsMarker"></span></div>
-        <div class="rs-ticks"><span id="rsBand">—</span></div>
       </div>
     </div>
     <div class="flank right" id="flankLoad"></div>
@@ -698,12 +696,14 @@ function reasonText(calc, key){
 
 // Why the score landed where it did — used when there is no flag to report.
 function scoreText(calc){
-  const R = calc.R;
+  const R = calc.R, N = R.last_night;
   const better = ['hrv','rhr','sleep'].filter(k => R[k] && R[k].state === (k === 'rhr' ? 'below' : 'above')).map(k => `7-day ${MARKER_NAME[k]}`);
-  const N = R.last_night;
-  if(N && N.state === 'above') better.unshift('last night');
-  return better.length ? `readiness ${R.score}, with ${listAnd(better)} above your normal`
-                       : `readiness ${R.score}, everything within your normal range`;
+  const night = N && N.state !== 'within' ? `last night was ${N.state} your normal` : '';
+  if(better.length && N && N.state === 'above') return `readiness ${R.score}, with ${listAnd(better.concat(['last night']))} above your normal`;
+  if(better.length) return `readiness ${R.score}, with ${listAnd(better)} above your normal` + (night ? `, though ${night}` : '');
+  // a low night with normal weeks is the usual reason for a middling score — say so, don't claim all-normal
+  if(night) return `readiness ${R.score}: your last 7 days are all within your normal, but ${night}`;
+  return `readiness ${R.score}, everything within your normal range`;
 }
 
 function decisionWhy(calc){
@@ -739,8 +739,6 @@ function renderDecision(){
     $('readyScale').querySelectorAll('.rs-seg').forEach((el, i) => { el.style.flex = String(widths[i]); });
     const pos = v => ((clamp(v, lo, hi) - lo) / (hi - lo) * 100) + '%';
     $('rsMarker').style.left = pos(R.score);
-    // the cut-offs are not printed on the bar — the one sentence that makes the scale readable is
-    $('rsBand').textContent = `better than ${R.score}% of your own days`;
     $('readyScale').hidden = false;
   } else {
     $('orbNum').textContent = '—';
@@ -1641,44 +1639,46 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
     const calc = window.__readinessCalc; if(!calc) return;
     const R = calc.R, L = DATA.last_night;
     $('rpScore').textContent = R ? `· ${R.score} · ${ACTIONS[calc.plan].label}` : '· Learning';
-    $('rpSub').textContent = 'How ready you are to train today, out of 100 of your own days.';
+    $('rpSub').textContent = 'Where today sits among your own days.';
     const out = [];
     if(!R){
       const P = DATA.readiness_progress;
       out.push(section('Learning your normal', ''));
       out.push(row('Days of data', `${Math.min(P.days, P.needed)}`, `${P.needed} needed`, 'current'));
     } else {
-      out.push(section('Measures · 7-day avg', 'today / your normal'));
+      // last night first, then the 7-day average and its normal range — the hero shows last night,
+      // so the two HRV numbers a person sees on one screen sit side by side here
+      out.push(section('Your body', 'last night / 7-day avg · normal'));
       const cls = k => markerWorse(k, R[k]) ? 'flagged' : R[k].state === 'within' ? '' : 'good';
-      for(const [k, label] of [['hrv','HRV'], ['rhr','Resting HR'], ['sleep','Asleep']])
-        out.push(R[k] ? row(label, markerValue(k, R[k]), markerRange(k, R[k]), cls(k)) : row(label, '—', 'not enough data', ''));
-      if(R.last_night) out.push(row('Last night · all three', `${R.last_night.score}`, '50 = your median', R.last_night.state === 'below' ? 'flagged' : R.last_night.state === 'above' ? 'good' : ''));
-      out.push(row('Readiness', `${R.score}`, '50 = your median day', 'current'));
-      out.push(section('Today’s plan', 'how often this comes up'));
+      const nightVal = {hrv: L && `${L.hrv} ms`, rhr: L && `${Math.round(L.rhr)} bpm`,
+                        sleep: L && fmtHM(L.asleep_h) + (L.nap_h ? ` + ${fmtHM(L.nap_h)} nap` : '')};
+      for(const [k, label] of [['hrv','HRV'], ['rhr','Resting HR'], ['sleep','Asleep']]){
+        if(!R[k]){ out.push(row(label, '—', 'not enough data', '')); continue; }
+        // the unit is already on the value, so the faded 7-day part goes without it
+        const avg = k === 'sleep' ? fmtHM(R[k].value) : one(R[k].value).replace(/\.0$/, '');
+        out.push(row(label, nightVal[k] || markerValue(k, R[k]),
+                     `${avg} · ${markerRange(k, R[k])}`, cls(k)));
+      }
+      out.push(section('Today’s plan', 'score · how often'));
       const cur = calc.plan, L2 = R.lines;
-      // the cut-offs on their own look like random numbers, so each one is shown as what it has
-      // actually meant for you: the share of your scored days that landed in that band
+      // the cut-offs alone look like random numbers, so each is shown as what it has actually meant
+      // for you: the share of your scored days that landed in that band
       const all = DATA.full_series.readiness || [];
       const share = (lo, hi) => !all.length ? '' :
-        `${Math.round(100 * all.filter(p => p.v >= lo && p.v <= hi).length / all.length)}% of your days`;
-      out.push(row('Train hard', `${L2.above}+`, share(L2.above, 100), cur === 'hard' ? 'current' : ''));
-      out.push(row('Train as planned', `${L2.train}–${L2.above - 1}`, share(L2.train, L2.above - 1), cur === 'moderate' ? 'current' : ''));
-      out.push(row('Go easy', `${L2.rest}–${L2.train - 1}`, share(L2.rest, L2.train - 1), cur === 'easy' ? 'current' : ''));
-      out.push(row('Rest', `under ${L2.rest}`, share(0, L2.rest - 1), cur === 'rest' ? 'current' : ''));
+        `${Math.round(100 * all.filter(p => p.v >= lo && p.v <= hi).length / all.length)}% of days`;
+      const band = (label, key, lo, hi, text) =>
+        out.push(row(label, text, share(lo, hi), cur === key ? 'current' : ''));
+      band('Train hard', 'hard', L2.above, 100, `${L2.above}+`);
+      band('Train as planned', 'moderate', L2.train, L2.above - 1, `${L2.train}–${L2.above - 1}`);
+      band('Go easy', 'easy', L2.rest, L2.train - 1, `${L2.rest}–${L2.train - 1}`);
+      band('Rest', 'rest', 0, L2.rest - 1, `under ${L2.rest}`);
       out.push(section('Also checked', 'today / limit'));
-      if(R.breathing) out.push(row('Breathing rate · last night', `${one(R.breathing.value)} /min`, `rest at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
+      if(R.breathing) out.push(row('Breathing rate', `${one(R.breathing.value)} /min`, `rest at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
       out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
       for(const w of calc.sessions)
         out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));
     }
-    if(L){
-      out.push(section('Last night', 'information only'));
-      out.push(row('HRV', `${L.hrv} ms`, '', ''));
-      out.push(row('Resting HR', `${Math.round(L.rhr)} bpm`, '', ''));
-      out.push(row('Asleep', fmtHM(L.asleep_h), L.nap_h ? `+ ${fmtHM(L.nap_h)} nap` : '', ''));
-      out.push(row('WHOOP recovery', `${Math.round(L.recovery)}`, '', ''));
-    }
-    out.push(`<div class="rp-note">Each measure is compared with your previous 4 weeks (updated each Monday) — the 7-day average against your 7-day averages, last night against your single nights — and all six are averaged equally. The average is then placed among your own days, so the score reads like a ranking: 50 is a median day for you. The four lines are not round numbers because they are not chosen — they are the training trials' own cut-offs (half a standard deviation either side of your normal, and 1.5 below it) converted to this scale. They land close to WHOOP's own recovery colours, which change at 34 and 67. Breathing rate 3+ above your usual means rest; after 2 hard days in a row, go easy. The plan is one session a day — once you have trained, it is done.</div>`);
+    out.push(`<div class="rp-note">Each measure is compared with your own previous 4 weeks, updated every Monday; the six comparisons are averaged and placed among your own days, so 50 is your middle day. The four lines are the training trials' own cut-offs — half a standard deviation either side of your normal, and 1.5 below it — on this scale.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 
