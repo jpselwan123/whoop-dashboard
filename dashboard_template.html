@@ -137,8 +137,7 @@
   .rs-seg{height:100%;border-radius:2px;opacity:.55;}
   .rs-seg.rest{background:var(--critical);} .rs-seg.easy{background:var(--warn);} .rs-seg.train{background:var(--accent);} .rs-seg.push{background:var(--good);}
   .rs-marker{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px var(--surface);transition:left .6s cubic-bezier(.2,.7,.2,1);}
-  .rs-ticks{position:relative;height:14px;margin-top:5px;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);}
-  .rs-ticks span{position:absolute;transform:translateX(-50%);}
+  .rs-ticks{height:14px;margin-top:7px;text-align:center;font-size:10.5px;color:var(--ink-faint);letter-spacing:0.01em;}
   .hero-legend{grid-column:1 / -1;display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;
     padding-top:12px;border-top:1px solid var(--border);font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);}
   .hero-legend b{font-weight:600;font-size:9px;} .hero-legend .up{color:var(--good);} .hero-legend .down{color:var(--critical);margin-left:1px;}
@@ -412,7 +411,7 @@
       </div>
       <div class="ready-scale" id="readyScale" aria-hidden="true">
         <div class="rs-track"><span class="rs-seg rest"></span><span class="rs-seg easy"></span><span class="rs-seg train"></span><span class="rs-seg push"></span><span class="rs-marker" id="rsMarker"></span></div>
-        <div class="rs-ticks"><span id="rsT1">—</span><span id="rsT2">—</span><span id="rsT3">—</span></div>
+        <div class="rs-ticks"><span id="rsBand">—</span></div>
       </div>
     </div>
     <div class="flank right" id="flankLoad"></div>
@@ -740,7 +739,8 @@ function renderDecision(){
     $('readyScale').querySelectorAll('.rs-seg').forEach((el, i) => { el.style.flex = String(widths[i]); });
     const pos = v => ((clamp(v, lo, hi) - lo) / (hi - lo) * 100) + '%';
     $('rsMarker').style.left = pos(R.score);
-    [['rsT1', L.rest], ['rsT2', L.train], ['rsT3', L.above]].forEach(([id, v]) => { $(id).style.left = pos(v); $(id).textContent = v; });
+    // the cut-offs are not printed on the bar — the one sentence that makes the scale readable is
+    $('rsBand').textContent = `better than ${R.score}% of your own days`;
     $('readyScale').hidden = false;
   } else {
     $('orbNum').textContent = '—';
@@ -1654,12 +1654,17 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
         out.push(R[k] ? row(label, markerValue(k, R[k]), markerRange(k, R[k]), cls(k)) : row(label, '—', 'not enough data', ''));
       if(R.last_night) out.push(row('Last night · all three', `${R.last_night.score}`, '50 = your median', R.last_night.state === 'below' ? 'flagged' : R.last_night.state === 'above' ? 'good' : ''));
       out.push(row('Readiness', `${R.score}`, '50 = your median day', 'current'));
-      out.push(section('Today’s plan', 'readiness'));
+      out.push(section('Today’s plan', 'how often this comes up'));
       const cur = calc.plan, L2 = R.lines;
-      out.push(row('Train hard', `${L2.above}+`, '', cur === 'hard' ? 'current' : ''));
-      out.push(row('Train as planned', `${L2.train}–${L2.above - 1}`, '', cur === 'moderate' ? 'current' : ''));
-      out.push(row('Go easy', `${L2.rest}–${L2.train - 1}`, '', cur === 'easy' ? 'current' : ''));
-      out.push(row('Rest', `under ${L2.rest}`, '', cur === 'rest' ? 'current' : ''));
+      // the cut-offs on their own look like random numbers, so each one is shown as what it has
+      // actually meant for you: the share of your scored days that landed in that band
+      const all = DATA.full_series.readiness || [];
+      const share = (lo, hi) => !all.length ? '' :
+        `${Math.round(100 * all.filter(p => p.v >= lo && p.v <= hi).length / all.length)}% of your days`;
+      out.push(row('Train hard', `${L2.above}+`, share(L2.above, 100), cur === 'hard' ? 'current' : ''));
+      out.push(row('Train as planned', `${L2.train}–${L2.above - 1}`, share(L2.train, L2.above - 1), cur === 'moderate' ? 'current' : ''));
+      out.push(row('Go easy', `${L2.rest}–${L2.train - 1}`, share(L2.rest, L2.train - 1), cur === 'easy' ? 'current' : ''));
+      out.push(row('Rest', `under ${L2.rest}`, share(0, L2.rest - 1), cur === 'rest' ? 'current' : ''));
       out.push(section('Also checked', 'today / limit'));
       if(R.breathing) out.push(row('Breathing rate · last night', `${one(R.breathing.value)} /min`, `rest at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
       out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
@@ -1673,7 +1678,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(row('Asleep', fmtHM(L.asleep_h), L.nap_h ? `+ ${fmtHM(L.nap_h)} nap` : '', ''));
       out.push(row('WHOOP recovery', `${Math.round(L.recovery)}`, '', ''));
     }
-    out.push(`<div class="rp-note">Each measure is compared with your previous 4 weeks (updated each Monday) — the 7-day average against your 7-day averages, last night against your single nights — and all six are averaged equally. The average is then placed among your own days, so the score reads like a ranking: 50 is a median day for you, 69+ happens on about 3 days in 10, under 7 on about 1 day in 15. Breathing rate 3+ above your usual means rest; after 2 hard days in a row, go easy. The plan is one session a day — once you have trained, it is done.</div>`);
+    out.push(`<div class="rp-note">Each measure is compared with your previous 4 weeks (updated each Monday) — the 7-day average against your 7-day averages, last night against your single nights — and all six are averaged equally. The average is then placed among your own days, so the score reads like a ranking: 50 is a median day for you. The four lines are not round numbers because they are not chosen — they are the training trials' own cut-offs (half a standard deviation either side of your normal, and 1.5 below it) converted to this scale. They land close to WHOOP's own recovery colours, which change at 34 and 67. Breathing rate 3+ above your usual means rest; after 2 hard days in a row, go easy. The plan is one session a day — once you have trained, it is done.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 
