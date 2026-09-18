@@ -691,6 +691,7 @@ function reasonText(calc, key){
   }
   if(key === 'breathing') return `last night's breathing rate was ${one(R.breathing.value)} /min, 3 or more above your usual ${one(R.breathing.usual)} — a possible sign of illness`;
   if(key === 'streak') return `you've trained hard ${R.hard_days_in_a_row} days in a row (limit ${R.max_hard_days})`;
+  if(key === 'days_low') return `readiness has been below your normal ${R.days_below_normal} days in a row — a run of low days, not one low night, is what counts`;
   return '';
 }
 
@@ -1661,20 +1662,21 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       }
       out.push(section('Today’s plan', 'score · how often'));
       const cur = calc.plan, L2 = R.lines;
-      // the cut-offs alone look like random numbers, so each is shown as what it has actually meant
-      // for you: the share of your scored days that landed in that band
+      // each line shown as what it has actually meant for you — the share of your days that got
+      // that answer, so the cut-offs read as your own history rather than as arbitrary numbers
       const all = DATA.full_series.readiness || [];
-      const share = (lo, hi) => !all.length ? '' :
-        `${Math.round(100 * all.filter(p => p.v >= lo && p.v <= hi).length / all.length)}% of days`;
-      const band = (label, key, lo, hi, text) =>
-        out.push(row(label, text, share(lo, hi), cur === key ? 'current' : ''));
-      band('Train hard', 'hard', L2.above, 100, `${L2.above}+`);
-      band('Train as planned', 'moderate', L2.train, L2.above - 1, `${L2.train}–${L2.above - 1}`);
-      band('Go easy', 'easy', L2.rest, L2.train - 1, `${L2.rest}–${L2.train - 1}`);
-      band('Rest', 'rest', 0, L2.rest - 1, `under ${L2.rest}`);
+      const share = key => !all.length ? '' :
+        `${Math.round(100 * all.filter(p => p.a === key).length / all.length)}% of days`;
+      const band = (label, key, text) =>
+        out.push(row(label, text, share(key), cur === key ? 'current' : ''));
+      band('Train hard', 'hard', `${L2.above}+`);
+      band('Train as planned', 'moderate', `${L2.train}–${L2.above - 1}`);
+      band('Go easy', 'easy', `${L2.rest}–${L2.train - 1}`);
+      band('Rest', 'rest', `under ${L2.rest}, or ${R.days_low_to_rest} days low`);
       out.push(section('Also checked', 'today / limit'));
       if(R.breathing) out.push(row('Breathing rate', `${one(R.breathing.value)} /min`, `rest at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
       out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
+      out.push(row('Days below your normal', `${R.days_below_normal}`, `rest at ${R.days_low_to_rest}`, R.days_below_normal >= R.days_low_to_rest ? 'flagged' : ''));
       for(const w of calc.sessions)
         out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));
     }

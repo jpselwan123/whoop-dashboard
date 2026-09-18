@@ -287,13 +287,18 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #     for last night alone (single days keep the response to yesterday visible: Schneider et al.
 #     2019; Kiviniemi et al. 2007; Nuuttila et al. 2024). Each becomes a standard score vs its own
 #     baseline (resting HR flipped, so higher = better); the score is their average with equal
-#     weights (no study gives validated weights: Dawes 1979) on the T scale, 50 + 10 × average
-#     — 50 = exactly your normal, 10 points = 1 SD.
+#     weights (no study gives validated weights: Dawes 1979), then standardised against the spread
+#     of the person's own earlier composites and shown as a percentile of them (`percentile_series`)
+#     — 50 = your median day; the SD lines above become 69 / 31 / 7.
 #   - Answer, the way the trials prescribed the day's session (Kiviniemi et al. 2007; Vesterinen
-#     et al. 2016; Javaloyes et al. 2019): above the normal band (55+, i.e. more than +0.5 SD, the
-#     smallest worthwhile change) → Train hard; inside the band (45–54) → Train as planned, the
-#     trials' moderate/prescribed session; below it (35–44) → Go easy; 1.5 SD or more below
-#     (under 35) → Rest, the line Thornton et al. 2019 give for a change worth acting on.
+#     et al. 2016; Javaloyes et al. 2019): above the normal band (69+, i.e. more than +0.5 SD, the
+#     smallest worthwhile change) → Train hard; inside the band → Train as planned, the trials'
+#     moderate/prescribed session; below it → Go easy or Rest ("low intensity exercise (or passive
+#     rest) is prescribed when values are suppressed" — Manresa-Rocamora et al. 2021). Rest when the
+#     fall is large (1.5 SD below, the line Thornton et al. 2019 give as worth acting on) or
+#     sustained — the third day in a row below the band, since the method papers act on a sustained
+#     fall rather than one low night (Plews et al. 2013; Buchheit 2014) — but never more than two
+#     rest days in a row (Kiviniemi et al. 2007 cap consecutive rest days; detraining).
 #     One prescription per day: the trials read HRV each morning and set that day's session.
 #   - No more than 2 hard (moderate/high-intensity) days in a row (Carrasco-Poyatos et al. 2020).
 #   - Breathing rate 3+ breaths/min above the person's usual rate (average of the nights 30–90
@@ -316,6 +321,13 @@ READY_LINES = {'above': round(normal_percentile(READY_SWC)),
                'train': round(normal_percentile(-READY_SWC)),
                'rest': round(normal_percentile(-READY_REST_SD))}
 MAX_HARD_DAYS_IN_A_ROW = 2
+# Below the normal band the trials prescribe "low intensity exercise (or passive rest)"
+# (Manresa-Rocamora et al. 2021). Which of the two is decided the way the method papers say to read
+# HRV — by a sustained fall, not one low night (Plews et al. 2013; Buchheit 2014): the third day in
+# a row below your normal is a rest day. Never more than two rest days in a row, the same limit
+# HRV-guided protocols put on consecutive rest days to avoid detraining (Kiviniemi et al. 2007).
+DAYS_LOW_TO_REST = 3
+MAX_REST_DAYS_IN_A_ROW = 2
 BREATHING_RISE = 3.0
 BREATHING_BASELINE = (30, 90)
 BREATHING_MIN_NIGHTS = 30
@@ -450,24 +462,38 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
     pct_all, pct_night = percentile_series(raw_all), percentile_series(raw_night)
 
     series, latest = [], None
+    scores, answers = {}, {}           # by day, for the sustained-suppression rule below
     for d in sorted(pct_all):
         hrv, rest, sleep, night = measured[d]
         score = pct_all[d][0]
+        scores[d] = score
         night_score, night_z = pct_night.get(d, (None, None))   # information only, same scale
         breathing = breathing_check(rr_by_day, d)
         streak = hard_days_in_a_row(hard_days, d)
+        days_below = 0                 # consecutive calendar days below the normal band, today included
+        cur = d
+        while scores.get(cur) is not None and scores[cur] < READY_LINES['train']:
+            days_below += 1
+            cur = _date_minus(cur, 1)
         if breathing and breathing['flagged']:
             answer, reasons = 'rest', ['breathing']
         elif score < READY_LINES['rest']:
             answer, reasons = 'rest', ['low']
         elif score < READY_LINES['train']:
-            answer, reasons = 'easy', ['low']
+            # below the normal band the trials prescribe low intensity OR rest; a sustained fall is
+            # what the method papers act on, and two rest days in a row is the limit
+            rested = [answers.get(_date_minus(d, k)) == 'rest' for k in (1, 2)]
+            if days_below >= DAYS_LOW_TO_REST and not all(rested):
+                answer, reasons = 'rest', ['days_low']
+            else:
+                answer, reasons = 'easy', ['low']
         elif streak >= MAX_HARD_DAYS_IN_A_ROW:
             answer, reasons = 'easy', ['streak']
         elif score < READY_LINES['above']:
             answer, reasons = 'moderate', []
         else:
             answer, reasons = 'hard', []
+        answers[d] = answer
         series.append({'date': d, 'v': score, 'answer': answer})
         marker = lambda m, unit_fn: None if m is None else {'value': unit_fn(m['avg']), 'normal': [unit_fn(m['lo']), unit_fn(m['hi'])],
                                                             'state': m['state']}
@@ -481,6 +507,7 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
                 'state': ('above' if night_z > READY_SWC else 'below' if night_z < -READY_SWC else 'within'),
                 'measures': sum(1 for m in night if m)},
             'breathing': breathing, 'hard_days_in_a_row': streak, 'max_hard_days': MAX_HARD_DAYS_IN_A_ROW,
+            'days_below_normal': days_below, 'days_low_to_rest': DAYS_LOW_TO_REST,
         }
     return latest, series
 
@@ -785,7 +812,8 @@ def build_summary(d):
     for sl in list(sleep) + list(naps):
         sleep_h_by_day[day(sl['created_at'])] += asleep_ms(sl) / 3600000
     readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day)
-    full['readiness'] = [{'date': p['date'], 'v': p['v']} for p in readiness_series]
+    # 'a' = the answer that day, so the page can show how often each one actually comes up
+    full['readiness'] = [{'date': p['date'], 'v': p['v'], 'a': p['answer']} for p in readiness_series]
     readiness_check = build_readiness_check(readiness_series, recovery_by_day)
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
         entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(

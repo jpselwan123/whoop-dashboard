@@ -66,7 +66,10 @@ HR flipped, averaged with equal weights (Thornton 2019), then standardised again
 own earlier scores and read off the normal curve as a percentile (averaging standard scores shrinks \
 their spread, so the average is not on a 1-SD scale of its own). It prescribes one session for \
 the day, the way the HRV-guided trials did: 69+ (above the +0.5 SD line) Train hard, 31–68 (inside the \
-band) Train as planned, 7–30 Go easy, under 7 Rest (1.5 SD below). Rest if breathing rate last night is 3+ \
+band) Train as planned, and below the band Go easy or Rest: rest when the fall is large (under 7, \
+1.5 SD below) or sustained - the 3rd day in a row below the band - and never more than 2 rest days in \
+a row (Manresa-Rocamora 2021 "low intensity exercise (or passive rest)"; Plews 2013 and Buchheit 2014 \
+on reading sustained rather than single-day changes; Kiviniemi 2007 on consecutive rest days). Rest if breathing rate last night is 3+ \
 above the usual (nights 30–90 days back; Natarajan 2021); Go easy after 2 hard days in a row \
 (Carrasco-Poyatos 2020). Once they have trained today the page shows "Done for today" — the day's plan \
 is spent — and says whether what they did matched the plan; recovery from a session takes about 24h \

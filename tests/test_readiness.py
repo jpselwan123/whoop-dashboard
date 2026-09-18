@@ -17,7 +17,7 @@ LN_PATTERN = (0.0, 0.05, -0.05, 0.1, -0.1, 0.03, -0.03)
 HR_PATTERN = (0.0, 1.0, -1.0, 2.0, -2.0, 0.5, -0.5)
 
 
-def steady(n=112, hrv=80.0, rhr=55.0, rr=15.0):
+def steady(n=112, hrv=80.0, rhr=55.0, rr=15.0, flat_last=1):
     """Enough history for an answer (4 baseline weeks, then 4 weeks of scored days) and data that
     moves the way real data does: a level for each week and day-to-day noise on top. Without both,
     the score's own spread is near zero and one ordinary night reads as extreme.
@@ -35,7 +35,8 @@ def steady(n=112, hrv=80.0, rhr=55.0, rr=15.0):
         wk = [(rnd.gauss(0, 0.09), rnd.gauss(0, 1.8)) for _ in range(7)]
         mh, mr = mean(x[0] for x in wk), mean(x[1] for x in wk)
         noise += [(a - mh, b_ - mr) for a, b_ in wk]
-    noise[n - 1] = (0.0, 0.0)               # an utterly ordinary last night
+    for i in range(n - flat_last, n):       # utterly ordinary nights at the end
+        noise[i] = (0.0, 0.0)
     return ({d: hrv * math.exp(LN_PATTERN[i % 7] + level[i // 7] + noise[i][0]) for i, d in enumerate(ds)},
             {d: rhr + HR_PATTERN[i % 7] - 12 * level[i // 7] + noise[i][1] for i, d in enumerate(ds)},
             {d: rr + HR_PATTERN[i % 7] * 0.1 for i, d in enumerate(ds)}, ds)
@@ -141,6 +142,38 @@ class ProtocolTest(unittest.TestCase):
         self.assertEqual((latest['answer'], latest['reasons']), ('easy', ['streak']))
         latest, _ = bd.build_readiness(h, r, b, {ds[-2], ds[-4]})
         self.assertEqual(latest['answer'], 'moderate')
+
+    def test_rest_needs_a_run_of_low_days_not_one(self):
+        """Below the band the trials prescribe low intensity OR rest; a sustained fall - not one
+        low night - is what the method papers act on, so rest waits for the third day in a row."""
+        h, r, b, ds = steady(flat_last=8)
+        for d in ds[-8:]:                       # a sustained dip, mild enough to stay in the band
+            h[d] *= 0.93
+        _, series = bd.build_readiness(h, r, b, set())
+        lines, runs = None, {}
+        for p in series:
+            lines = lines or p
+            prev = (date.fromisoformat(p['date']) - timedelta(days=1)).isoformat()
+            runs[p['date']] = (runs.get(prev, 0) + 1) if p['v'] < 31 else 0
+        by_day = {p['date']: p for p in series}
+        rests = [d for d, p in by_day.items() if p['answer'] == 'rest']
+        self.assertTrue(rests, 'a sustained dip must produce rest days')
+        for d in rests:                         # every rest is a big drop or the 3rd low day
+            self.assertTrue(by_day[d]['v'] < 7 or runs[d] >= 3, (d, by_day[d]['v'], runs[d]))
+        for d, p in by_day.items():             # one or two low days on their own stay easy
+            if 7 <= p['v'] < 31 and runs[d] < 3:
+                self.assertEqual(p['answer'], 'easy', (d, p['v'], runs[d]))
+
+    def test_never_more_than_two_rest_days_in_a_row(self):
+        """A long dip must not turn into an open-ended rest block (detraining)."""
+        h, r, b, ds = steady(flat_last=8)
+        for d in ds[-8:]:
+            h[d] *= 0.93
+        _, series = bd.build_readiness(h, r, b, set())
+        answers = [p['answer'] for p in series]
+        self.assertIn('rest', answers[-8:])
+        for i in range(2, len(answers)):
+            self.assertNotEqual(answers[i - 2:i + 1], ['rest'] * 3, answers[-10:])
 
     def test_breathing_rate_3_above_usual_means_easy(self):
         h, r, b, ds = steady(n=100)
