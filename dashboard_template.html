@@ -185,10 +185,12 @@
   .chart-empty-msg{font-size:12.5px;color:var(--ink-faint);padding:20px 0;text-align:center;}
   .chart-tooltip{
     position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);
-    font-family:"IBM Plex Mono",monospace;font-size:11px;padding:5px 9px;border-radius:6px;
-    transform:translate(-50%,-115%);white-space:nowrap;opacity:0;transition:opacity .1s;z-index:5;
+    font-family:"IBM Plex Mono",monospace;font-size:11px;padding:6px 10px;border-radius:7px;
+    box-shadow:0 4px 14px -6px rgba(0,0,0,.6);transform:translate(-50%,-125%);white-space:nowrap;opacity:0;transition:opacity .1s;z-index:5;
   }
-  .axis-label{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:var(--ink-faint);}
+  .axis-label{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:var(--ink-faint);font-variant-numeric:tabular-nums;}
+  .axis-label.end-label{fill:var(--ink);font-weight:600;font-size:11px;}
+  .chart-tooltip b{font-weight:600;}
   .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;}
   .legend .li{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-muted);}
   .legend .sw{width:9px;height:9px;border-radius:2px;}
@@ -597,6 +599,7 @@ const $ = (id) => document.getElementById(id);
 const fmt1 = (n) => (Math.round(n*10)/10).toFixed(1).replace(/\.0$/,'');
 const fmtDate = (iso) => new Date(iso+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
 const fmtHM = (hoursDecimal) => {
+  if(hoursDecimal < 0) return '−' + fmtHM(-hoursDecimal);   // a sign once, never "-1h -15m"
   let totalMin = Math.round(hoursDecimal * 60);
   let h = Math.floor(totalMin / 60), m = totalMin % 60;
   if(h === 0 && m === 0) return '0m';
@@ -1033,88 +1036,174 @@ function niceTicksRounded(min,max,targetCount){
   return ticks;
 }
 
+// Line chart on a true time axis. Points sit at their dates (a gap in wear is empty space, never a
+// straight line drawn across months); axis ticks are round numbers; the area is a fading wash; the
+// latest value is labelled at the end of the line. Long windows show the 7-day average as the line
+// and the daily values as a faint trace behind it, so a year reads as a trend rather than noise.
+const DAY_MS = 86400000, GAP_DAYS = 7, SMOOTH_ABOVE_DAYS = 120;
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const dayMs = iso => Date.parse(iso + 'T00:00:00Z');
+const shortDate = (iso, withYear) => { const d = new Date(dayMs(iso)); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${withYear ? ' ' + String(d.getUTCFullYear()).slice(2) : ''}`; };
+const monthYear = iso => { const d = new Date(dayMs(iso)); return `${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`; };
+let chartSeq = 0;
+
+// 7-day calendar average ending on each point (3+ readings, like the rest of the dashboard)
+function rolling7(points){
+  const out = []; let j = 0, sum = 0;
+  for(let i = 0; i < points.length; i++){
+    sum += points[i].v;
+    while(dayMs(points[i].date) - dayMs(points[j].date) > 6 * DAY_MS){ sum -= points[j].v; j++; }
+    const n = i - j + 1;
+    out.push(n >= 3 ? sum / n : null);
+  }
+  return out;
+}
+
 function lineChart(wrapId, tooltipId, points, opts){
   const wrap = $(wrapId);
   wrap.querySelectorAll('svg').forEach(s=>s.remove());
   wrap.querySelectorAll('.chart-empty-msg').forEach(s=>s.remove());
   const tooltip = $(tooltipId);
+  tooltip.style.opacity = 0;
   if(!points || points.length === 0){
-    tooltip.style.opacity = 0;
     const msg = document.createElement('div');
     msg.className = 'chart-empty-msg';
     msg.textContent = 'No data for this metric yet.';
     wrap.insertBefore(msg, tooltip);
     return;
   }
-  const W=wrap.clientWidth||opts.width||760, H=opts.height||220, padL=40, padR=14, padT=14, padB=26;
-  const plotW = W-padL-padR, plotH = H-padT-padB;
-  const vals = points.map(p=>p.v);
-  let min = Math.min(...vals), max = Math.max(...vals);
-  if(opts.refLines) for(const r of opts.refLines){ min=Math.min(min,r.v); max=Math.max(max,r.v); }
-  const pad = (max-min)*0.12 || 1;
-  min -= pad; max += pad;
-  if(opts.bounds){ min = Math.max(min, opts.bounds[0]); max = Math.min(max, opts.bounds[1]); }
-  const x = i => padL + (i/(points.length-1))*plotW;
-  const y = v => padT + plotH - ((v-min)/(max-min))*plotH;
+  const fmtV = v => opts.valueFormatter ? opts.valueFormatter(v) : (opts.decimals===0 ? String(Math.round(v)) : opts.decimals===2 ? v.toFixed(2) : fmt1(v));
+  const unit = opts.valueFormatter ? '' : (opts.unit || '');
+  const t0 = dayMs(points[0].date), t1 = dayMs(points[points.length-1].date);
+  const spanDays = (t1 - t0) / DAY_MS;
+  const smooth = opts.smooth !== false && spanDays > SMOOTH_ABOVE_DAYS;
+  const avg = smooth ? rolling7(points) : null;
 
-  const svg = svgEl('svg', {viewBox:`0 0 ${W} ${H}`, preserveAspectRatio:'none'});
+  // y domain: data (+ threshold lines), padded, snapped to round ticks, never past the bounds
+  const vals = points.map(p=>p.v);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  for(const r of (opts.refLines || [])){ lo = Math.min(lo, r.v); hi = Math.max(hi, r.v); }
+  // measures that can't go negative (HRV, heart rate, strain, hours) never get an axis below zero
+  const b0 = opts.bounds ? opts.bounds[0] : (Math.min(...vals) >= 0 ? 0 : -Infinity);
+  const b1 = opts.bounds ? opts.bounds[1] : Infinity;
+  let ticks;
+  if(opts.fixedTicks){ ticks = opts.fixedTicks.slice(); lo = ticks[0]; hi = ticks[ticks.length-1]; }
+  else {
+    const padv = (hi - lo) * 0.04 || Math.abs(hi) * 0.1 || 1;
+    lo = Math.max(lo - padv, b0); hi = Math.min(hi + padv, b1);
+    ticks = niceTicksRounded(lo, hi, 4);
+    lo = Math.max(ticks[0], b0); hi = Math.min(ticks[ticks.length-1], b1);
+    ticks = ticks.filter(t => t >= lo - 1e-9 && t <= hi + 1e-9);
+  }
+  if(hi === lo) hi = lo + 1;
+
+  const W = wrap.clientWidth || opts.width || 760, H = opts.height || 220;
+  const tickText = ticks.map(t => fmtV(t));
+  const padL = Math.max(28, Math.max(...tickText.map(t => t.length)) * 6.3 + 12);
+  const padR = 44, padT = 16, padB = 28;          // right padding leaves room for the end label
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const x = iso => padL + (t1 === t0 ? plotW / 2 : (dayMs(iso) - t0) / (t1 - t0) * plotW);
+  const y = v => padT + plotH - ((clamp(v, lo, hi) - lo) / (hi - lo)) * plotH;
+
+  const svg = svgEl('svg', {viewBox:`0 0 ${W} ${H}`, role:'img'});
+  const gid = 'lg' + (++chartSeq);
+  const defs = svgEl('defs', {});
+  const grad = svgEl('linearGradient', {id:gid, x1:0, y1:0, x2:0, y2:1});
+  grad.appendChild(svgEl('stop', {offset:'0%', 'stop-color':opts.color, 'stop-opacity':0.22}));
+  grad.appendChild(svgEl('stop', {offset:'100%', 'stop-color':opts.color, 'stop-opacity':0}));
+  defs.appendChild(grad); svg.appendChild(defs);
 
   if(opts.bands) for(const b of opts.bands){
-    const y0 = y(Math.min(b.from,max)), y1 = y(Math.max(b.to,min));
-    svg.appendChild(svgEl('rect',{x:padL,y:y0,width:plotW,height:Math.max(y1-y0,0),fill:b.color,opacity:b.opacity||0.10}));
+    const ya = y(Math.min(b.to, hi)), yb = y(Math.max(b.from, lo));
+    if(yb - ya > 0) svg.appendChild(svgEl('rect',{x:padL, y:ya, width:plotW, height:yb-ya, fill:b.color, opacity:b.opacity||0.08}));
   }
-  const yticks = opts.fixedTicks ? opts.fixedTicks.filter(t=>t>=min&&t<=max)
-    : opts.niceTicks ? niceTicksRounded(min,max,5).filter(t=>t>=min&&t<=max) : niceTicks(min,max,3);
-  for(const t of yticks){
-    svg.appendChild(svgEl('line',{x1:padL,y1:y(t),x2:W-padR,y2:y(t),stroke:'var(--border)','stroke-width':1}));
-    const lbl = svgEl('text',{x:4,y:y(t)+3,class:'axis-label'}); lbl.textContent = opts.valueFormatter ? opts.valueFormatter(t) : (opts.decimals===0?Math.round(t):opts.decimals===2?t.toFixed(2):fmt1(t));
+  // recessive grid: solid hairlines, labels right-aligned to the plot edge
+  ticks.forEach((t, i) => {
+    svg.appendChild(svgEl('line',{x1:padL, y1:y(t), x2:padL+plotW, y2:y(t), stroke:'var(--border)', 'stroke-width':1}));
+    const lbl = svgEl('text',{x:padL-8, y:y(t)+3.5, class:'axis-label', 'text-anchor':'end'});
+    lbl.textContent = tickText[i]; svg.appendChild(lbl);
+  });
+  // thresholds are the one dashed element — they mark a line to watch, not a grid
+  for(const r of (opts.refLines || [])){
+    if(r.v < lo || r.v > hi) continue;
+    svg.appendChild(svgEl('line',{x1:padL, y1:y(r.v), x2:padL+plotW, y2:y(r.v), stroke:r.color, 'stroke-width':1, 'stroke-dasharray':'2 4', opacity:0.75}));
+  }
+  // x labels evenly spaced in time — the axis is time, so a gap in wear keeps its true width
+  const nX = t1 === t0 ? 1 : (W < 480 ? 3 : 5);
+  const longSpan = spanDays > 300;
+  for(let k = 0; k < nX; k++){
+    const tk = nX === 1 ? t0 : t0 + (t1 - t0) * k / (nX - 1);
+    const iso = new Date(tk).toISOString().slice(0, 10);
+    const lbl = svgEl('text',{x:x(iso), y:H-8, class:'axis-label', 'text-anchor': nX === 1 ? 'middle' : k===0 ? 'start' : k===nX-1 ? 'end' : 'middle'});
+    lbl.textContent = longSpan ? monthYear(iso) : shortDate(iso);
     svg.appendChild(lbl);
   }
-  if(opts.refLines) for(const r of opts.refLines){
-    const ry = y(r.v);
-    const l = svgEl('line',{x1:padL,y1:ry,x2:W-padR,y2:ry,stroke:r.color,'stroke-width':1,'stroke-dasharray':'3,3',opacity:0.7});
-    svg.appendChild(l);
-  }
-  const nLabels = Math.min(W<480?4:6, points.length);
-  for(let i=0;i<nLabels;i++){
-    const idx = Math.round(i*(points.length-1)/(nLabels-1||1));
-    const d = new Date(points[idx].date);
-    const span = (new Date(points[points.length-1].date) - new Date(points[0].date))/86400000;
-    const txt = span>400 ? d.toLocaleDateString(undefined,{month:'short',year:'2-digit'}) : d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-    const lbl = svgEl('text',{x:x(idx), y:H-6, class:'axis-label','text-anchor': i===0?'start':(i===nLabels-1?'end':'middle')});
-    lbl.textContent = txt; svg.appendChild(lbl);
+
+  // split into runs wherever wear stopped for more than a week — a gap is shown, not bridged
+  const runs = []; let run = [];
+  points.forEach((p, i) => {
+    if(i > 0 && dayMs(p.date) - dayMs(points[i-1].date) > GAP_DAYS * DAY_MS){ runs.push(run); run = []; }
+    run.push(i);
+  });
+  runs.push(run);
+  const pathOf = (idxs, valOf) => {
+    let d = '', pen = false;
+    for(const i of idxs){
+      const v = valOf(i);
+      if(v == null){ pen = false; continue; }
+      d += (pen ? 'L' : 'M') + x(points[i].date).toFixed(1) + ',' + y(v).toFixed(1) + ' ';
+      pen = true;
+    }
+    return d;
+  };
+  const mainVal = i => smooth ? avg[i] : points[i].v;
+  for(const idxs of runs){
+    const valid = idxs.filter(i => mainVal(i) != null);
+    if(valid.length >= 2){
+      const line = pathOf(valid, mainVal);
+      const area = line + `L${x(points[valid[valid.length-1]].date).toFixed(1)},${padT+plotH} L${x(points[valid[0]].date).toFixed(1)},${padT+plotH} Z`;
+      svg.appendChild(svgEl('path',{d:area, fill:`url(#${gid})`}));
+    }
+    if(smooth) svg.appendChild(svgEl('path',{d:pathOf(idxs, i => points[i].v), fill:'none', stroke:opts.color, 'stroke-width':0.8, opacity:0.16, 'stroke-linejoin':'round'}));
+    svg.appendChild(svgEl('path',{d:pathOf(idxs, mainVal), fill:'none', stroke:opts.color, 'stroke-width':2, 'stroke-linecap':'round', 'stroke-linejoin':'round'}));
   }
 
-  let d = '';
-  points.forEach((p,i)=>{ d += (i===0?'M':'L')+x(i).toFixed(1)+','+y(p.v).toFixed(1)+' '; });
-  const area = d + `L${x(points.length-1).toFixed(1)},${padT+plotH} L${x(0).toFixed(1)},${padT+plotH} Z`;
-  svg.appendChild(svgEl('path',{d:area, fill:opts.color, opacity:0.10}));
-  svg.appendChild(svgEl('path',{d, fill:'none', stroke:opts.color, 'stroke-width':2, 'stroke-linecap':'round', 'stroke-linejoin':'round'}));
-  const last = points[points.length-1];
-  svg.appendChild(svgEl('circle',{cx:x(points.length-1),cy:y(last.v),r:3.4,fill:opts.color}));
+  // latest value: end dot with a surface ring, and the number beside it
+  const li = points.length - 1, lastV = points[li].v;
+  const ex = x(points[li].date), ey = y(lastV);
+  svg.appendChild(svgEl('circle',{cx:ex, cy:ey, r:4, fill:opts.color, stroke:'var(--surface)', 'stroke-width':2}));
+  const endLbl = svgEl('text',{x:ex+8, y:ey+4, class:'axis-label end-label'});
+  endLbl.textContent = fmtV(lastV); svg.appendChild(endLbl);
 
-  const hoverDot = svgEl('circle',{r:4.2, fill:opts.color, stroke:'var(--surface)','stroke-width':2, opacity:0});
-  const hoverLine = svgEl('line',{y1:padT,y2:padT+plotH, stroke:'var(--ink-faint)','stroke-width':1, opacity:0});
+  // hover: a crosshair that snaps to the nearest day
+  const hoverLine = svgEl('line',{y1:padT, y2:padT+plotH, stroke:'var(--ink-faint)', 'stroke-width':1, opacity:0});
+  const hoverDot = svgEl('circle',{r:4.5, fill:opts.color, stroke:'var(--surface)', 'stroke-width':2, opacity:0});
   svg.appendChild(hoverLine); svg.appendChild(hoverDot);
-  const overlay = svgEl('rect',{x:padL,y:padT,width:plotW,height:plotH, fill:'transparent'});
+  const overlay = svgEl('rect',{x:padL, y:0, width:plotW, height:H, fill:'transparent'});
   svg.appendChild(overlay);
-
-  function showAt(clientX, rectLeft, rectWidth){
-    const relX = clamp((clientX-rectLeft)/rectWidth*W, padL, W-padR);
-    const i = clamp(Math.round((relX-padL)/plotW*(points.length-1)), 0, points.length-1);
-    const px = x(i), py = y(points[i].v);
-    hoverDot.setAttribute('cx',px); hoverDot.setAttribute('cy',py); hoverDot.setAttribute('opacity',1);
-    hoverLine.setAttribute('x1',px); hoverLine.setAttribute('x2',px); hoverLine.setAttribute('opacity',1);
-    const pct = px/W*100, ptop = py/H*100;
-    tooltip.style.left = pct+'%'; tooltip.style.top = ptop+'%'; tooltip.style.opacity = 1;
-    const dd = points[i].date;
-    const vv = opts.valueFormatter ? opts.valueFormatter(points[i].v) : (opts.decimals===0?Math.round(points[i].v):opts.decimals===2?points[i].v.toFixed(2):fmt1(points[i].v));
-    const vunit = opts.valueFormatter ? '' : (opts.unit||'');
-    tooltip.textContent = `${dd} · ${vv}${vunit}`;
+  const xs = points.map(p => x(p.date));
+  function showAt(clientX){
+    const r = wrap.getBoundingClientRect();
+    const relX = (clientX - r.left) / r.width * W;
+    let a = 0, b = xs.length - 1;
+    while(b - a > 1){ const m = (a + b) >> 1; if(xs[m] < relX) a = m; else b = m; }
+    const i = Math.abs(xs[a] - relX) <= Math.abs(xs[b] - relX) ? a : b;
+    const py = y(mainVal(i) != null ? mainVal(i) : points[i].v);
+    hoverLine.setAttribute('x1', xs[i]); hoverLine.setAttribute('x2', xs[i]); hoverLine.setAttribute('opacity', 1);
+    hoverDot.setAttribute('cx', xs[i]); hoverDot.setAttribute('cy', py); hoverDot.setAttribute('opacity', 1);
+    tooltip.style.left = (xs[i] / W * 100) + '%'; tooltip.style.top = (py / H * 100) + '%'; tooltip.style.opacity = 1;
+    const d = new Date(dayMs(points[i].date));
+    tooltip.textContent = '';
+    const vb = document.createElement('b'); vb.textContent = fmtV(points[i].v) + unit; tooltip.appendChild(vb);
+    tooltip.appendChild(document.createTextNode(`  ${WEEKDAYS[d.getUTCDay()]} ${shortDate(points[i].date, longSpan)}`));
+    if(smooth && avg[i] != null) tooltip.appendChild(document.createTextNode(` · 7-day ${fmtV(avg[i])}${unit}`));
   }
-  overlay.addEventListener('mousemove', (e)=>{ const r = wrap.getBoundingClientRect(); showAt(e.clientX, r.left, r.width); });
-  overlay.addEventListener('mouseleave', ()=>{ hoverDot.setAttribute('opacity',0); hoverLine.setAttribute('opacity',0); tooltip.style.opacity=0; });
-  overlay.addEventListener('touchmove', (e)=>{ const t=e.touches[0]; const r=wrap.getBoundingClientRect(); showAt(t.clientX, r.left, r.width); }, {passive:true});
+  const hide = () => { hoverLine.setAttribute('opacity', 0); hoverDot.setAttribute('opacity', 0); tooltip.style.opacity = 0; };
+  overlay.addEventListener('mousemove', e => showAt(e.clientX));
+  overlay.addEventListener('mouseleave', hide);
+  overlay.addEventListener('touchmove', e => showAt(e.touches[0].clientX), {passive:true});
+  overlay.addEventListener('touchend', hide);
 
   wrap.insertBefore(svg, tooltip);
 }
@@ -1239,10 +1328,10 @@ const METRICS = [
   {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
   {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:"WHOOP's Sleep Performance. Since WHOOP's 2025 update it blends hours vs needed with consistency, efficiency and sleep stress; readiness uses hours vs needed on its own."},
-  {key:'hrv', label:'HRV', unit:'ms', decimals:0, formula:'recovery.score.hrv_rmssd_milli — overnight HRV (RMSSD), /v2/recovery.'},
-  {key:'rhr', label:'RHR', unit:'bpm', decimals:0, formula:'recovery.score.resting_heart_rate, /v2/recovery.'},
+  {key:'hrv', label:'HRV', unit:' ms', decimals:0, formula:'recovery.score.hrv_rmssd_milli — overnight HRV (RMSSD), /v2/recovery.'},
+  {key:'rhr', label:'RHR', unit:' bpm', decimals:0, formula:'recovery.score.resting_heart_rate, /v2/recovery.'},
   {key:'spo2', label:'SpO2', unit:'%', decimals:1, bounds:[0,100], formula:'recovery.score.spo2_percentage, overnight blood oxygen.'},
-  {key:'sleep_debt', label:'Sleep debt', unit:'h', decimals:1, formatter:fmtHM, formula:'sleep.score.sleep_needed.need_from_sleep_debt_milli.'},
+  {key:'sleep_debt', label:'Sleep debt', unit:'h', decimals:1, formatter:fmtHM, bounds:[0, Infinity], formula:'sleep.score.sleep_needed.need_from_sleep_debt_milli.'},
   {key:'sleep_efficiency', label:'Sleep efficiency', unit:'%', decimals:0, bounds:[0,100], formula:'sleep.score.sleep_efficiency_percentage — time asleep ÷ time in bed.'},
   {key:'sleep_consistency', label:'Sleep consistency', unit:'%', decimals:0, bounds:[0,100], formula:'sleep.score.sleep_consistency_percentage — similarity to prior nights.'},
   {key:'respiratory_rate', label:'Respiratory rate', unit:' br/min', decimals:1, formula:'sleep.score.respiratory_rate, overnight.'},
@@ -1393,14 +1482,9 @@ function renderACWR(){
   badge.style.background = zone.bg;
 
   const points = lastDays(series, 182);
-  lineChart('acwrChartWrap','acwrTooltip', points, {color:'var(--accent)', decimals:2, niceTicks:true,
-    bands:[
-      {from:0, to:0.8, color:'var(--ink-faint)', opacity:0.08},
-      {from:0.8, to:1.3, color:'var(--good)', opacity:0.10},
-      {from:1.3, to:1.5, color:'var(--warn)', opacity:0.12},
-      {from:1.5, to:3, color:'var(--critical)', opacity:0.12},
-    ],
-    refLines:[{v:1.3,color:'var(--warn)'},{v:1.5,color:'var(--critical)'}]});
+  // the legend above names the bands; the chart only marks their edges, so the line stays the loud part
+  lineChart('acwrChartWrap','acwrTooltip', points, {color:'var(--accent)', decimals:2, smooth:false,
+    refLines:[{v:0.8,color:'var(--ink-faint)'},{v:1.3,color:'var(--warn)'},{v:1.5,color:'var(--critical)'}]});
 }
 
 /* ================= training variety (Foster's monotony) ================= */
