@@ -52,9 +52,10 @@ invent one.
 ## Features
 
 ### Daily — today's call
-- **Readiness** — one score (50 = your normal) from your 7-day HRV, resting HR and sleep, each
-  against your previous 4 weeks, with the day's plan: **Train hard · Train as planned · Go easy ·
-  Rest**. Once you have trained, the plan is spent and the card says **Done for today**.
+- **Readiness** — one score from your 7-day HRV, resting HR and sleep, each against your previous
+  4 weeks and then placed among your own days (50 = your median day), with the day's plan:
+  **Train hard · Train as planned · Go easy · Rest**. Once you have trained, the plan is spent and
+  the card says **Done for today**.
 - **Click the orb** to see every measure next to its normal range, the answer lines, and last
   night's numbers as information.
 - **Warning signs** — HRV or resting HR outside your normal range, or breathing rate 3+ above
@@ -193,21 +194,25 @@ says so.
 
 ### Readiness
 
-One number for how ready you are to train today — **50 is your normal**, every 10 points is one
-standard deviation.
+One number for how ready you are to train today, on a scale of **your own days**: 50 is a median
+day for you, 90 means only one day in ten of yours has been better. It is not a percentage of
+anything, and it is not comparable between people.
 
 | Step | What the dashboard does | Source |
 |---|---|---|
 | Measures | ln(RMSSD) HRV, resting HR and hours asleep (naps included) — each over the **last 7 days** and for **last night** alone: 6 standard scores | HRV: [Plews et al., 2012](https://link.springer.com/article/10.1007/s00421-012-2354-4), [2014](https://www.researchgate.net/publication/259319333_Monitoring_Training_With_Heart-Rate_Variability_How_Much_Compliance_Is_Needed_for_Valid_Assessment); resting HR: [Alfonso et al., 2025](https://www.nature.com/articles/s41598-025-13540-z); sleep: [Craven et al., 2022](https://pubmed.ncbi.nlm.nih.gov/35708888/); single days for short-term response: [Schneider et al., 2019](https://pmc.ncbi.nlm.nih.gov/articles/PMC6538885/), [Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/), [Nuuttila et al., 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11541970/) |
 | Your normal | The 4 weeks before the current week, updated weekly: 7-day averages compared with the spread of 7-day averages, last night compared with the spread of single nights; mean ± 0.5 SD (sample SD) is "normal" | [Vesterinen et al., 2016](https://jyx.jyu.fi/jyx/Record/jyx_123456789_50625); [Javaloyes et al., 2019](https://pubmed.ncbi.nlm.nih.gov/29809080/) — tabulated in [Manresa-Rocamora et al., 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8507742/); weekly update: [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/) |
-| One score | All six standard scores (resting HR flipped, so lower is better) averaged with equal weights, shown on the T scale: 50 + 10 × average | Standard-score composites for athlete monitoring: [Thornton et al., 2019](https://pubmed.ncbi.nlm.nih.gov/30676144/); equal weights when none are validated: [Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making) |
-| Today's plan | **55+** above the normal band → **Train hard**; **45–54** inside it → **Train as planned** (the trials' prescribed session); **35–44** below it → **Go easy**; **under 35** → **Rest** | ±0.5 SD decision line: Javaloyes 2019, [Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/); 1.5 SD below "worth acting on": Thornton 2019 |
+| One score | All six standard scores (resting HR flipped, so lower is better) averaged with equal weights | Standard-score composites for athlete monitoring: [Thornton et al., 2019](https://pubmed.ncbi.nlm.nih.gov/30676144/); equal weights when none are validated: [Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making) |
+| On a readable scale | Averaging standard scores shrinks their spread — the measures move together, but not exactly — so the average is **not** on a 1-SD-per-unit scale of its own (measured here: 0.88 SD over 553 days, which made a genuinely above-normal day read as average). The average is standardised against the spread of your own earlier scores and shown as a percentile of them | Standardising a composite before applying SD cut-offs: Thornton 2019. The percentile itself is the normal curve (Φ), not a choice — no study prescribes a display scale, so nothing here is invented: the lines stay exactly the trials' SD lines |
+| Today's plan | **69+** above the normal band → **Train hard**; **31–68** inside it → **Train as planned** (the trials' prescribed session); **7–30** below it → **Go easy**; **under 7** → **Rest**. Those are the same ±0.5 SD and −1.5 SD lines, read on the percentile scale; on 553 days here they fell on 31.6%, 37.0%, 25.5% and 5.9% of days, against the 30.9 / 38.3 / 24.2 / 6.7% they are meant to cut off | ±0.5 SD decision line: Javaloyes 2019, [Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/); 1.5 SD below "worth acting on": Thornton 2019 |
 | Illness sign | Breathing rate last night 3+ breaths/min above your usual (average of nights 30–90 days before, 30+ nights) → **Rest** | [Natarajan et al., 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8443549/) |
 | Hard days in a row | After 2 moderate/high-intensity days in a row → **Go easy** | Carrasco-Poyatos 2020 |
 | Session today | The plan is **one session a day** — the trials read HRV each morning and set that day's session. Once you have trained, the card shows **Done for today** and whether what you did matched the plan; recovery takes ~24 h after a low or moderate session and ~48 h after a hard one | Daily prescription: Kiviniemi 2007, Vesterinen 2016, Javaloyes 2019; recovery time: [Stanley, Peake & Buchheit, 2013](https://link.springer.com/article/10.1007/s40279-013-0083-4) |
 
 Last night counts for half the score and the last 7 days for the other half, so a strong night lifts
-readiness without a single night deciding it (single nights are noisy: Plews 2012). The raw values and
+readiness without a single night deciding it (single nights are noisy: Plews 2012). The score needs
+**8 weeks**: 4 to learn what is normal for each measure, then 4 more to learn how much your own score
+moves. The raw values and
 WHOOP recovery are shown next to the score.
 
 ### Other metrics
@@ -225,8 +230,11 @@ WHOOP recovery are shown next to the score.
 
 **Honest limits.** The protocol comes from endurance-athlete trials that measured HRV on waking;
 WHOOP measures it during sleep (overnight values track training at least as well —
-[Nuuttila et al., 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11541970/)). Equal weights and the
-T scale are standard ways to combine measures, not weights validated for this purpose. Zone
+[Nuuttila et al., 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11541970/)). Equal weights and
+standard-score composites are usual ways to combine measures, not weights validated for this purpose.
+Reading the composite as a percentile assumes your days are roughly normally distributed around your
+own middle — true enough here (the four bands landed within 1.3 points of their intended shares), but
+it is an assumption, not a measurement. Zone
 conversion assumes minutes are evenly spread inside each WHOOP zone. Self-reported well-being, which
 the trials also used, isn't available from the WHOOP API.
 

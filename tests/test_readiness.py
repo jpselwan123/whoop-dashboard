@@ -1,8 +1,10 @@
 """Readiness: 7-day HRV, resting HR and sleep, each a standard score vs the 7-day averages of the
-previous 4 weeks, averaged on the T scale (50 = normal). 55+ Train hard, 45–54 Train as planned,
-35–44 Go easy, under 35 Rest; Rest on a breathing-rate illness sign, Go easy after 2 hard days in a row."""
+previous 4 weeks, averaged, then read as a percentile of the person's own earlier scores (50 = a median
+day). 69+ Train hard, 31–68 Train as planned, 7–30 Go easy, under 7 Rest; Rest on a breathing-rate
+illness sign, Go easy after 2 hard days in a row."""
 import math, random, unittest
 from datetime import date, timedelta
+from statistics import mean
 from helpers import generate, build_dashboard as bd
 
 
@@ -15,14 +17,27 @@ LN_PATTERN = (0.0, 0.05, -0.05, 0.1, -0.1, 0.03, -0.03)
 HR_PATTERN = (0.0, 1.0, -1.0, 2.0, -2.0, 0.5, -0.5)
 
 
-def steady(n=70, hrv=80.0, rhr=55.0, rr=15.0):
+def steady(n=112, hrv=80.0, rhr=55.0, rr=15.0):
+    """Enough history for an answer (4 baseline weeks, then 4 weeks of scored days) and data that
+    moves the way real data does: a level for each week and day-to-day noise on top. Without both,
+    the score's own spread is near zero and one ordinary night reads as extreme.
+
+    The last week sits exactly at the middle of its 4 baseline weeks and its last day carries no
+    noise, so "nothing unusual happened" is the default the tests vary from."""
     ds = days(n)
-    last_week = (n - 1) // 7
-    # weekly level alternates up/down so the baseline 7-day averages have a spread; the latest week sits
-    # exactly at the middle of that spread (a normal week)
-    drift = lambda i: 0.0 if i // 7 == last_week else (0.04 if (i // 7) % 2 == 0 else -0.04)
-    return ({d: hrv * math.exp(LN_PATTERN[i % 7] + drift(i)) for i, d in enumerate(ds)},
-            {d: rhr + HR_PATTERN[i % 7] + 12 * drift(i) for i, d in enumerate(ds)},
+    weeks, last_week = (n + 6) // 7, (n - 1) // 7
+    rnd = random.Random(23)
+    level = [rnd.gauss(0, 0.06) for _ in range(weeks)]
+    if last_week >= 4:
+        level[last_week] = mean(level[last_week - 4:last_week])
+    noise = []                              # mean-zero within each week, so weekly levels stay put
+    for _ in range(weeks):
+        wk = [(rnd.gauss(0, 0.09), rnd.gauss(0, 1.8)) for _ in range(7)]
+        mh, mr = mean(x[0] for x in wk), mean(x[1] for x in wk)
+        noise += [(a - mh, b_ - mr) for a, b_ in wk]
+    noise[n - 1] = (0.0, 0.0)               # an utterly ordinary last night
+    return ({d: hrv * math.exp(LN_PATTERN[i % 7] + level[i // 7] + noise[i][0]) for i, d in enumerate(ds)},
+            {d: rhr + HR_PATTERN[i % 7] - 12 * level[i // 7] + noise[i][1] for i, d in enumerate(ds)},
             {d: rr + HR_PATTERN[i % 7] * 0.1 for i, d in enumerate(ds)}, ds)
 
 
@@ -33,7 +48,7 @@ class ProtocolTest(unittest.TestCase):
         latest, _ = bd.build_readiness(h, r, b, set())
         self.assertEqual((latest['answer'], latest['reasons']), ('moderate', []))
         self.assertEqual(latest['hrv']['state'], 'within')
-        self.assertTrue(45 <= latest['score'] < 55)
+        self.assertTrue(31 <= latest['score'] < 69)
 
     def test_hrv_drop_over_the_week_means_easy(self):
         h, r, b, ds = steady()
@@ -104,12 +119,15 @@ class ProtocolTest(unittest.TestCase):
     def test_new_account_has_no_answer(self):
         h, r, b, _ = steady(n=28)          # starts on a Monday: 4 full weeks, answer from day 29
         self.assertEqual(bd.build_readiness(h, r, b, set()), (None, []))
-        self.assertEqual(bd.readiness_progress(h), {'days': 28, 'needed': 29})
-        h, r, b, _ = steady(n=29)
+        # 4 weeks to learn each measure's normal, then 4 weeks of scored days for the score's spread
+        self.assertEqual(bd.readiness_progress(h), {'days': 28, 'needed': 57})
+        h, r, b, _ = steady(n=56)
+        self.assertEqual(bd.build_readiness(h, r, b, set())[0], None)
+        h, r, b, _ = steady(n=57)
         self.assertIsNotNone(bd.build_readiness(h, r, b, set())[0])
 
     def test_each_baseline_week_needs_3_readings(self):
-        h, r, b, ds = steady(n=70)
+        h, r, b, ds = steady()
         monday = date.fromisoformat(ds[-1]) - timedelta(days=date.fromisoformat(ds[-1]).weekday())
         for d in list(h):
             if monday - timedelta(days=14) <= date.fromisoformat(d) < monday - timedelta(days=9):
@@ -136,7 +154,7 @@ class ProtocolTest(unittest.TestCase):
         self.assertNotIn('breathing', latest['reasons'])
 
     def test_breathing_needs_30_nights_of_history(self):
-        h, r, b, _ = steady(n=50)
+        h, r, b, _ = steady(n=58)          # only 29 nights sit 30–90 days back
         latest, _ = bd.build_readiness(h, r, b, set())
         self.assertIsNone(latest['breathing'])
 
@@ -144,7 +162,7 @@ class ProtocolTest(unittest.TestCase):
         h, r, b, _ = steady()
         latest, _ = bd.build_readiness(h, r, b, set())
         lo, hi = latest['hrv']['normal']
-        self.assertTrue(60 < lo < latest['hrv']['value'] < hi < 110)
+        self.assertTrue(60 < lo < hi < 110 and 60 < latest['hrv']['value'] < 110)
 
     def test_summary_includes_readiness(self):
         summary = bd.build_summary(generate(120))
@@ -153,8 +171,23 @@ class ProtocolTest(unittest.TestCase):
         self.assertIn(summary['readiness']['answer'], ('hard', 'moderate', 'easy', 'rest'))
 
 
+def _raw_composites(h, r, sleep, ds):
+    """Every day's average standard score, recomputed independently of build_readiness."""
+    ln = {k: math.log(v) for k, v in h.items()}
+    out = []
+    for d in ds:
+        ms = [bd.judge_marker(ln, d, 'below'), bd.judge_marker(r, d, 'above'), bd.judge_marker(sleep, d, 'below')]
+        if ms[0] is None or ms[0]['z'] is None:
+            continue
+        ms += [bd.judge_last_night(src, d, w) for src, w in ((ln, 'below'), (r, 'above'), (sleep, 'below'))]
+        zs = [m['z'] for m in ms if m and m.get('z') is not None]
+        if zs:
+            out.append((d, sum(zs) / len(zs)))
+    return out
+
+
 class ScoreTest(unittest.TestCase):
-    def test_score_is_the_t_scale_average_of_the_standard_scores(self):
+    def test_score_is_the_percentile_of_the_averaged_standard_scores(self):
         h, r, b, ds = steady()
         last_week = (len(ds) - 1) // 7
         sleep = {d: 7.5 + LN_PATTERN[i % 7] + (0 if i // 7 == last_week else (0.3 if (i // 7) % 2 else -0.3))
@@ -180,7 +213,17 @@ class ScoreTest(unittest.TestCase):
                           z_night(h, math.log, False), z_night(r, lambda v: v, True), z_night(sleep, lambda v: v, False))
               if x is not None]
         self.assertEqual(len(zs), 6)
-        self.assertEqual(latest['score'], math.floor(50 + 10 * sum(zs) / len(zs) + 0.5))
+        # the average standard score, standardised against every earlier day's average and read off
+        # the normal curve — recomputed here from the series the same function returned
+        raw = {p['date']: p for p in []}
+        _, series = bd.build_readiness(h, r, b, set(), sleep)
+        self.assertEqual(series[-1]['v'], latest['score'])
+        history = [x for x in _raw_composites(h, r, sleep, ds) if x[0] < ds[-1]]
+        prev = [v for _, v in history]
+        m = sum(prev) / len(prev)
+        sd = math.sqrt(sum((x - m) ** 2 for x in prev) / (len(prev) - 1))
+        want = round(bd.normal_percentile(((sum(zs) / len(zs)) - m) / sd))
+        self.assertEqual(latest['score'], max(1, min(99, want)))
         self.assertEqual(latest['last_night']['measures'], 3)
 
     def test_answer_lines_on_the_score(self):
@@ -191,23 +234,36 @@ class ScoreTest(unittest.TestCase):
                 hh[d] = h[d] * factor
             latest, _ = bd.build_readiness(hh, r, b, set())
             s = latest['score']
-            want = 'hard' if s >= 55 else 'moderate' if s >= 45 else 'easy' if s >= 35 else 'rest'
+            want = 'hard' if s >= 69 else 'moderate' if s >= 31 else 'easy' if s >= 7 else 'rest'
             self.assertEqual(latest['answer'], want, (factor, s))
-        self.assertEqual(latest['lines'], {'above': 55, 'train': 45, 'rest': 35})
+        self.assertEqual(latest['lines'], {'above': 69, 'train': 31, 'rest': 7})
 
     def test_the_four_bands_are_the_swc_and_rest_lines(self):
-        """Band edges are +0.5 SD, -0.5 SD and -1.5 SD on the T scale: 55 / 45 / 35."""
+        """Band edges are the trials' SD cut-offs read as percentiles: +0.5 SD = 69, -0.5 = 31, -1.5 = 7."""
         h, r, b, _ = steady()
         latest, _ = bd.build_readiness(h, r, b, set())
         L = latest['lines']
-        self.assertEqual([L['above'], L['train'], L['rest']],
-                         [50 + 10 * 0.5, 50 - 10 * 0.5, 50 - 10 * 1.5])
+        self.assertEqual([L['above'], L['train'], L['rest']], [69, 31, 7])
+        for z, want in ((0.5, 69), (-0.5, 31), (-1.5, 7), (0, 50)):
+            self.assertEqual(round(bd.normal_percentile(z)), want)
+
+    def test_the_score_really_is_a_percentile(self):
+        """A percentile only means something if the days land where it says: over a long run the
+        bands must cut off about the share of days their SD lines intend (31% / 38% / 24% / 7%)."""
+        h, r, b, _ = steady(n=560)
+        _, series = bd.build_readiness(h, r, b, set())
+        self.assertGreater(len(series), 400)
+        share = lambda f: 100 * sum(1 for p in series if f(p['v'])) / len(series)
+        self.assertAlmostEqual(share(lambda v: v >= 69), 30.9, delta=6)
+        self.assertAlmostEqual(share(lambda v: 31 <= v < 69), 38.3, delta=6)
+        self.assertAlmostEqual(share(lambda v: 7 <= v < 31), 24.2, delta=6)
+        self.assertAlmostEqual(share(lambda v: v < 7), 6.7, delta=4)
 
     def test_breathing_sign_means_rest_even_with_a_normal_score(self):
-        h, r, b, ds = steady(n=100)
+        h, r, b, ds = steady()
         b[ds[-1]] = 40.0
         latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertGreaterEqual(latest['score'], 45)
+        self.assertGreaterEqual(latest['score'], 31)
         self.assertEqual((latest['answer'], latest['reasons']), ('rest', ['breathing']))
 
     def test_shorter_sleep_lowers_the_score(self):

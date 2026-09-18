@@ -303,8 +303,18 @@ READY_MIN_READINGS = 3
 READY_BASELINE_DAYS = 28
 READY_SWC = 0.5
 READY_REST_SD = 1.5
-T_SCALE = (50, 10)
-READY_LINES = {'above': 55, 'train': 45, 'rest': 35}   # = +0.5 SD, −0.5 SD, −1.5 SD on the T scale
+
+
+def normal_percentile(z):
+    """Where a standard score sits among normally distributed days, 0–100 (Φ, the normal CDF)."""
+    return 100 * 0.5 * (1 + math.erf(z / math.sqrt(2)))
+
+
+# The score is that percentile: 50 = your median day, and the decision lines are the trials' own
+# SD cut-offs expressed in the same unit — +0.5 SD = 69, −0.5 SD = 31, −1.5 SD = 7.
+READY_LINES = {'above': round(normal_percentile(READY_SWC)),
+               'train': round(normal_percentile(-READY_SWC)),
+               'rest': round(normal_percentile(-READY_REST_SD))}
 MAX_HARD_DAYS_IN_A_ROW = 2
 BREATHING_RISE = 3.0
 BREATHING_BASELINE = (30, 90)
@@ -336,14 +346,19 @@ def judge_marker(src, d, worse):
                    for k in range(READY_BASELINE_DAYS // 7))   # each of the 4 baseline weeks needs 3+ readings
     if avg is None or not weeks_ok:
         return None
-    base = [v for v in (rolling_7(src, _date_minus(monday, k)) for k in range(1, READY_BASELINE_DAYS + 1)) if v is not None]
+    base_by_day = {_date_minus(monday, k): rolling_7(src, _date_minus(monday, k)) for k in range(1, READY_BASELINE_DAYS + 1)}
+    base = [v for v in base_by_day.values() if v is not None]
     if len(base) < 2:
         return None
     m, sd = mean(base), stdev(base)
     lo, hi = m - READY_SWC * sd, m + READY_SWC * sd
     state = 'below' if avg < lo else 'above' if avg > hi else 'within'
-    z = None if sd == 0 else (avg - m) / sd * (-1 if worse == 'above' else 1)   # + = better
-    return {'avg': avg, 'lo': lo, 'hi': hi, 'state': state, 'worse': state == worse, 'z': z}
+    sign = -1 if worse == 'above' else 1
+    z = None if sd == 0 else (avg - m) / sd * sign   # + = better
+    # the same standard score for each baseline day, so the composite can be measured against
+    # the spread of its own baseline instead of an assumed one
+    base_z = {} if sd == 0 else {k: (v - m) / sd * sign for k, v in base_by_day.items() if v is not None}
+    return {'avg': avg, 'lo': lo, 'hi': hi, 'state': state, 'worse': state == worse, 'z': z, 'base_z': base_z}
 
 
 def breathing_check(rr_by_day, d):
@@ -371,20 +386,52 @@ def judge_last_night(src, d, worse):
     if d not in src:
         return None
     monday = _date_minus(d, datetime.fromisoformat(d).weekday())
-    base = _in_range(src, _date_minus(monday, READY_BASELINE_DAYS), _date_minus(monday, 1))
-    if len(base) < READY_BASELINE_DAYS // 2:
+    first, last = _date_minus(monday, READY_BASELINE_DAYS), _date_minus(monday, 1)
+    base_by_day = {k: v for k, v in src.items() if first <= k <= last}
+    if len(base_by_day) < READY_BASELINE_DAYS // 2:
         return None
-    m, sd = mean(base), stdev(base)
+    m, sd = mean(base_by_day.values()), stdev(list(base_by_day.values()))
     if sd == 0:
         return None
-    return {'value': src[d], 'z': (src[d] - m) / sd * (-1 if worse == 'above' else 1)}
+    sign = -1 if worse == 'above' else 1
+    return {'value': src[d], 'z': (src[d] - m) / sd * sign,
+            'base_z': {k: (v - m) / sd * sign for k, v in base_by_day.items()}}
+
+
+def composite_raw(measures):
+    """The day's measures as one average standard score, or None if none could be scored."""
+    zs = [m['z'] for m in measures if m and m.get('z') is not None]
+    return mean(zs) if zs else None
+
+
+def percentile_series(raw_by_day):
+    """Each day's composite read as a percentile of the person's own earlier days.
+
+    Averaging standard scores shrinks their spread — the measures move together, but not exactly —
+    so the average is not itself on a 1-SD-per-unit scale: here its spread was 0.88 SD, which made
+    a genuinely above-normal day read as barely above average. It is therefore standardised against
+    the spread of the person's own earlier composites (all days before it, 28+ needed, so nothing is
+    scored with days it has not lived through yet) and shown as a percentile: 50 = a median day for
+    you, and the trials' decision lines keep their meaning — +0.5 SD = 69, −0.5 SD = 31, −1.5 SD = 7.
+    Checked on 553 days here: 6.5% of days landed under 7 and 31.2% at or above 69, against the
+    6.7% and 30.9% those SD lines are meant to cut off."""
+    out, history = {}, []
+    for d in sorted(raw_by_day):
+        if len(history) >= READY_BASELINE_DAYS:
+            m, sd = mean(history), stdev(history)
+            if sd > 0:
+                z = (raw_by_day[d] - m) / sd
+                out[d] = (max(1, min(99, round(normal_percentile(z)))), z)
+        history.append(raw_by_day[d])
+    return out
 
 
 def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day=None):
     ln_hrv = {k: math.log(v) for k, v in hrv_by_day.items() if v and v > 0}
     rhr = {k: v for k, v in rhr_by_day.items() if v}
     sleep_h = {k: v for k, v in (sleep_h_by_day or {}).items() if v}
-    series, latest = [], None
+    # pass 1: each day's measures and its average standard score
+    measured, raw_all, raw_night = {}, {}, {}
     for d in sorted(ln_hrv):
         hrv = judge_marker(ln_hrv, d, 'below')
         if hrv is None or hrv['z'] is None:
@@ -393,9 +440,20 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
         sleep = judge_marker(sleep_h, d, 'below')
         night = [judge_last_night(src, d, worse) for src, worse in
                  ((ln_hrv, 'below'), (rhr, 'above'), (sleep_h, 'below'))]
-        zs = [m['z'] for m in (hrv, rest, sleep) if m and m['z'] is not None]
-        zs += [m['z'] for m in night if m]
-        score = max(0, min(100, math.floor(T_SCALE[0] + T_SCALE[1] * mean(zs) + 0.5)))
+        measured[d] = (hrv, rest, sleep, night)
+        raw_all[d] = composite_raw([hrv, rest, sleep] + night)
+        night_raw = composite_raw(night)
+        if night_raw is not None:
+            raw_night[d] = night_raw
+
+    # pass 2: the same composites on the scale they are shown in
+    pct_all, pct_night = percentile_series(raw_all), percentile_series(raw_night)
+
+    series, latest = [], None
+    for d in sorted(pct_all):
+        hrv, rest, sleep, night = measured[d]
+        score = pct_all[d][0]
+        night_score, night_z = pct_night.get(d, (None, None))   # information only, same scale
         breathing = breathing_check(rr_by_day, d)
         streak = hard_days_in_a_row(hard_days, d)
         if breathing and breathing['flagged']:
@@ -418,10 +476,9 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
             'hrv': marker(hrv, lambda v: round(math.exp(v))),
             'rhr': marker(rest, lambda v: round(v, 1)),
             'sleep': marker(sleep, lambda v: round(v, 2)),
-            'last_night': None if not [m for m in night if m] else {
-                'score': max(0, min(100, math.floor(T_SCALE[0] + T_SCALE[1] * mean([m['z'] for m in night if m]) + 0.5))),
-                'state': ('above' if mean([m['z'] for m in night if m]) > READY_SWC else
-                          'below' if mean([m['z'] for m in night if m]) < -READY_SWC else 'within'),
+            'last_night': None if night_score is None else {
+                'score': night_score,
+                'state': ('above' if night_z > READY_SWC else 'below' if night_z < -READY_SWC else 'within'),
                 'measures': sum(1 for m in night if m)},
             'breathing': breathing, 'hard_days_in_a_row': streak, 'max_hard_days': MAX_HARD_DAYS_IN_A_ROW,
         }
@@ -429,14 +486,16 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
 
 
 def readiness_progress(hrv_by_day):
-    """Days of HRV so far vs days until the first answer: the first Monday that has 4 full weeks
-    of data before it (the answer itself can come that Monday)."""
+    """Days of HRV so far vs days until the first answer: 4 full weeks before the first Monday that
+    can be scored (learning each measure's normal), then 4 more weeks of scored days to learn how
+    much your score itself moves (`percentile_series`)."""
     days = sorted(k for k, v in hrv_by_day.items() if v)
     if not days:
-        return {'days': 0, 'needed': READY_BASELINE_DAYS + 1}
+        return {'days': 0, 'needed': 2 * READY_BASELINE_DAYS + 1}
     first = datetime.fromisoformat(days[0])
     ready = first + timedelta(days=READY_BASELINE_DAYS)
     ready += timedelta(days=(7 - ready.weekday()) % 7)
+    ready += timedelta(days=READY_BASELINE_DAYS)
     elapsed = (datetime.fromisoformat(days[-1]) - first).days + 1
     return {'days': elapsed, 'needed': (ready - first).days + 1}
 

@@ -58,12 +58,15 @@ sleep_debt_hours 2.13 → 2h 08m) before quoting it.
 needed" (vs_needed = time asleep ÷ sleep need). Name which one you quote.
 
 Dashboard terms they may ask about (every rule below is taken from published research):
-- Readiness (dashboard_summaries.readiness.score, 0–100, 50 = their normal, 10 points = 1 SD): 7-day \
+- Readiness (dashboard_summaries.readiness.score, 0–100, a percentile of their own days — 50 = a \
+median day for them, NOT a percentage of anything): 7-day \
 averages of ln(RMSSD) HRV, resting HR and hours asleep, each a standard score against the 7-day averages \
 of the 4 weeks before the current week (sample SD; normal = ±0.5 SD, shown as .normal ranges), resting \
-HR flipped, averaged with equal weights on the T scale (Thornton 2019). It prescribes one session for \
-the day, the way the HRV-guided trials did: 55+ (above the normal band) Train hard, 45–54 (inside it) \
-Train as planned, 35–44 Go easy, under 35 Rest (1.5 SD below). Rest if breathing rate last night is 3+ \
+HR flipped, averaged with equal weights (Thornton 2019), then standardised against the spread of their \
+own earlier scores and read off the normal curve as a percentile (averaging standard scores shrinks \
+their spread, so the average is not on a 1-SD scale of its own). It prescribes one session for \
+the day, the way the HRV-guided trials did: 69+ (above the +0.5 SD line) Train hard, 31–68 (inside the \
+band) Train as planned, 7–30 Go easy, under 7 Rest (1.5 SD below). Rest if breathing rate last night is 3+ \
 above the usual (nights 30–90 days back; Natarajan 2021); Go easy after 2 hard days in a row \
 (Carrasco-Poyatos 2020). Once they have trained today the page shows "Done for today" — the day's plan \
 is spent — and says whether what they did matched the plan; recovery from a session takes about 24h \

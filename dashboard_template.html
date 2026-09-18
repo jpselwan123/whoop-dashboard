@@ -559,7 +559,7 @@
   <footer>
     <div class="grp">
       <b>Measured vs. modeled</b>
-      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines your 7-day HRV, resting HR and sleep, each against your previous 4 weeks (50 = your normal), with a breathing-rate illness sign and a limit of 2 hard days in a row. Click the orb for the numbers.</span>
+      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines your 7-day HRV, resting HR and sleep, each against your previous 4 weeks (50 = a median day for you), with a breathing-rate illness sign and a limit of 2 hard days in a row. Click the orb for the numbers.</span>
     </div>
     <div class="grp"><span id="baselineNote"></span></div>
     <div class="grp"><span id="coverageNote"></span></div>
@@ -637,9 +637,9 @@ const SVGNS = "http://www.w3.org/2000/svg";
 const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; };
 
 // Readiness (build_readiness in build_dashboard.py): 7-day HRV, resting HR and hours asleep, each as
-// a standard score vs your previous 4 weeks, averaged with equal weights on the T scale (50 = your
-// normal, 10 points = 1 SD; Thornton et al. 2019). 55+ Train hard, 45–54 Train as planned,
-// 35–44 Go easy, under 35 Rest. Also Rest when breathing rate is 3+ above usual, and Go easy after
+// a standard score vs your previous 4 weeks, averaged with equal weights (Thornton et al. 2019) and
+// shown as a percentile of your own days (50 = your median day). 69+ Train hard, 31–68 Train as
+// planned, 7–30 Go easy, under 7 Rest — the trials' ±0.5 SD and −1.5 SD lines in that unit. Also Rest when breathing rate is 3+ above usual, and Go easy after
 // 2 hard days in a row. The plan is one session a day — once trained, it is Done. Sources: README.
 const ACTIONS = {
   hard:     {label:'Train hard',       c:'var(--good)',      bg:'var(--good-bg)',     headline:'Ready to train hard.'},
@@ -734,8 +734,8 @@ function renderDecision(){
   if(R){
     countUp($('orbNum'), R.score, v => String(Math.round(v)));
     $('orbCap').textContent = 'Readiness';
-    // scale from 20 to 80 (±3 SD): red under 35 · yellow 35–44 · blue 45–54 · green 55+
-    const lo = 20, hi = 80, L = R.lines;
+    // the whole percentile scale: red under 7 · yellow 7–30 · blue 31–68 · green 69+
+    const lo = 0, hi = 100, L = R.lines;
     const widths = [L.rest - lo, L.train - L.rest, L.above - L.train, hi - L.above];
     $('readyScale').querySelectorAll('.rs-seg').forEach((el, i) => { el.style.flex = String(widths[i]); });
     const pos = v => ((clamp(v, lo, hi) - lo) / (hi - lo) * 100) + '%';
@@ -1189,7 +1189,7 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
 
 /* ================= trend explorer ================= */
 const METRICS = [
-  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:[{v:55,color:'var(--good)'},{v:45,color:'var(--accent)'},{v:35,color:'var(--critical)'}], bounds:[0,100], formula:'7-day HRV, resting HR and sleep vs your previous 4 weeks, averaged; 50 = your normal, 10 points = 1 SD.'},
+  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:[{v:69,color:'var(--good)'},{v:31,color:'var(--accent)'},{v:7,color:'var(--critical)'}], bounds:[0,100], formula:'7-day HRV, resting HR and sleep vs your previous 4 weeks, averaged and placed among your own days: 50 = your median day.'},
   {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
   {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:"WHOOP's Sleep Performance. Since WHOOP's 2025 update it blends hours vs needed with consistency, efficiency and sleep stress; readiness uses hours vs needed on its own."},
@@ -1641,7 +1641,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
     const calc = window.__readinessCalc; if(!calc) return;
     const R = calc.R, L = DATA.last_night;
     $('rpScore').textContent = R ? `· ${R.score} · ${ACTIONS[calc.plan].label}` : '· Learning';
-    $('rpSub').textContent = 'How ready you are to train today, 50 = your normal.';
+    $('rpSub').textContent = 'How ready you are to train today, out of 100 of your own days.';
     const out = [];
     if(!R){
       const P = DATA.readiness_progress;
@@ -1652,8 +1652,8 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       const cls = k => markerWorse(k, R[k]) ? 'flagged' : R[k].state === 'within' ? '' : 'good';
       for(const [k, label] of [['hrv','HRV'], ['rhr','Resting HR'], ['sleep','Asleep']])
         out.push(R[k] ? row(label, markerValue(k, R[k]), markerRange(k, R[k]), cls(k)) : row(label, '—', 'not enough data', ''));
-      if(R.last_night) out.push(row('Last night · all three', `${R.last_night.score}`, '50 = normal', R.last_night.state === 'below' ? 'flagged' : R.last_night.state === 'above' ? 'good' : ''));
-      out.push(row('Readiness', `${R.score}`, '50 = normal', 'current'));
+      if(R.last_night) out.push(row('Last night · all three', `${R.last_night.score}`, '50 = your median', R.last_night.state === 'below' ? 'flagged' : R.last_night.state === 'above' ? 'good' : ''));
+      out.push(row('Readiness', `${R.score}`, '50 = your median day', 'current'));
       out.push(section('Today’s plan', 'readiness'));
       const cur = calc.plan, L2 = R.lines;
       out.push(row('Train hard', `${L2.above}+`, '', cur === 'hard' ? 'current' : ''));
@@ -1673,7 +1673,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(row('Asleep', fmtHM(L.asleep_h), L.nap_h ? `+ ${fmtHM(L.nap_h)} nap` : '', ''));
       out.push(row('WHOOP recovery', `${Math.round(L.recovery)}`, '', ''));
     }
-    out.push(`<div class="rp-note">Each measure is compared with your previous 4 weeks (updated each Monday) — the 7-day average against your 7-day averages, last night against your single nights — and all six are averaged equally: every 10 points is one standard deviation from your normal. Breathing rate 3+ above your usual means rest; after 2 hard days in a row, go easy. The plan is one session a day — once you have trained, it is done.</div>`);
+    out.push(`<div class="rp-note">Each measure is compared with your previous 4 weeks (updated each Monday) — the 7-day average against your 7-day averages, last night against your single nights — and all six are averaged equally. The average is then placed among your own days, so the score reads like a ranking: 50 is a median day for you, 69+ happens on about 3 days in 10, under 7 on about 1 day in 15. Breathing rate 3+ above your usual means rest; after 2 hard days in a row, go easy. The plan is one session a day — once you have trained, it is done.</div>`);
     $('rpRows').innerHTML = out.join('');
   }
 
