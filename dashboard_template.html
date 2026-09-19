@@ -682,7 +682,11 @@ function computeReadiness(){
   // trained, today's plan is spent — the answer stops asking for more (unless it says Rest,
   // which is about your body, not the plan).
   const action = (trained && plan !== 'rest') ? 'done' : plan;
-  return { action, plan, reasons, sessions, trained, load, R };
+  // After training, readiness is shown net of what today's strain costs by tomorrow morning,
+  // measured on your own history (build_training_cost) — the plan still comes from this morning.
+  const T = DATA.training_cost;
+  const cost = (trained && T && T.after != null && T.cost <= -1 && T.date === (snap && snap.date)) ? T : null;
+  return { action, plan, reasons, sessions, trained, load, cost, R };
 }
 
 // One sentence on where today's strain has left the load ratio and how much room is left.
@@ -756,8 +760,10 @@ function decisionWhy(calc){
   // one session a day is the plan; a second session always spends it, whatever its intensity
   const metPlan = calc.sessions.length > 1 ||
     (SESSION_RANK[hardestToday(calc).intensity || 'strength'] || 1) >= PLAN_RANK[calc.plan];
-  return `${done} Today's plan was <b>${ACTIONS[calc.plan].label.toLowerCase()}</b> (${why})` +
-         (metPlan ? ' — that’s done.' : ', so a harder session is still within it if you want one.');
+  const C = calc.cost;
+  const costLine = C ? ` Readiness is now <b>${C.after}</b>, down from ${C.morning}: going by your own history, today's strain of ${C.strain.toFixed(1)} costs about ${Math.abs(C.cost)} points by tomorrow morning.` : '';
+  return `${done} Today's plan was <b>${ACTIONS[calc.plan].label.toLowerCase()}</b>` +
+         (metPlan ? ' — that’s done.' : ` (${why}), so a harder session is still within it if you want one.`) + costLine;
 }
 
 function renderDecision(){
@@ -771,15 +777,16 @@ function renderDecision(){
   $('decisionWhy').innerHTML = decisionWhy(calc);
 
   const R = calc.R;
+  const shown = calc.cost ? calc.cost.after : (R && R.score);
   if(R){
-    countUp($('orbNum'), R.score, v => String(Math.round(v)));
-    $('orbCap').textContent = 'Readiness';
+    countUp($('orbNum'), shown, v => String(Math.round(v)));
+    $('orbCap').textContent = 'Readiness';     // one word; the sentence above says why it moved
     // the whole percentile scale: red under 7 · yellow 7–30 · blue 31–68 · green 69+
     const lo = 0, hi = 100, L = R.lines;
     const widths = [L.rest - lo, L.train - L.rest, L.above - L.train, hi - L.above];
     $('readyScale').querySelectorAll('.rs-seg').forEach((el, i) => { el.style.flex = String(widths[i]); });
     const pos = v => ((clamp(v, lo, hi) - lo) / (hi - lo) * 100) + '%';
-    $('rsMarker').style.left = pos(R.score);
+    $('rsMarker').style.left = pos(shown);
     $('readyScale').hidden = false;
   } else {
     $('orbNum').textContent = '—';
@@ -787,7 +794,9 @@ function renderDecision(){
     $('readyScale').hidden = true;
   }
   // the orb keeps the score's own colour, matching the scale under it, even when today is done
-  drawSphere('orb', {hard:148, moderate:222, easy:42, rest:6, learning:222}[calc.action === 'done' ? calc.plan : calc.action]);
+  const bandOf = v => v >= R.lines.above ? 'hard' : v >= R.lines.train ? 'moderate' : v >= R.lines.rest ? 'easy' : 'rest';
+  const hueKey = calc.cost ? bandOf(shown) : calc.action === 'done' ? calc.plan : calc.action;
+  drawSphere('orb', {hard:148, moderate:222, easy:42, rest:6, learning:222}[hueKey]);
   renderSuggestions(calc);
   window.__readinessCalc = calc;
 }
@@ -1777,7 +1786,8 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
   function render(){
     const calc = window.__readinessCalc; if(!calc) return;
     const R = calc.R, L = DATA.last_night;
-    $('rpScore').textContent = R ? `· ${R.score} · ${ACTIONS[calc.plan].label}` : '· Learning';
+    // the header matches the orb: after training, the after-training number and "Done for today"
+    $('rpScore').textContent = R ? `· ${calc.cost ? calc.cost.after : R.score} · ${ACTIONS[calc.cost ? calc.action : calc.plan].label}` : '· Learning';
     $('rpSub').textContent = 'Where today sits among your own days.';
     const out = [];
     if(!R){
@@ -1814,6 +1824,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(section('Also checked', 'today / limit'));
       if(R.breathing) out.push(row('Breathing rate', `${one(R.breathing.value)} /min`, `rest at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
       out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
+      if(calc.cost) out.push(row('After today’s training', `${calc.cost.after}`, `${calc.cost.morning} this morning, −${Math.abs(calc.cost.cost)}`, 'flagged'));
       if(calc.load) out.push(row('Load ratio · with today', calc.load.ratio.toFixed(2), `go easy above ${calc.load.bands.high}`, calc.load.ratio > calc.load.bands.caution ? 'flagged' : ''));
       out.push(row('Days below your normal', `${R.days_below_normal}`, `rest at ${R.days_low_to_rest}`, R.days_below_normal >= R.days_low_to_rest ? 'flagged' : ''));
       for(const w of calc.sessions)

@@ -198,3 +198,50 @@ class DayAdaptsTest(unittest.TestCase):
         self.assertEqual(after['readiness']['date'], today)
         self.assertNotEqual(after['readiness']['score'], before['readiness']['score'])
         self.assertGreater(after['last_night']['nap_h'], before['last_night']['nap_h'])
+
+
+class TrainingCostTest(unittest.TestCase):
+    """Readiness after today's training: the strain effect measured on the person's own history."""
+
+    def history(self, effect, n=200, seed=5):
+        import random
+        rnd = random.Random(seed)
+        start = date(2026, 1, 1)
+        days = [(start + timedelta(days=i)).isoformat() for i in range(n)]
+        workout_days = {d for i, d in enumerate(days) if i % 3 != 0}          # every third day off
+        strain = {d: (rnd.uniform(11, 18) if d in workout_days else rnd.uniform(3, 7)) for d in days}
+        score = {days[0]: 50.0}
+        for a, b in zip(days, days[1:]):
+            score[b] = max(1, min(99, 20 + 0.6 * score[a] + effect * (strain[a] - 5) + rnd.gauss(0, 6)))
+        series = [{'date': d, 'v': round(score[d])} for d in days]
+        return series, strain, workout_days, days
+
+    def test_measures_the_strain_effect_and_applies_it_to_today(self):
+        series, strain, wd, days = self.history(effect=-1.0)
+        today = days[-1]
+        strain[today] = 16.0
+        out = bd.build_training_cost(series, strain, wd, today)
+        self.assertTrue(out['significant'])
+        self.assertAlmostEqual(out['per_strain'], -1.0, delta=0.25)
+        want = round(out['per_strain'] * (16.0 - out['rest_day_strain']))
+        self.assertEqual(out['cost'], want)
+        self.assertEqual(out['after'], out['morning'] + want)
+
+    def test_no_effect_in_the_history_means_no_adjustment(self):
+        series, strain, wd, days = self.history(effect=0.0, seed=9)
+        out = bd.build_training_cost(series, strain, wd, days[-1])
+        self.assertFalse(out['significant'] and out['cost'])
+        if not out['significant']:
+            self.assertIsNone(out['cost'])
+            self.assertIsNone(out['after'])
+
+    def test_a_quiet_day_is_never_a_bonus(self):
+        series, strain, wd, days = self.history(effect=-1.0)
+        strain[days[-1]] = 2.0                                  # below a typical rest day
+        out = bd.build_training_cost(series, strain, wd, days[-1])
+        self.assertEqual(out['cost'], 0)
+        self.assertEqual(out['after'], out['morning'])
+
+    def test_real_summary_carries_it(self):
+        s = bd.build_summary(generate(120, 23))
+        self.assertIn('training_cost', s)

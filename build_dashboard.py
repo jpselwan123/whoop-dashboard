@@ -592,6 +592,61 @@ def build_readiness_check(series, recovery_by_day):
     }
 
 
+def _ols(X, y):
+    """Least squares with standard errors (stdlib): returns (coefficients, standard errors, df)."""
+    n, k = len(y), len(X[0])
+    M = [[sum(X[i][a] * X[i][b] for i in range(n)) for b in range(k)] + [1.0 if a == j else 0.0 for j in range(k)]
+         for a in range(k)]
+    for c in range(k):                                   # Gauss-Jordan inverse of X'X
+        piv = max(range(c, k), key=lambda r: abs(M[r][c]))
+        M[c], M[piv] = M[piv], M[c]
+        if abs(M[c][c]) < 1e-12:
+            return None
+        f = M[c][c]
+        M[c] = [v / f for v in M[c]]
+        for r in range(k):
+            if r != c:
+                g = M[r][c]
+                M[r] = [a - g * b for a, b in zip(M[r], M[c])]
+    inv = [row[k:] for row in M]
+    xty = [sum(X[i][a] * y[i] for i in range(n)) for a in range(k)]
+    beta = [sum(inv[a][b] * xty[b] for b in range(k)) for a in range(k)]
+    df = n - k
+    s2 = sum((y[i] - sum(beta[a] * X[i][a] for a in range(k))) ** 2 for i in range(n)) / df
+    return beta, [math.sqrt(s2 * inv[a][a]) for a in range(k)], df
+
+
+# What today's training costs in readiness, measured on the person's own history rather than assumed.
+# Readiness is an overnight measurement, so a session can't change this morning's number - but it does
+# lower the next one. Each past day's day strain is regressed against the next morning's readiness,
+# holding that day's own readiness constant (ordinary least squares; t-test on the coefficient,
+# p < 0.05, 30+ pairs - the same conventions as every other comparison here). Today's cost is that
+# effect applied to the strain above a typical rest day (median day strain on days with no workout),
+# never a bonus for doing less; the page shows it once a session is logged.
+def build_training_cost(readiness_series, strain_by_day, workout_days, today):
+    scores = {p['date']: p['v'] for p in readiness_series}
+    rows = [(1.0, scores[d], strain_by_day[d], scores[_date_minus(d, -1)])
+            for d in scores if d < today and d in strain_by_day and _date_minus(d, -1) in scores]
+    rest = [v for d, v in strain_by_day.items() if d < today and d not in workout_days]
+    if len(rows) < MIN_GROUP or len(rest) < MIN_GROUP or today not in scores or today not in strain_by_day:
+        return None
+    fit = _ols([r[:3] for r in rows], [r[3] for r in rows])
+    if fit is None:
+        return None
+    beta, se, df = fit
+    per_strain = beta[2]
+    t = per_strain / se[2] if se[2] else 0.0
+    p = _betainc(df / 2, 0.5, df / (df + t * t))
+    significant = p < SIGNIFICANCE and per_strain < 0
+    rest_strain = sorted(rest)[len(rest) // 2] if len(rest) % 2 else sum(sorted(rest)[len(rest) // 2 - 1:len(rest) // 2 + 1]) / 2
+    strain = strain_by_day[today]
+    cost = round(min(0.0, per_strain * (strain - rest_strain))) if significant else None
+    morning = scores[today]
+    return {'date': today, 'morning': morning, 'strain': round(strain, 1), 'rest_day_strain': round(rest_strain, 1),
+            'per_strain': round(per_strain, 2), 'p': round(p, 4), 'pairs': len(rows), 'significant': significant,
+            'cost': cost, 'after': None if cost is None else max(1, min(99, morning + cost))}
+
+
 def build_sleep_composition(sleep, now):
     """Weekly average REM/deep(SWS)/light sleep hours, last 8 weeks. Computed here
     (not client-side) so the week key is zero-padded and sorts correctly — the same
@@ -855,6 +910,7 @@ def build_summary(d):
     # 'a' = the answer that day, so the page can show how often each one actually comes up
     full['readiness'] = [{'date': p['date'], 'v': p['v'], 'a': p['answer']} for p in readiness_series]
     readiness_check = build_readiness_check(readiness_series, recovery_by_day)
+    training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), day(cyc[-1]['created_at']))
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
         entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(
             intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(entry['date'])))
@@ -927,6 +983,7 @@ def build_summary(d):
         'total_workouts': len(wo),
         'acwr': acwr,
         'load_today': load_today,
+        'training_cost': training_cost,
         'monotony': monotony,
         'sport_recovery_cost': sport_recovery_cost,
         'sleep_composition': sleep_composition,

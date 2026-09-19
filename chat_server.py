@@ -91,6 +91,10 @@ day. dashboard_summaries.load_today gives today's ratio and strain_at = the day 
 would cross each band (algebra on the band, not a new threshold). Before any session today the page \
 steps the plan down as it climbs: past 1.3 no hard session (Train hard becomes Train as planned), past \
 1.5 Go easy. After a session it is reported, not used to rewrite the plan.
+- After a session the orb shows readiness after training (dashboard_summaries.training_cost): this \
+morning's score minus what today's strain costs by tomorrow morning, measured on their own history \
+(per_strain = readiness points per point of day strain, holding readiness constant; applied to strain \
+above a typical rest day; only if significant). Readiness itself is an overnight measurement.
 - "Today" is the current WHOOP day (from one sleep to the next, today_snapshot with in_progress), \
 not the calendar date - at 1am before sleeping they are still in the same WHOOP day.
 - Rest day ("last day off" on the page): the most recent finished day with NO workout logged. It is \

@@ -56,7 +56,10 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   (`MAX_REST_DAYS_IN_A_ROW`; Manresa-Rocamora 2021 "low intensity or passive rest"; Plews 2013/Buchheit 2014
   sustained not single-day; Kiviniemi 2007 caps consecutive rest days). Rest on breathing +3/min; Go easy after 2 hard days in a row. Once any session is
   logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Before a session, today's
-  live load ratio (`build_load_today`, strain so far) steps the plan down: >1.3 hard→as planned, >1.5 → Go easy. Last night is information only. JP wants ONE score from all
+  live load ratio (`build_load_today`, strain so far) steps the plan down: >1.3 hard→as planned, >1.5 → Go easy.
+  After a session the orb shows readiness net of today's training cost (`build_training_cost`: OLS of next-morning
+  readiness on day strain, holding readiness constant, on the person's own history; significant & negative only;
+  cost = effect × strain above median rest-day strain, never positive). The plan still comes from the morning score. Last night is information only. JP wants ONE score from all
   measures AND every rule sourced — keep both.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
   (`intensity_minutes`, proportional split); session level = where most time was. Strength sessions: none.
