@@ -411,7 +411,7 @@
         <div class="orb-readout"><div class="num tnum" id="orbNum">—</div><div class="cap" id="orbCap">Readiness</div></div>
       </div>
       <div class="ready-scale" id="readyScale" aria-hidden="true">
-        <div class="rs-track"><span class="rs-seg rest"></span><span class="rs-seg easy"></span><span class="rs-seg train"></span><span class="rs-seg push"></span><span class="rs-marker" id="rsMarker"></span></div>
+        <div class="rs-track"><span class="rs-seg rest"></span><span class="rs-seg easy"></span><span class="rs-seg push"></span><span class="rs-marker" id="rsMarker"></span></div>
       </div>
     </div>
     <div class="flank right" id="flankLoad"></div>
@@ -513,8 +513,8 @@
   </section>
 
   <section class="card" id="checkCard">
-    <div class="section-head"><h2>Has readiness been right?</h2><span class="n" id="checkDays"></span></div>
-    <div class="section-sub">Every past day, grouped by what readiness said that morning, next to how you actually recovered the morning after.</div>
+    <div class="section-head"><h2>Does following the plan pay off?</h2><span class="n" id="checkDays"></span></div>
+    <div class="section-sub">How you recovered the morning after days you followed the plan, against days you trained hard when it said go easy or rest.</div>
     <div id="checkRows" style="margin-top:12px;"></div>
     <div class="section-sub" id="checkCaption" style="margin-top:10px;"></div>
   </section>
@@ -645,12 +645,12 @@ const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); 
 
 // Readiness (build_readiness in build_dashboard.py): 7-day HRV, resting HR and hours asleep, each as
 // a standard score vs your previous 4 weeks, averaged with equal weights (Thornton et al. 2019) and
-// shown as a percentile of your own days (50 = your median day). 69+ Train hard, 31–68 Train as
-// planned, 7–30 Go easy, under 7 Rest — the trials' ±0.5 SD and −1.5 SD lines in that unit. Also Rest when breathing rate is 3+ above usual, and Go easy after
+// shown as a percentile of your own days (50 = your median day). 31+ Train as planned, 7–30 Go easy,
+// under 7 Rest — the trials' −0.5 SD and −1.5 SD lines in that unit. No trial prescribes a harder
+// session for being above the band, so there is no fourth answer above. Also Rest when breathing rate is 3+ above usual, and Go easy after
 // 2 hard days in a row. The plan is one session a day — once trained, it is Done. Sources: README.
 const ACTIONS = {
-  hard:     {label:'Train hard',       c:'var(--good)',      bg:'var(--good-bg)',     headline:'Ready to train hard.'},
-  moderate: {label:'Train as planned', c:'var(--accent)',    bg:'var(--accent-soft)', headline:'Train as planned today.'},
+  moderate: {label:'Train as planned', c:'var(--good)',      bg:'var(--good-bg)',     headline:'Train as planned today.'},
   easy:     {label:'Go easy',          c:'var(--warn)',      bg:'var(--warn-bg)',     headline:'Go easy today.'},
   rest:     {label:'Rest',             c:'var(--critical)',  bg:'var(--critical-bg)', headline:'Rest today.'},
   done:     {label:'Done for today',   c:'var(--ink-muted)', bg:'var(--surface-2)',   headline:'Today’s session is done.'},
@@ -673,10 +673,8 @@ function computeReadiness(){
   // Only before a session: afterwards the strain is the session itself, the plan is spent, and the
   // ratio is reported as information rather than rewriting what the morning plan was.
   const trained = sessions.length > 0;
-  if(!trained && load && load.ratio > load.bands.high && (plan === 'hard' || plan === 'moderate')){
+  if(!trained && load && load.ratio > load.bands.high && plan === 'moderate'){
     plan = 'easy'; reasons = ['load'];
-  } else if(!trained && load && load.ratio > load.bands.caution && plan === 'hard'){
-    plan = 'moderate'; reasons = ['load_caution'];
   }
   // The score prescribes one session a day, the way the HRV-guided trials did. Once you have
   // trained, today's plan is spent — the answer stops asking for more (unless it says Rest,
@@ -691,11 +689,11 @@ function computeReadiness(){
 
 // One sentence on where today's strain has left the load ratio and how much room is left.
 function loadText(calc){
-  const Ld = calc.load; if(!Ld || calc.reasons.includes('load') || calc.reasons.includes('load_caution')) return '';
+  const Ld = calc.load; if(!Ld || calc.reasons.includes('load')) return '';
   const r = Ld.ratio.toFixed(2), B = Ld.bands, at = Ld.strain_at, s = Ld.strain.toFixed(1);
   if(Ld.ratio > B.high)    return `Today's strain ${s} has taken your load ratio to ${r}, above ${B.high} — keep the rest of the day easy.`;
   if(Ld.ratio > B.caution) return `Today's strain ${s} has taken your load ratio to ${r}, past the ${B.caution} caution line.`;
-  const training = calc.plan === 'hard' || calc.plan === 'moderate';
+  const training = calc.plan === 'moderate';
   if(Ld.ratio < B.low) return training && at.low != null && at.low > Ld.strain && at.low < 21
     ? `Load ratio ${r}, below ${B.low}: a day strain of ${at.low.toFixed(1)} brings it back into range.`
     : `Load ratio ${r}, below ${B.low}.`;
@@ -704,7 +702,7 @@ function loadText(calc){
 }
 
 const SESSION_RANK = {easy:1, strength:1, moderate:2, hard:3};
-const PLAN_RANK = {rest:0, easy:1, moderate:2, hard:3};
+const PLAN_RANK = {rest:0, easy:1, moderate:2};
 // What you did today, in words: "padel, 1h 47m, easy"
 function sessionsText(calc){
   return listAnd(calc.sessions.map(w => `${w.sport} (${fmtHM(w.dur_min / 60)}, ${w.intensity ? INTENSITY_WORD[w.intensity] : 'strength'})`));
@@ -731,7 +729,6 @@ function reasonText(calc, key){
   }
   if(key === 'breathing') return `last night's breathing rate was ${one(R.breathing.value)} /min, 3 or more above your usual ${one(R.breathing.usual)} — a possible sign of illness`;
   if(key === 'streak') return `you've trained hard ${R.hard_days_in_a_row} days in a row (limit ${R.max_hard_days})`;
-  if(key === 'load_caution') return `today's strain of ${calc.load.strain.toFixed(1)} has taken your load ratio to ${calc.load.ratio.toFixed(2)}, past the ${calc.load.bands.caution} caution line — no hard session on top`;
   if(key === 'load') return `today's strain of ${calc.load.strain.toFixed(1)} has taken your load ratio to ${calc.load.ratio.toFixed(2)}, above the ${calc.load.bands.high} high-risk line`;
   if(key === 'days_low') return `readiness has been below your normal ${R.days_below_normal} days in a row — a run of low days, not one low night, is what counts`;
   return '';
@@ -744,6 +741,9 @@ function scoreText(calc){
   const night = N && N.state !== 'within' ? `last night was ${N.state} your normal` : '';
   if(better.length && N && N.state === 'above') return `readiness ${R.score}, with ${listAnd(better.concat(['last night']))} above your normal`;
   if(better.length) return `readiness ${R.score}, with ${listAnd(better)} above your normal` + (night ? `, though ${night}` : '');
+  // A good night with a below-band score is the confusing case: say which half is pulling.
+  if(N && N.state === 'above' && R.score < R.lines.train)
+    return `readiness ${R.score}: last night was above your normal, but the last 7 days pull it down`;
   // a low night with normal weeks is the usual reason for a middling score — say so, don't claim all-normal
   if(night) return `readiness ${R.score}: your last 7 days are all within your normal, but ${night}`;
   return `readiness ${R.score}, everything within your normal range`;
@@ -781,9 +781,9 @@ function renderDecision(){
   if(R){
     countUp($('orbNum'), shown, v => String(Math.round(v)));
     $('orbCap').textContent = 'Readiness';     // one word; the sentence above says why it moved
-    // the whole percentile scale: red under 7 · yellow 7–30 · blue 31–68 · green 69+
+    // the whole percentile scale: red under 7 · yellow 7–30 · green 31+
     const lo = 0, hi = 100, L = R.lines;
-    const widths = [L.rest - lo, L.train - L.rest, L.above - L.train, hi - L.above];
+    const widths = [L.rest - lo, L.train - L.rest, hi - L.train];
     $('readyScale').querySelectorAll('.rs-seg').forEach((el, i) => { el.style.flex = String(widths[i]); });
     const pos = v => ((clamp(v, lo, hi) - lo) / (hi - lo) * 100) + '%';
     $('rsMarker').style.left = pos(shown);
@@ -794,9 +794,9 @@ function renderDecision(){
     $('readyScale').hidden = true;
   }
   // the orb keeps the score's own colour, matching the scale under it, even when today is done
-  const bandOf = v => v >= R.lines.above ? 'hard' : v >= R.lines.train ? 'moderate' : v >= R.lines.rest ? 'easy' : 'rest';
+  const bandOf = v => v >= R.lines.train ? 'moderate' : v >= R.lines.rest ? 'easy' : 'rest';
   const hueKey = calc.cost ? bandOf(shown) : calc.action === 'done' ? calc.plan : calc.action;
-  drawSphere('orb', {hard:148, moderate:222, easy:42, rest:6, learning:222}[hueKey]);
+  drawSphere('orb', {moderate:148, easy:42, rest:6, learning:222}[hueKey]);
   renderSuggestions(calc);
   window.__readinessCalc = calc;
 }
@@ -821,15 +821,10 @@ function renderSuggestions(calc){
   } else if(calc.action === 'easy'){
     sEl.className = 'signal warn';
     sTxt.innerHTML = `<b>Keep today easy.</b> ${sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))))}`;
-  } else if(calc.action === 'moderate' && calc.reasons.includes('load_caution')){
-    sEl.className = 'signal warn';
-    sTxt.innerHTML = `<b>Train as planned, not hard.</b> ${sentence(reasonText(calc, 'load_caution'))}`;
+
   } else if(calc.action === 'moderate'){
     sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is inside your normal range (${calc.R.lines.train}–${calc.R.lines.above - 1}) — no reason to push harder or hold back.`;
-  } else {
-    sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>A hard session is OK today.</b> Readiness ${calc.R.score} is above your normal (${calc.R.lines.above}+).`;
+    sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is at or above your normal range (${calc.R.lines.train}+) — the trials prescribe the planned session here, hard or moderate.`;
   }
   // the part that moves through the day: where today's strain has left the load ratio
   const lt = calc.action === 'learning' ? '' : loadText(calc);
@@ -1333,7 +1328,7 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
 
 /* ================= trend explorer ================= */
 const METRICS = [
-  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:[{v:69,color:'var(--good)'},{v:31,color:'var(--accent)'},{v:7,color:'var(--critical)'}], bounds:[0,100], formula:'7-day HRV, resting HR and sleep vs your previous 4 weeks, averaged and placed among your own days: 50 = your median day.'},
+  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:[{v:31,color:'var(--good)'},{v:7,color:'var(--critical)'}], bounds:[0,100], formula:'7-day HRV, resting HR and sleep vs your previous 4 weeks, averaged and placed among your own days: 50 = your median day.'},
   {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
   {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:"WHOOP's Sleep Performance. Since WHOOP's 2025 update it blends hours vs needed with consistency, efficiency and sleep stress; readiness uses hours vs needed on its own."},
@@ -1651,25 +1646,29 @@ function renderHeatmap(){
 /* ================= records ================= */
 /* ================= does readiness work? ================= */
 function renderReadinessCheck(){
-  const C = DATA.readiness_check, card = $('checkCard');
+  const C = DATA.plan_check, card = $('checkCard');
   if(!C || !C.days){ card.hidden = true; return; }
   card.hidden = false;
-  const label = {hard:'Train hard', moderate:'Train as planned', easy:'Go easy', rest:'Rest'};
-  const color = {hard:'var(--good)', moderate:'var(--accent)', easy:'var(--warn)', rest:'var(--critical)'};
-  const rows = C.answers.filter(r => r.days);
   $('checkDays').textContent = `${C.days} days`;
-  $('checkRows').innerHTML = `<div class="check-row head"><span class="k">What readiness said</span><span class="d"></span><span class="v">recovery next morning</span></div>` + rows.map(r => `
+  const row = (label, dot, g) => `
     <div class="check-row">
-      <span class="k"><span class="dot" style="background:${color[r.answer]}"></span>${label[r.answer]}</span>
-      <span class="d tnum">${r.days} days</span>
-      <span class="v tnum">${Math.round(r.avg_next_recovery)}</span>
-    </div>`).join('');
-  const best = rows.reduce((a, b) => b.avg_next_recovery > a.avg_next_recovery ? b : a, rows[0]);
+      <span class="k"><span class="dot" style="background:${dot}"></span>${label}</span>
+      <span class="d tnum">${g.days} days</span>
+      <span class="v tnum">${g.avg_next_recovery == null ? '—' : Math.round(g.avg_next_recovery)}</span>
+    </div>`;
+  $('checkRows').innerHTML = `<div class="check-row head"><span class="k">What you did</span><span class="d"></span><span class="v">recovery next morning</span></div>`
+    + row('Followed the plan', 'var(--good)', C.followed)
+    + row('Trained hard on an easy or rest day', 'var(--critical)', C.harder);
+  // the comparison is behaviour, not the score against itself — and the caveat is stated, not hidden
   $('checkCaption').textContent = !C.enough
-    ? 'Not enough days yet to say whether the score is telling you anything.'
-    : !C.significant ? "So far the groups recover about the same — the score hasn't proved itself yet."
-    : C.hard_higher ? `You recover best after the days it gave you a green light (${Math.round(rows[0].avg_next_recovery)}) and worst after the days it told you to back off — the pattern is too clear to be chance, so the score is tracking something real.`
-    : `You recover best after "${label[best.answer]}" days — most likely because the green-light days are when you train hardest.`;
+    ? (C.harder.days === 0
+        ? 'You have never trained hard on a day the plan said go easy or rest, so there is nothing to compare yet.'
+        : `Only ${C.harder.days} ${C.harder.days === 1 ? 'day' : 'days'} so far where you trained hard against the plan — the counts are shown, but that is too few to compare.`)
+    : !C.significant
+    ? 'The two groups recover about the same so far, so following the plan has not made a measurable difference.'
+    : C.delta > 0
+    ? `You recover ${Math.abs(C.delta)} points better the morning after following the plan. Days run into each other, so treat the test as generous, not proof.`
+    : `You recover ${Math.abs(C.delta)} points better after overriding the plan — worth a look at whether the easy days are being called too often.`;
 }
 
 function renderRecords(){
@@ -1817,8 +1816,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
         `${Math.round(100 * all.filter(p => p.a === key).length / all.length)}% of days`;
       const band = (label, key, text) =>
         out.push(row(label, text, share(key), cur === key ? 'current' : ''));
-      band('Train hard', 'hard', `${L2.above}+`);
-      band('Train as planned', 'moderate', `${L2.train}–${L2.above - 1}`);
+      band('Train as planned', 'moderate', `${L2.train}+`);
       band('Go easy', 'easy', `${L2.rest}–${L2.train - 1}`);
       band('Rest', 'rest', `under ${L2.rest}, or ${R.days_low_to_rest} days low`);
       out.push(section('Also checked', 'today / limit'));

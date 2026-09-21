@@ -45,22 +45,28 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   the README; where no study defines something, show a plain fact instead (e.g. rest day = last day
   without a workout). Statistical comparisons use Welch's t-test, p < 0.05, 30+ per group.
 - **Readiness** (`build_readiness`) = one 0–100 score, a **percentile of the person's own days** (50 = their
-  median day — never call it a percentage): 7-day ln-RMSSD HRV, resting HR and hours asleep (3+ readings)
-  each a standard score vs the 7-day averages of the 4 weeks before the current week (sample SD, each week
-  3+ readings), RHR flipped, equal weights (Thornton 2019), then standardised against the spread of their own
+  median day — never call it a percentage). **Six inputs**: ln-RMSSD HRV, resting HR and hours asleep (naps
+  included), each as a **7-day average** (3+ readings) AND as **last night alone** — so last night is half the
+  score, not side information. The 7-day scores are compared with the 7-day averages of the 4 weeks before the
+  current week and last night with that window's single nights (sample SD, each baseline week 3+ readings),
+  RHR flipped, equal weights (Thornton 2019), then standardised against the spread of their own
   earlier composites (`percentile_series`, 28+ days — averaging z-scores shrinks the spread, so the average is
   NOT on a 1-SD scale; the old T scale made above-normal days read as average) and read off the normal curve.
-  It sets the day's plan, one session a day as in the trials: 69+ Train hard · 31–68 Train as planned ·
-  below the band Go easy or Rest (`READY_LINES`, = +0.5/−0.5/−1.5 SD as percentiles). Rest when the fall is large
+  It sets the day's plan, one session a day as in the trials: **31+ Train as planned** · 7–30 Go easy · <7 Rest
+  (`READY_LINES`, = −0.5/−1.5 SD as percentiles). There is NO answer above the band — no cited trial prescribes a
+  harder session for being above it (Kiviniemi 2007 "increase or no change"; Javaloyes 2019 "above or within";
+  Vesterinen 2016 "within"; Manresa-Rocamora 2021 "within or above"). The 7-day windows stop the day before
+  (`rolling_7`), so last night is counted once, not twice. Rest when the fall is large
   (<7) or sustained — 3rd day in a row below the band (`DAYS_LOW_TO_REST`), never 3 rest days in a row
   (`MAX_REST_DAYS_IN_A_ROW`; Manresa-Rocamora 2021 "low intensity or passive rest"; Plews 2013/Buchheit 2014
   sustained not single-day; Kiviniemi 2007 caps consecutive rest days). Rest on breathing +3/min; Go easy after 2 hard days in a row. Once any session is
   logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Before a session, today's
-  live load ratio (`build_load_today`, strain so far) steps the plan down: >1.3 hard→as planned, >1.5 → Go easy.
+  live load ratio (`build_load_today`, strain so far) steps the plan down: >1.5 → Go easy.
   After a session the orb shows readiness net of today's training cost (`build_training_cost`: OLS of next-morning
   readiness on day strain, holding readiness constant, on the person's own history; significant & negative only;
-  cost = effect × strain above median rest-day strain, never positive). The plan still comes from the morning score. Last night is information only. JP wants ONE score from all
-  measures AND every rule sourced — keep both.
+  cost = effect × strain above median rest-day strain, never positive). The plan still comes from the morning score. The panel's "last night" block is the raw
+  values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
+  score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
   (`intensity_minutes`, proportional split); session level = where most time was. Strength sessions: none.
 - Recovery keeps WHOOP zones 34/67. No sliders. Model changes need a cited source and tests.

@@ -61,12 +61,14 @@ class ProtocolTest(unittest.TestCase):
         self.assertLess(latest['score'], 45)
         self.assertEqual(latest['hrv']['state'], 'below')
 
-    def test_hrv_above_the_band_means_train_hard(self):
+    def test_hrv_above_the_band_is_the_same_answer_as_inside_it(self):
+        """No cited trial prescribes a harder session for being above the range (Kiviniemi 2007:
+        "an increase or no change" both get high intensity), so there is no fourth answer."""
         h, r, b, ds = steady()
-        for d in ds[-7:]:
+        for d in ds[-8:-1]:
             h[d] *= 1.4
         latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertEqual((latest['answer'], latest['hrv']['state']), ('hard', 'above'))
+        self.assertEqual((latest['answer'], latest['hrv']['state']), ('moderate', 'above'))
 
     def test_resting_hr_rise_means_easy(self):
         h, r, b, ds = steady()
@@ -199,9 +201,9 @@ class ProtocolTest(unittest.TestCase):
 
     def test_summary_includes_readiness(self):
         summary = bd.build_summary(generate(120))
-        for key in ('readiness', 'readiness_progress', 'readiness_check', 'last_night', 'sleep_nights'):
+        for key in ('readiness', 'readiness_progress', 'plan_check', 'last_night', 'sleep_nights'):
             self.assertIn(key, summary)
-        self.assertIn(summary['readiness']['answer'], ('hard', 'moderate', 'easy', 'rest'))
+        self.assertIn(summary['readiness']['answer'], ('moderate', 'easy', 'rest'))
 
 
 def _raw_composites(h, r, sleep, ds):
@@ -228,8 +230,9 @@ class ScoreTest(unittest.TestCase):
         latest, _ = bd.build_readiness(h, r, b, set(), sleep)
         monday = date.fromisoformat(ds[-1]) - timedelta(days=date.fromisoformat(ds[-1]).weekday())
         def z(src, f, flip):
-            def roll(day):
-                v = [f(x) for k, x in src.items() if day - timedelta(days=6) <= date.fromisoformat(k) <= day]
+            def roll(day):                      # the 7 days BEFORE the day, not including it
+                v = [f(x) for k, x in src.items()
+                     if day - timedelta(days=7) <= date.fromisoformat(k) <= day - timedelta(days=1)]
                 return sum(v) / len(v)
             base = [roll(monday - timedelta(days=k)) for k in range(1, 29)]
             m = sum(base) / len(base)
@@ -267,17 +270,19 @@ class ScoreTest(unittest.TestCase):
                 hh[d] = h[d] * factor
             latest, _ = bd.build_readiness(hh, r, b, set())
             s = latest['score']
-            want = 'hard' if s >= 69 else 'moderate' if s >= 31 else 'easy' if s >= 7 else 'rest'
+            want = 'moderate' if s >= 31 else 'easy' if s >= 7 else 'rest'
             self.assertEqual(latest['answer'], want, (factor, s))
-        self.assertEqual(latest['lines'], {'above': 69, 'train': 31, 'rest': 7})
+        self.assertEqual(latest['lines'], {'train': 31, 'rest': 7})
 
-    def test_the_four_bands_are_the_swc_and_rest_lines(self):
-        """Band edges are the trials' SD cut-offs read as percentiles: +0.5 SD = 69, -0.5 = 31, -1.5 = 7."""
+    def test_the_bands_are_the_swc_and_rest_lines(self):
+        """Band edges are the trials' SD cut-offs read as percentiles: -0.5 SD = 31, -1.5 SD = 7.
+        There is no line above the band — no trial prescribes a harder session for being above it."""
         h, r, b, _ = steady()
         latest, _ = bd.build_readiness(h, r, b, set())
         L = latest['lines']
-        self.assertEqual([L['above'], L['train'], L['rest']], [69, 31, 7])
-        for z, want in ((0.5, 69), (-0.5, 31), (-1.5, 7), (0, 50)):
+        self.assertEqual(sorted(L), ['rest', 'train'])
+        self.assertEqual([L['train'], L['rest']], [31, 7])
+        for z, want in ((-0.5, 31), (-1.5, 7), (0, 50)):
             self.assertEqual(round(bd.normal_percentile(z)), want)
 
     def test_the_score_really_is_a_percentile(self):
@@ -287,8 +292,7 @@ class ScoreTest(unittest.TestCase):
         _, series = bd.build_readiness(h, r, b, set())
         self.assertGreater(len(series), 400)
         share = lambda f: 100 * sum(1 for p in series if f(p['v'])) / len(series)
-        self.assertAlmostEqual(share(lambda v: v >= 69), 30.9, delta=6)
-        self.assertAlmostEqual(share(lambda v: 31 <= v < 69), 38.3, delta=6)
+        self.assertAlmostEqual(share(lambda v: v >= 31), 69.1, delta=8)
         self.assertAlmostEqual(share(lambda v: 7 <= v < 31), 24.2, delta=6)
         self.assertAlmostEqual(share(lambda v: v < 7), 6.7, delta=4)
 
@@ -312,7 +316,7 @@ class ScoreTest(unittest.TestCase):
     def test_series_carries_score_and_answer(self):
         h, r, b, _ = steady()
         _, series = bd.build_readiness(h, r, b, set())
-        self.assertTrue(all(0 <= p['v'] <= 100 and p['answer'] in ('hard', 'moderate', 'easy', 'rest') for p in series))
+        self.assertTrue(all(0 <= p['v'] <= 100 and p['answer'] in ('moderate', 'easy', 'rest') for p in series))
 
 
 class StatisticsTest(unittest.TestCase):
@@ -326,20 +330,37 @@ class StatisticsTest(unittest.TestCase):
         self.assertLess(bd.welch_p(a, [rng.gauss(45, 15) for _ in range(200)]), 0.05)
         self.assertGreater(bd.welch_p(a, [rng.gauss(55, 15) for _ in range(200)]), 0.05)
 
-    def test_check_needs_30_days_of_each_answer(self):
-        series = [{'date': (date(2026, 1, 1) + timedelta(days=i)).isoformat(), 'answer': 'hard' if i % 2 else 'easy'}
-                  for i in range(40)]
-        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): 60 if i % 2 else 40 for i in range(40)}
-        out = bd.build_readiness_check(series, rec)
+    def test_plan_check_needs_30_days_on_both_sides(self):
+        """Few override days is the normal case — show the counts, claim nothing."""
+        days = [(date(2026, 1, 1) + timedelta(days=i)).isoformat() for i in range(60)]
+        series = [{'date': d, 'answer': 'easy' if i < 10 else 'moderate'} for i, d in enumerate(days)]
+        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): 50 for i in range(60)}
+        out = bd.build_plan_check(series, rec, set(days[:5]))     # 5 override days only
+        self.assertEqual(out['harder']['days'], 5)
         self.assertFalse(out['enough'])
         self.assertFalse(out['significant'])
 
-    def test_check_uses_next_morning(self):
-        series = [{'date': (date(2026, 1, 1) + timedelta(days=i)).isoformat(), 'answer': 'hard' if i % 2 else ('easy' if i % 4 else 'rest')}
-                  for i in range(200)]
-        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): (60 if i % 2 else 40) + (i % 7) for i in range(200)}
-        out = bd.build_readiness_check(series, rec)
-        self.assertTrue(out['enough'] and out['significant'] and out['hard_higher'])
+    def test_plan_check_compares_what_you_did_not_what_the_score_said(self):
+        """Overriding = a moderate/high session on a Go easy or Rest day; everything else followed."""
+        days = [(date(2026, 1, 1) + timedelta(days=i)).isoformat() for i in range(200)]
+        series = [{'date': d, 'answer': 'easy' if i % 2 else 'moderate'} for i, d in enumerate(days)]
+        hard = {d for i, d in enumerate(days) if i % 2}           # every Go easy day was overridden
+        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): (40 if i % 2 else 60) + (i % 5)
+               for i in range(200)}
+        out = bd.build_plan_check(series, rec, hard)
+        self.assertEqual(out['followed']['days'] + out['harder']['days'], out['days'])
+        self.assertEqual(out['harder']['days'], 100)
+        self.assertTrue(out['enough'] and out['significant'])
+        self.assertGreater(out['delta'], 0)
+        self.assertAlmostEqual(out['followed']['avg_next_recovery'], 62.0, delta=0.6)
+
+    def test_plan_check_ignores_hard_days_the_plan_allowed(self):
+        days = [(date(2026, 1, 1) + timedelta(days=i)).isoformat() for i in range(60)]
+        series = [{'date': d, 'answer': 'moderate'} for d in days]
+        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): 50 for i in range(60)}
+        out = bd.build_plan_check(series, rec, set(days))          # trained hard every day, as allowed
+        self.assertEqual(out['harder']['days'], 0)
+        self.assertEqual(out['followed']['days'], out['days'])
 
 
 if __name__ == '__main__':

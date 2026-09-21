@@ -330,9 +330,10 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #     of the person's own earlier composites and shown as a percentile of them (`percentile_series`)
 #     — 50 = your median day; the SD lines above become 69 / 31 / 7.
 #   - Answer, the way the trials prescribed the day's session (Kiviniemi et al. 2007; Vesterinen
-#     et al. 2016; Javaloyes et al. 2019): above the normal band (69+, i.e. more than +0.5 SD, the
-#     smallest worthwhile change) → Train hard; inside the band → Train as planned, the trials'
-#     moderate/prescribed session; below it → Go easy or Rest ("low intensity exercise (or passive
+#     et al. 2016; Javaloyes et al. 2019): at or above the bottom of the normal band (31+, i.e. not
+#     more than 0.5 SD — the smallest worthwhile change — below normal) → Train as planned, the
+#     trials' moderate/high session, with no separate step for being above the band because no
+#     trial prescribes one; below it → Go easy or Rest ("low intensity exercise (or passive
 #     rest) is prescribed when values are suppressed" — Manresa-Rocamora et al. 2021). Rest when the
 #     fall is large (1.5 SD below, the line Thornton et al. 2019 give as worth acting on) or
 #     sustained — the third day in a row below the band, since the method papers act on a sustained
@@ -354,10 +355,15 @@ def normal_percentile(z):
     return 100 * 0.5 * (1 + math.erf(z / math.sqrt(2)))
 
 
-# The score is that percentile: 50 = your median day, and the decision lines are the trials' own
-# SD cut-offs expressed in the same unit — +0.5 SD = 69, −0.5 SD = 31, −1.5 SD = 7.
-READY_LINES = {'above': round(normal_percentile(READY_SWC)),
-               'train': round(normal_percentile(-READY_SWC)),
+# The score is that percentile, and the decision lines are the trials' own SD cut-offs in the same
+# unit: −0.5 SD = 31 (the bottom of the normal band), −1.5 SD = 7.
+# There is no line above the band. No HRV-guided trial prescribes a harder session for being above
+# it: Kiviniemi 2007 gives high intensity on "an increase or no change"; Javaloyes 2019 "above or
+# within the SWC"; Vesterinen 2016 programmes the moderate/high session when HRV is within it and
+# low intensity otherwise; the review of the trials (Manresa-Rocamora 2021) says high intensity
+# "within or above baseline ranges". Above and within get the same prescription, so they are one
+# answer here.
+READY_LINES = {'train': round(normal_percentile(-READY_SWC)),
                'rest': round(normal_percentile(-READY_REST_SD))}
 MAX_HARD_DAYS_IN_A_ROW = 2
 # Below the normal band the trials prescribe "low intensity exercise (or passive rest)"
@@ -382,8 +388,13 @@ def _in_range(src, first, last):
 
 
 def rolling_7(src, d):
-    """7-day average ending on d, valid with 3+ readings (Plews et al. 2014)."""
-    window = _in_range(src, _date_minus(d, READY_WINDOW_DAYS - 1), d)
+    """The 7 days BEFORE d, valid with 3+ readings (Plews et al. 2014).
+
+    The window stops the day before so that last night is not counted twice: it is already one of
+    the six inputs on its own. Including it in the average as well gave it about 57% of the score
+    instead of 50%, and on 529 real days the plan changed 41% of days against 30% for the trend
+    alone — the extra churn came from a night counted twice."""
+    window = _in_range(src, _date_minus(d, READY_WINDOW_DAYS), _date_minus(d, 1))
     return mean(window) if len(window) >= READY_MIN_READINGS else None
 
 
@@ -464,8 +475,11 @@ def percentile_series(raw_by_day):
     the spread of the person's own earlier composites (all days before it, 28+ needed, so nothing is
     scored with days it has not lived through yet) and shown as a percentile: 50 = a median day for
     you, and the trials' decision lines keep their meaning — +0.5 SD = 69, −0.5 SD = 31, −1.5 SD = 7.
-    Checked on 553 days here: 6.5% of days landed under 7 and 31.2% at or above 69, against the
-    6.7% and 30.9% those SD lines are meant to cut off."""
+
+    The share of days each band catches (here: 31.4% at 69+, 37.4% inside, 25.3%, 5.9% under 7,
+    over 529 days) follows from the scale itself — a percentile puts a known fraction either side of
+    each line. Matching those shares says the scale is built right, NOT that the score predicts
+    anything; for that, see `build_plan_check`."""
     out, history = {}, []
     for d in sorted(raw_by_day):
         if len(history) >= READY_BASELINE_DAYS:
@@ -514,24 +528,24 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
         while scores.get(cur) is not None and scores[cur] < READY_LINES['train']:
             days_below += 1
             cur = _date_minus(cur, 1)
+        # the cap on consecutive rest days applies to both score-driven rest paths; an illness sign
+        # is exempt, because that is a reason to keep resting for as long as it lasts
+        rested_two = all(answers.get(_date_minus(d, k)) == 'rest' for k in (1, 2))
         if breathing and breathing['flagged']:
             answer, reasons = 'rest', ['breathing']
         elif score < READY_LINES['rest']:
-            answer, reasons = 'rest', ['low']
+            answer, reasons = ('easy', ['low']) if rested_two else ('rest', ['low'])
         elif score < READY_LINES['train']:
             # below the normal band the trials prescribe low intensity OR rest; a sustained fall is
             # what the method papers act on, and two rest days in a row is the limit
-            rested = [answers.get(_date_minus(d, k)) == 'rest' for k in (1, 2)]
-            if days_below >= DAYS_LOW_TO_REST and not all(rested):
+            if days_below >= DAYS_LOW_TO_REST and not rested_two:
                 answer, reasons = 'rest', ['days_low']
             else:
                 answer, reasons = 'easy', ['low']
         elif streak >= MAX_HARD_DAYS_IN_A_ROW:
             answer, reasons = 'easy', ['streak']
-        elif score < READY_LINES['above']:
-            answer, reasons = 'moderate', []
         else:
-            answer, reasons = 'hard', []
+            answer, reasons = 'moderate', []
         answers[d] = answer
         series.append({'date': d, 'v': score, 'answer': answer})
         marker = lambda m, unit_fn: None if m is None else {'value': unit_fn(m['avg']), 'normal': [unit_fn(m['lo']), unit_fn(m['hi'])],
@@ -566,29 +580,31 @@ def readiness_progress(hrv_by_day):
     return {'days': elapsed, 'needed': (ready - first).days + 1}
 
 
-# "Does this work?": next-morning recovery after 'hard training OK' days vs 'easy or rest' days,
-# tested with Welch's t-test. A consistency check, not independent proof — recovery shares HRV and
-# resting HR with the answer.
-def build_readiness_check(series, recovery_by_day):
-    """Next-morning recovery after days with each answer; the green/blue answers vs the yellow/red
-    ones tested with Welch's t-test. A consistency check, not independent proof (recovery shares
-    HRV and resting HR)."""
-    groups = {'hard': [], 'moderate': [], 'easy': [], 'rest': []}
+# Does the plan hold up? Comparing the score against next-morning recovery was too easy a test:
+# recovery is built from HRV and resting HR, the same measures the score is built from, so the two
+# agree by construction. This compares BEHAVIOUR instead — days the plan was followed against days
+# a moderate or high-intensity session was done on a Go easy or Rest day. Same conventions as every
+# other comparison here (Welch's t-test, p < 0.05, 30+ per group), with one caveat stated on the
+# page and in the README: consecutive days are not independent (the score's day-to-day correlation
+# is about 0.87), so the p-value is optimistic.
+def build_plan_check(series, recovery_by_day, hard_days):
+    """Next-morning recovery after days the plan was followed vs days it was overridden."""
+    followed, harder = [], []
     for p in series:
         nxt = (datetime.fromisoformat(p['date']) + timedelta(days=1)).date().isoformat()
-        if nxt in recovery_by_day:
-            groups[p['answer']].append(recovery_by_day[nxt])
-    upper = groups['hard'] + groups['moderate']
-    lower = groups['easy'] + groups['rest']
-    p = welch_p(upper, lower)
-    enough = len(upper) >= MIN_GROUP and len(lower) >= MIN_GROUP
+        if nxt not in recovery_by_day:
+            continue
+        trained_hard = p['date'] in hard_days
+        (harder if (trained_hard and p['answer'] in ('easy', 'rest')) else followed).append(recovery_by_day[nxt])
+    p_val = welch_p(followed, harder)
+    enough = len(followed) >= MIN_GROUP and len(harder) >= MIN_GROUP
     return {
-        'answers': [{'answer': k, 'avg_next_recovery': round(mean(v), 1) if v else None, 'days': len(v)}
-                    for k, v in groups.items()],
-        'days': sum(len(v) for v in groups.values()),
+        'followed': {'days': len(followed), 'avg_next_recovery': round(mean(followed), 1) if followed else None},
+        'harder': {'days': len(harder), 'avg_next_recovery': round(mean(harder), 1) if harder else None},
+        'delta': round(mean(followed) - mean(harder), 1) if followed and harder else None,
+        'days': len(followed) + len(harder),
         'enough': enough,
-        'significant': bool(enough and p is not None and p < SIGNIFICANCE),
-        'hard_higher': bool(upper and lower and mean(upper) > mean(lower)),
+        'significant': bool(enough and p_val is not None and p_val < SIGNIFICANCE),
     }
 
 
@@ -909,7 +925,7 @@ def build_summary(d):
     readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day)
     # 'a' = the answer that day, so the page can show how often each one actually comes up
     full['readiness'] = [{'date': p['date'], 'v': p['v'], 'a': p['answer']} for p in readiness_series]
-    readiness_check = build_readiness_check(readiness_series, recovery_by_day)
+    plan_check = build_plan_check(readiness_series, recovery_by_day, hard_days)
     training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), day(cyc[-1]['created_at']))
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
         entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(
@@ -972,7 +988,7 @@ def build_summary(d):
         'full_series': full,
         'readiness': readiness,
         'readiness_progress': readiness_progress(hrv_by_day),
-        'readiness_check': readiness_check,
+        'plan_check': plan_check,
         'last_night': last_night,
         'sleep_nights': build_sleep_nights(sleep, today),
         'workout_log': workout_log,

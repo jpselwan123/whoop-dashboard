@@ -63,14 +63,17 @@ needed" (vs_needed = time asleep ÷ sleep need). Name which one you quote.
 
 Dashboard terms they may ask about (every rule below is taken from published research):
 - Readiness (dashboard_summaries.readiness.score, 0–100, a percentile of their own days — 50 = a \
-median day for them, NOT a percentage of anything): 7-day \
-averages of ln(RMSSD) HRV, resting HR and hours asleep, each a standard score against the 7-day averages \
+median day for them, NOT a percentage of anything): averages of ln(RMSSD) HRV, resting HR and hours \
+asleep over the 7 days BEFORE today (the window stops the day before, so last night is counted once, \
+not twice) and last night on its own - six inputs, so last night is half the score - each a standard \
+score against the 7-day averages \
 of the 4 weeks before the current week (sample SD; normal = ±0.5 SD, shown as .normal ranges), resting \
 HR flipped, averaged with equal weights (Thornton 2019), then standardised against the spread of their \
 own earlier scores and read off the normal curve as a percentile (averaging standard scores shrinks \
 their spread, so the average is not on a 1-SD scale of its own). It prescribes one session for \
-the day, the way the HRV-guided trials did: 69+ (above the +0.5 SD line) Train hard, 31–68 (inside the \
-band) Train as planned, and below the band Go easy or Rest: rest when the fall is large (under 7, \
+the day, the way the HRV-guided trials did: 31+ Train as planned (the trials' moderate/high session; \
+no cited trial prescribes a harder session for being above the band, so there is no answer above it), \
+and below the band Go easy or Rest: rest when the fall is large (under 7, \
 1.5 SD below) or sustained - the 3rd day in a row below the band - and never more than 2 rest days in \
 a row (Manresa-Rocamora 2021 "low intensity exercise (or passive rest)"; Plews 2013 and Buchheit 2014 \
 on reading sustained rather than single-day changes; Kiviniemi 2007 on consecutive rest days). Rest if breathing rate last night is 3+ \
@@ -89,8 +92,7 @@ logarithmic and must never be added across sessions.
 widely used but disputed. The newest value includes today's strain so far, so it rises through the \
 day. dashboard_summaries.load_today gives today's ratio and strain_at = the day strain at which it \
 would cross each band (algebra on the band, not a new threshold). Before any session today the page \
-steps the plan down as it climbs: past 1.3 no hard session (Train hard becomes Train as planned), past \
-1.5 Go easy. After a session it is reported, not used to rewrite the plan.
+steps the plan down as it climbs: past 1.5 the plan becomes Go easy. After a session it is reported, not used to rewrite the plan.
 - After a session the orb shows readiness after training (dashboard_summaries.training_cost): this \
 morning's score minus what today's strain costs by tomorrow morning, measured on their own history \
 (per_strain = readiness points per point of day strain, holding readiness constant; applied to strain \
@@ -105,8 +107,11 @@ Read the card as "the last day they did nothing", never as "the last day they di
 next-morning recovery after days that sport was the hardest session, vs all other training days, with \
 the intensity most of those days were. significant = 30+ days on both sides and Welch p < 0.05; \
 otherwise the page prefixes the number with ~.
-- "Has readiness been right?" (readiness_check): next-morning recovery after each answer (Train hard, \
-Train as planned, Go easy, Rest); the two green-light answers vs the two back-off answers, same test. A consistency check, not independent proof.
+- "Does following the plan pay off?" (plan_check): next-morning recovery after days they followed the \
+plan vs days they did a moderate/high-intensity session on a Go easy or Rest day. Welch, p < 0.05, 30+ \
+per group, otherwise the counts only. If it comes up, say the p-value is optimistic because consecutive \
+days are not independent. Comparing the score against WHOOP recovery was dropped: recovery is built \
+from the same HRV and resting HR, so the two agree by construction.
 - Heart-rate zone split excludes strength sessions."""
 
 
