@@ -9,8 +9,8 @@ the model's context window. Nothing scored is dropped; only formatting is.
 Privacy: only the first name leaves this machine — email, last name, WHOOP
 user id, and record ids are never included.
 
-Dates use the same convention as the dashboard (the calendar day of the record's
-created_at timestamp), so a number the model quotes matches the page. Clock
+Dates use the same convention as the dashboard (the local date the person woke up — see
+build_dashboard.DayKey), so a number the model quotes matches the page. Clock
 times (sleep onset, wake, workout start) are converted to the local time zone
 WHOOP recorded with each record.
 """
@@ -32,7 +32,17 @@ def _parse(s):
 
 
 def _day(s):
+    """UTC calendar day — the fallback; `_key` below is what the tables use."""
     return _parse(s).date().isoformat()
+
+
+def _key_for(raw):
+    """The dashboard's day key (build_dashboard.DayKey): the local date the person woke up, so the
+    chat's tables label a day exactly as the page does. WHOOP's day runs sleep to sleep, so the UTC
+    day of `created_at` can put two cycles on one date."""
+    from build_dashboard import DayKey
+    scored = lambda rows: [r for r in rows if r.get("score_state") == "SCORED"]
+    return DayKey(sorted(scored(raw["cycles"]), key=lambda c: c["created_at"]), scored(raw["sleep"]))
 
 
 def _local_hm(ts, offset):
@@ -113,6 +123,7 @@ def build_context_text():
         dash = json.load(f)
 
     scored = lambda items: [x for x in items if x.get("score_state") == "SCORED" and x.get("score")]
+    key = _key_for(raw)
 
     # ---- days: one row per WHOOP physiological cycle, joined with its recovery ----
     rec_by_cycle = {r["cycle_id"]: r["score"] for r in scored(raw["recovery"])}
@@ -120,7 +131,7 @@ def build_context_text():
     for c in sorted(scored(raw["cycles"]), key=lambda c: c["created_at"]):
         s, r = c["score"], rec_by_cycle.get(c["id"], {})
         days.append([
-            _day(c["created_at"]), _n(s.get("strain")), _n(s.get("kilojoule") and s["kilojoule"] / 4.184, 0),
+            key.of(c), _n(s.get("strain")), _n(s.get("kilojoule") and s["kilojoule"] / 4.184, 0),
             _n(s.get("average_heart_rate"), 0), _n(s.get("max_heart_rate"), 0),
             _n(r.get("recovery_score"), 0), _n(r.get("hrv_rmssd_milli")), _n(r.get("resting_heart_rate"), 0),
             _n(r.get("spo2_percentage")), _n(r.get("skin_temp_celsius"), 2),
@@ -134,7 +145,7 @@ def build_context_text():
         sm = _stage_minutes(st)
         off = s.get("timezone_offset", "+00:00")
         sleeps.append([
-            _day(s["created_at"]), "nap" if s.get("nap") else "sleep",
+            key.of(s), "nap" if s.get("nap") else "sleep",
             _local_hm(s["start"], off), _local_hm(s["end"], off),
             _h(st.get("total_in_bed_time_milli")),
             _hm(sum(sm[k] for k in _CUMULATIVE_ORDER[:3])) if st.get("total_light_sleep_time_milli") is not None else "",
@@ -155,7 +166,7 @@ def build_context_text():
         off = w.get("timezone_offset", "+00:00")
         dur = (_parse(w["end"]) - _parse(w["start"])).total_seconds() / 60
         workouts.append([
-            _day(w["created_at"]), _local_hm(w["start"], off), _n(dur, 0),
+            key.of(w), _local_hm(w["start"], off), _n(dur, 0),
             "other activity" if w["sport_name"] == "activity" else w["sport_name"].replace("_", " "),
             _n(sc.get("strain")), _n(sc.get("average_heart_rate"), 0), _n(sc.get("max_heart_rate"), 0),
             _n(sc.get("kilojoule") and sc["kilojoule"] / 4.184, 0),

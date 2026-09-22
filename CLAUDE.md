@@ -94,7 +94,11 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 - Don't step `Date` objects day-by-day across DST (hour drift); compare `YYYY-MM-DD` strings.
 - "Today" on the page = the open WHOOP cycle (`snapIsCurrent`), not the calendar date — WHOOP's day runs
   sleep to sleep, so at 1am the previous day is still in progress. Don't compare `snap.date` to the clock.
-- Dashboard dates = UTC calendar day of `created_at`; `ai_context.py` matches that convention.
+- Dashboard dates = **the local date the person woke up** (`DayKey`): a cycle is labelled by the end of its
+  own night sleep in that sleep's time zone; recovery/sleep/naps follow `cycle_id`; workouts fall into the
+  cycle window containing them. Use `record_day(record)`, never `day(created_at)` — WHOOP's day runs sleep
+  to sleep, so the UTC day collided on one date here and one day's strain overwrote another.
+  `ai_context.py` imports the same key.
 - Heatmap/month labels collide on partial months — drop the older label when < 3 cells apart.
 - WHOOP `sleep_performance_percentage` = hours vs needed only until ~Oct 2025; after that it's WHOOP's blended
   score. The WHOOP app rounds sleep stages on the running total (light → deep → REM → awake) — `ai_context._stage_minutes`.

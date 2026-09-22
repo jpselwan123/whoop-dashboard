@@ -12,7 +12,83 @@ from collections import Counter, defaultdict
 from env_config import atomic_write, atomic_write_json
 
 def parse(s): return datetime.fromisoformat(s.replace('Z', '+00:00'))
-def day(s): return parse(s).date().isoformat()
+
+
+def local_tz(offset):
+    """WHOOP stores the offset the record was recorded in ('+03:00', or 'Z' for UTC)."""
+    if not offset or offset in ('Z', 'z'):
+        return timezone.utc
+    sign = 1 if offset[0] == '+' else -1
+    h, m = offset[1:].split(':')
+    return timezone(sign * timedelta(hours=int(h), minutes=int(m)))
+
+
+def local_day(ts, offset):
+    return parse(ts).astimezone(local_tz(offset)).date().isoformat()
+
+
+def day(s):
+    """The UTC calendar day of a timestamp — the fallback key, used where nothing better exists.
+
+    Prefer `DayKey` (below): WHOOP's day runs from one sleep to the next, so two cycles can share a
+    UTC day. On this export, 28 Feb 2025 carried two (a night begun at 00:00 local and the next at
+    20:31 local), and the second silently overwrote the first in every per-day metric."""
+    return parse(s).date().isoformat()
+
+
+class DayKey:
+    """Maps every WHOOP record to the day a person would call it: the local date they woke up.
+
+    A cycle runs from one sleep onset to the next, so it is labelled with the local date of the end
+    of its own night sleep (in that sleep's own time zone) — unique for all 613 cycles here, where
+    the UTC day of `created_at` collides on one and the local date of the cycle start on five.
+    Recovery, sleep and naps follow their `cycle_id`; workouts fall into the cycle whose window
+    contains them. Anything unmatched falls back to its own local date."""
+
+    def __init__(self, cycles, sleeps):
+        by_cycle = {}
+        for s in sleeps:
+            if s.get('cycle_id') and not s.get('nap') and s.get('end'):
+                by_cycle.setdefault(s['cycle_id'], []).append(s)
+        self.by_cycle_id, self._windows = {}, []
+        for c in cycles:
+            nights = sorted(by_cycle.get(c['id'], []), key=lambda s: s['end'])
+            if nights:
+                last = nights[-1]
+                key = local_day(last['end'], last.get('timezone_offset') or c.get('timezone_offset'))
+            else:
+                key = local_day(c['start'], c.get('timezone_offset'))
+            self.by_cycle_id[c['id']] = key
+            self._windows.append((parse(c['start']), parse(c['end']) if c.get('end') else None, key))
+        self._windows.sort(key=lambda w: w[0])
+
+    def of(self, record):
+        """The day key for any record: by cycle id, else by the cycle window it starts in."""
+        if record.get('cycle_id') in self.by_cycle_id:
+            return self.by_cycle_id[record['cycle_id']]
+        if record.get('id') in self.by_cycle_id:            # the cycle itself
+            return self.by_cycle_id[record['id']]
+        t = parse(record.get('start') or record['created_at'])
+        lo, hi = 0, len(self._windows) - 1
+        while lo <= hi:                                     # last window starting at or before t
+            mid = (lo + hi) // 2
+            if self._windows[mid][0] <= t:
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if hi >= 0:
+            start, end, key = self._windows[hi]
+            if end is None or t < end:
+                return key
+        return local_day(record.get('start') or record['created_at'], record.get('timezone_offset'))
+
+DAY = None          # the DayKey for the export being built; set at the top of build_summary
+
+
+def record_day(record):
+    """The day a record belongs to (see DayKey), falling back to the UTC day before one is built."""
+    return DAY.of(record) if DAY is not None else day(record['created_at'])
+
 
 def iso_week_monday(week_key):
     """'2026-W38' -> the actual calendar date of that ISO week's Monday, computed
@@ -59,7 +135,7 @@ def series_full(items, val_fn, rnd=1):
     for it in items:
         v = val_fn(it)
         if v is not None:
-            out[day(it['created_at'])] = round(v, rnd)
+            out[record_day(it)] = round(v, rnd)
     days = sorted(out.keys())
     return [{'date': dd, 'v': out[dd]} for dd in days]
 
@@ -698,7 +774,7 @@ def build_zone_distribution(wo, now, max_hr, rest_hr_for):
     for w in wo:
         if w['sport_name'] in STRENGTH_SPORTS:
             continue
-        split = intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(day(w['created_at'])))
+        split = intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(record_day(w)))
         if not split:
             continue
         key = iso_week_key(parse(w['created_at']))
@@ -718,9 +794,9 @@ def build_zone_distribution(wo, now, max_hr, rest_hr_for):
 
 def build_rest_day_stat(cyc, workout_days):
     """The most recent finished day with no logged workout — a plain fact, no threshold."""
-    today = day(cyc[-1]['created_at'])
+    today = record_day(cyc[-1])
     for c in reversed(cyc):
-        d = day(c['created_at'])
+        d = record_day(c)
         if d != today and d not in workout_days:
             return {'last_rest_date': d,
                     'days_since': (datetime.fromisoformat(today) - datetime.fromisoformat(d)).days}
@@ -732,7 +808,7 @@ SLEEP_MIN_HOURS = 7   # adults: 7+ hours a night (AASM & Sleep Research Society,
 
 def build_sleep_nights(sleep, today):
     """Nights in the last 7 days with 7+ hours asleep."""
-    recent = [s for s in sleep if 0 <= (datetime.fromisoformat(today) - datetime.fromisoformat(day(s['created_at']))).days < 7]
+    recent = [s for s in sleep if 0 <= (datetime.fromisoformat(today) - datetime.fromisoformat(record_day(s))).days < 7]
     return {'nights_7h': sum(1 for s in recent if asleep_ms(s) >= SLEEP_MIN_HOURS * 3600000),
             'nights': len(recent), 'min_hours': SLEEP_MIN_HOURS}
 
@@ -743,10 +819,10 @@ def build_today_snapshot(cyc, wo, max_hr, rest_hr_for):
     if not cyc:
         return None
     latest_cycle = cyc[-1]
-    today = day(latest_cycle['created_at'])
+    today = record_day(latest_cycle)
     todays_workouts = []
     for w in wo:
-        if day(w['created_at']) != today:
+        if record_day(w) != today:
             continue
         sc = w['score']
         split = intensity_minutes(sc.get('zone_durations'), max_hr, rest_hr_for(today)) or [0.0, 0.0, 0.0]
@@ -776,6 +852,9 @@ def build_today_snapshot(cyc, wo, max_hr, rest_hr_for):
 
 
 def build_summary(d):
+    global DAY
+    DAY = DayKey(sorted([c for c in d['cycles'] if c['score_state'] == 'SCORED'], key=lambda c: c['created_at']),
+                 [s for s in d['sleep'] if s['score_state'] == 'SCORED'])
     rec = sorted([r for r in d['recovery'] if r['score_state'] == 'SCORED'], key=lambda r: r['created_at'])
     cyc = sorted([c for c in d['cycles'] if c['score_state'] == 'SCORED'], key=lambda c: c['created_at'])
     sleep = sorted([s for s in d['sleep'] if s['score_state'] == 'SCORED' and not s['nap']], key=lambda s: s['created_at'])
@@ -823,7 +902,7 @@ def build_summary(d):
         sc = w['score']
         dur_min = (parse(w['end']) - parse(w['start'])).total_seconds() / 60
         wlog.append({
-            'date': day(w['created_at']), 'sport': sport_label(w['sport_name']),
+            'date': record_day(w), 'sport': sport_label(w['sport_name']),
             'strain': round(sc['strain'], 1), 'dur_min': round(dur_min),
             'avg_hr': sc.get('average_heart_rate'), 'max_hr': sc.get('max_heart_rate'),
             'kcal': round(sc['kilojoule'] / 4.184) if sc.get('kilojoule') else None,
@@ -832,13 +911,13 @@ def build_summary(d):
     workout_log = list(reversed(wlog))
 
     month_rec, month_strain, month_sleep, month_wo, month_days = defaultdict(list), defaultdict(list), defaultdict(list), Counter(), defaultdict(set)
-    for r in rec: month_rec[day(r['created_at'])[:7]].append(r['score']['recovery_score'])
+    for r in rec: month_rec[record_day(r)[:7]].append(r['score']['recovery_score'])
     for c in cyc:
-        m = day(c['created_at'])[:7]
+        m = record_day(c)[:7]
         month_strain[m].append(c['score']['strain'])
-        month_days[m].add(day(c['created_at']))
-    for s in sleep: month_sleep[day(s['created_at'])[:7]].append(s['score']['sleep_performance_percentage'])
-    for w in wo: month_wo[day(w['created_at'])[:7]] += 1
+        month_days[m].add(record_day(c))
+    for s in sleep: month_sleep[record_day(s)[:7]].append(s['score']['sleep_performance_percentage'])
+    for w in wo: month_wo[record_day(w)[:7]] += 1
     data_months = sorted(set(list(month_rec.keys()) + list(month_strain.keys())))
     MIN_DAYS_FULL = 10  # months with fewer tracked days than this render faded, as partial
     monthly = []
@@ -889,11 +968,11 @@ def build_summary(d):
     total_dist_km = sum(w['score']['distance_meter'] for w in wo if w['score'].get('distance_meter')) / 1000
     total_training_hours = sum((parse(w['end']) - parse(w['start'])).total_seconds() for w in wo) / 3600
 
-    strain_by_day = {day(c['created_at']): c['score']['strain'] for c in cyc}
-    recovery_by_day = {day(r['created_at']): r['score']['recovery_score'] for r in rec}
-    hrv_by_day = {day(r['created_at']): r['score']['hrv_rmssd_milli'] for r in rec}
-    rhr_by_day = {day(r['created_at']): r['score']['resting_heart_rate'] for r in rec}
-    rr_by_day = {day(s['created_at']): s['score']['respiratory_rate'] for s in sleep if s['score'].get('respiratory_rate') is not None}
+    strain_by_day = {record_day(c): c['score']['strain'] for c in cyc}
+    recovery_by_day = {record_day(r): r['score']['recovery_score'] for r in rec}
+    hrv_by_day = {record_day(r): r['score']['hrv_rmssd_milli'] for r in rec}
+    rhr_by_day = {record_day(r): r['score']['resting_heart_rate'] for r in rec}
+    rr_by_day = {record_day(s): s['score']['respiratory_rate'] for s in sleep if s['score'].get('respiratory_rate') is not None}
 
     max_hr = (d.get('body') or {}).get('max_heart_rate')
     usual_rhr = mean(rhr_by_day.values()) if rhr_by_day else None
@@ -903,8 +982,8 @@ def build_summary(d):
     day_sessions, hard_days, load_by_day = {}, set(), defaultdict(float)
     by_day_wo = defaultdict(list)
     for w in wo:
-        by_day_wo[day(w['created_at'])].append(w)
-        load_by_day[day(w['created_at'])] += edwards_trimp(w['score'].get('zone_durations'), max_hr, rest_hr_for(day(w['created_at']))) or 0.0
+        by_day_wo[record_day(w)].append(w)
+        load_by_day[record_day(w)] += edwards_trimp(w['score'].get('zone_durations'), max_hr, rest_hr_for(record_day(w))) or 0.0
     for dd, ws in by_day_wo.items():
         levels = [session_level(intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(dd)))
                   for w in ws if w['sport_name'] not in STRENGTH_SPORTS]
@@ -916,41 +995,41 @@ def build_summary(d):
 
     trimp_by_day = {d: load_by_day.get(d, 0.0) for d in strain_by_day}   # 0 on days without a workout
     acwr = build_acwr(trimp_by_day)
-    load_today = build_load_today(trimp_by_day, day(cyc[-1]['created_at']))
+    load_today = build_load_today(trimp_by_day, record_day(cyc[-1]))
     monotony = build_monotony(load_by_day, strain_by_day.keys())
     sport_recovery_cost = build_sport_recovery_cost(day_sessions, recovery_by_day, {sport_label(w['sport_name']) for w in wo})
     sleep_composition = build_sleep_composition(sleep, now)
     zone_distribution = build_zone_distribution(wo, now, max_hr, rest_hr_for)
-    today = day(cyc[-1]['created_at'])
+    today = record_day(cyc[-1])
     rest_day_stat = build_rest_day_stat(cyc, set(by_day_wo))
     today_snapshot = build_today_snapshot(cyc, wo, max_hr, rest_hr_for)
     sleep_h_by_day = defaultdict(float)   # hours asleep per day, naps included
     for sl in list(sleep) + list(naps):
-        sleep_h_by_day[day(sl['created_at'])] += asleep_ms(sl) / 3600000
+        sleep_h_by_day[record_day(sl)] += asleep_ms(sl) / 3600000
     readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day)
     # 'a' = the answer that day, so the page can show how often each one actually comes up
     full['readiness'] = [{'date': p['date'], 'v': p['v'], 'a': p['answer']} for p in readiness_series]
     plan_check = build_plan_check(readiness_series, recovery_by_day, hard_days)
-    training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), day(cyc[-1]['created_at']))
+    training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), record_day(cyc[-1]))
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
         entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(
             intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(entry['date'])))
     # last night, shown as information next to the answer (not part of the decision)
     last_sleep = sleep[-1]
-    naps_after = [n for n in naps if day(n['created_at']) == day(last_sleep['created_at']) and n['start'] >= last_sleep['end']]
+    naps_after = [n for n in naps if record_day(n) == record_day(last_sleep) and n['start'] >= last_sleep['end']]
     last_night = {'hrv': round(latest_rec['score']['hrv_rmssd_milli']), 'rhr': latest_rec['score']['resting_heart_rate'],
                   'recovery': latest_rec['score']['recovery_score'], 'asleep_h': round(asleep_ms(last_sleep) / 3600000, 2),
                   'nap_h': round(sum(asleep_ms(n) for n in naps_after) / 3600000, 2)}
 
     records = {
-        'best_recovery': {'v': best_rec['score']['recovery_score'], 'date': day(best_rec['created_at'])},
-        'worst_recovery': {'v': worst_rec['score']['recovery_score'], 'date': day(worst_rec['created_at'])},
-        'best_hrv': {'v': round(best_hrv['score']['hrv_rmssd_milli'], 1), 'date': day(best_hrv['created_at'])},
-        'lowest_rhr': {'v': lowest_rhr['score']['resting_heart_rate'], 'date': day(lowest_rhr['created_at'])},
-        'biggest_strain_day': {'v': round(biggest_strain_cyc['score']['strain'], 1), 'date': day(biggest_strain_cyc['created_at'])},
-        'biggest_strain_workout': ({'v': round(biggest_strain_wo['score']['strain'], 1), 'date': day(biggest_strain_wo['created_at']), 'sport': sport_label(biggest_strain_wo['sport_name'])}
+        'best_recovery': {'v': best_rec['score']['recovery_score'], 'date': record_day(best_rec)},
+        'worst_recovery': {'v': worst_rec['score']['recovery_score'], 'date': record_day(worst_rec)},
+        'best_hrv': {'v': round(best_hrv['score']['hrv_rmssd_milli'], 1), 'date': record_day(best_hrv)},
+        'lowest_rhr': {'v': lowest_rhr['score']['resting_heart_rate'], 'date': record_day(lowest_rhr)},
+        'biggest_strain_day': {'v': round(biggest_strain_cyc['score']['strain'], 1), 'date': record_day(biggest_strain_cyc)},
+        'biggest_strain_workout': ({'v': round(biggest_strain_wo['score']['strain'], 1), 'date': record_day(biggest_strain_wo), 'sport': sport_label(biggest_strain_wo['sport_name'])}
                                     if biggest_strain_wo else None),
-        'longest_sleep_h': {'v': round(asleep_ms(longest_sleep) / 3600000, 3), 'date': day(longest_sleep['created_at'])},
+        'longest_sleep_h': {'v': round(asleep_ms(longest_sleep) / 3600000, 3), 'date': record_day(longest_sleep)},
         'current_green_streak_days': streak,
         'best_week_sessions': best_week_count,
         'total_kcal': round(total_kcal),
@@ -988,7 +1067,7 @@ def build_summary(d):
         'workouts_per_week_last8': wpw,
         'workouts_per_week_starts': wpw_starts,
         'n_days_total': len(cyc),
-        'date_range': [day(cyc[0]['created_at']), day(cyc[-1]['created_at'])],
+        'date_range': [record_day(cyc[0]), record_day(cyc[-1])],
         'body': d['body'],
         'full_series': full,
         'readiness': readiness,
