@@ -94,8 +94,10 @@ logarithmic and must never be added across sessions.
 NOT on WHOOP day strain (strain is logarithmic, so its ratio never even reached 1.5 here); bands \
 0.8 / 1.3 / 1.5 are widely used but disputed. The newest value includes today's load so far, so it rises through the \
 day. dashboard_summaries.load_today gives today's ratio and strain_at = the day strain at which it \
-would cross each band (algebra on the band, not a new threshold). Before any session today the page \
-steps the plan down as it climbs: past 1.5 the plan becomes Go easy. After a session it is reported, not used to rewrite the plan.
+would cross each band (algebra on the band, not a new threshold). The ratio is REPORTED and never acts on \
+the plan - it used to step it down past 1.5 and no longer does, because an acute:chronic ratio is a mean over \
+calendar days and this person has many days with no training, which swings it far harder than for the \
+near-daily squads the bands came from (above 1.5 on 15.7% of days here).
 - After a session the orb shows readiness after training (dashboard_summaries.training_cost): this \
 morning's score minus what today's strain costs by tomorrow morning, measured on their own history \
 (per_strain = readiness points per point of day strain, holding readiness constant; applied to strain \

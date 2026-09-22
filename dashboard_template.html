@@ -653,14 +653,12 @@ function computeReadiness(){
   const load = (snapIsToday && DATA.load_today && DATA.load_today.date === snap.date) ? DATA.load_today : null;
   if(!R) return { action:'learning', plan:'learning', reasons:[], sessions, load, R:null };
   let plan = R.answer, reasons = [...R.reasons];
-  // As today's strain climbs, the load-ratio bands the card uses (Gabbett 2016) step the plan down:
-  // past the caution line no hard session, past the high-risk line go easy for the rest of the day.
-  // Only before a session: afterwards the strain is the session itself, the plan is spent, and the
-  // ratio is reported as information rather than rewriting what the morning plan was.
+  // The load ratio is REPORTED, never acted on. It used to step the plan down past the high-risk
+  // line, but an acute:chronic ratio is a mean over calendar days, and this schedule has many days
+  // with no training at all — that makes the ratio swing far harder than it does for the near-daily
+  // squads Gabbett's bands were drawn from, so the line does not mean here what it meant there.
+  // The number and its bands stay on the card; they just no longer rewrite the morning's plan.
   const trained = sessions.length > 0;
-  if(!trained && load && load.ratio > load.bands.high && plan === 'moderate'){
-    plan = 'easy'; reasons = ['load'];
-  }
   // The score prescribes one session a day, the way the HRV-guided trials did. Once you have
   // trained, today's plan is spent — the answer stops asking for more (unless it says Rest,
   // which is about your body, not the plan).
@@ -680,9 +678,9 @@ function computeReadiness(){
 // Load here is training load (minutes in each heart-rate zone weighted by intensity), not strain:
 // the ratio's bands come from research on linear loads, and strain is logarithmic.
 function loadText(calc){
-  const Ld = calc.load; if(!Ld || calc.reasons.includes('load')) return '';
+  const Ld = calc.load; if(!Ld) return '';
   const r = Ld.ratio.toFixed(2), B = Ld.bands, at = Ld.load_at, L = Ld.load;
-  if(Ld.ratio > B.high)    return `Today's training load of ${L} has taken your load ratio to ${r}, above ${B.high} — keep the rest of the day easy.`;
+  if(Ld.ratio > B.high)    return `Today's training load of ${L} has taken your load ratio to ${r}, above the ${B.high} high-risk line.`;
   if(Ld.ratio > B.caution) return `Today's training load of ${L} has taken your load ratio to ${r}, past the ${B.caution} caution line.`;
   const training = calc.plan === 'moderate';
   if(Ld.ratio < B.low) return training && at.low != null && at.low > L
@@ -1789,9 +1787,8 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       out.push(section('Also checked', 'today / limit'));
       // shown, not acted on: no published threshold for a nightly rise, so none is applied
       if(R.breathing) out.push(row('Breathing rate', `${one(R.breathing.value)} /min`, `usual ${one(R.breathing.usual)}`, ''));
-      out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
       if(calc.cost) out.push(row('After today’s training', `${calc.cost.after}`, `${calc.cost.morning} this morning, −${Math.abs(calc.cost.cost)}`, 'flagged'));
-      if(calc.load) out.push(row('Load ratio · with today', calc.load.ratio.toFixed(2), `go easy above ${calc.load.bands.high}`, calc.load.ratio > calc.load.bands.caution ? 'flagged' : ''));
+      if(calc.load) out.push(row('Load ratio · with today', calc.load.ratio.toFixed(2), `high above ${calc.load.bands.high} · reported, not acted on`, calc.load.ratio > calc.load.bands.caution ? 'flagged' : ''));
       out.push(row('Days below your normal', `${R.days_below_normal}`, `rest at ${R.days_low_to_rest}`, R.days_below_normal >= R.days_low_to_rest ? 'flagged' : ''));
       for(const w of calc.sessions)
         out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));

@@ -166,8 +166,14 @@ def build_acwr(load_by_day):
 
     Load is Edwards TRIMP, not WHOOP day strain. Gabbett's 0.8 / 1.3 / 1.5 bands were derived on
     linear loads; averaging a logarithmic 0–21 strain compresses the ratio so far that the bands are
-    unreachable — over 565 days here the strain ratio never once passed 1.5 (highest 1.48, SD 0.17),
-    while on TRIMP it passes 1.5 on 17% of days. Same reason strain is never summed across sessions."""
+    unreachable — over 567 days here the strain ratio never once passed 1.5 (highest 1.48, SD 0.17).
+    Same reason strain is never summed across sessions.
+
+    The ratio is REPORTED, never acted on. It is a mean over calendar days and this schedule has many
+    days with no training, which swings it far harder than it does for the near-daily squads the
+    bands came from: on TRIMP it sits above 1.5 on 15.7% of days. Gabbett's bands are disputed as an
+    injury predictor anyway (Impellizzeri et al. 2020), so the number and its bands are shown and
+    nothing in the plan depends on them. Both figures are re-measured by scripts/check_doc_stats.py."""
     from datetime import date as _date
     days = sorted(load_by_day.keys())
     out = []
