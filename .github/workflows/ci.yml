@@ -32,6 +32,19 @@ jobs:
           python scripts/generate_demo_data.py demo
           python build_dashboard.py demo
 
+  # The headline-sentence tests execute the template's JavaScript with JavaScriptCore, which only
+  # exists on macOS — on ubuntu they skip, so the suite also runs here where they actually run.
+  test-macos:
+    name: Tests (macOS, JavaScriptCore available)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t tests -v
+
   native-app:
     name: Native macOS app compiles
     runs-on: macos-latest

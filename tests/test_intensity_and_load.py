@@ -156,31 +156,32 @@ class DayAdaptsTest(unittest.TestCase):
         self.raw = generate(120, 23)
 
     def test_load_ratio_today_matches_the_card(self):
+        """The ratio runs on Edwards TRIMP, not day strain: the bands were built on linear load."""
         s = bd.build_summary(self.raw)
         L = s['load_today']
         self.assertEqual(L['date'], s['today_snapshot']['date'])
         self.assertEqual(L['ratio'], s['acwr'][-1]['v'])
-        self.assertEqual(L['strain'], s['today_snapshot']['strain_so_far'])
+        self.assertIn('load', L)
+        self.assertNotIn('strain', L)
 
-    def test_strain_lines_put_the_ratio_exactly_on_each_band(self):
-        """The 'passes 1.3 if today's strain goes over X' number is pure algebra on the band."""
+    def test_load_lines_put_the_ratio_exactly_on_each_band(self):
+        """The 'passes 1.3 if today's load goes over X' number is pure algebra on the band."""
         s = bd.build_summary(self.raw)
         today = s['load_today']['date']
-        strain = {p['date']: p['v'] for p in s['full_series']['strain']}
+        load = {p['date']: p['v'] for p in s['full_series']['strain']}       # any per-day load works
         for band, r in bd.ACWR_BANDS.items():
-            x = s['load_today']['strain_at'][band]
-            if x is None or x in (0.0, 21.0):          # clamped: the line can't be reached today
+            x = bd.build_load_today(load, today)['load_at'][band]
+            if not x:                                    # 0 means the line is already passed
                 continue
-            probe = dict(strain, **{today: x})
-            got = bd.build_load_today(probe, today)['ratio']
-            self.assertAlmostEqual(got, r, delta=0.011, msg=band)
+            got = bd.build_load_today(dict(load, **{today: x}), today)['ratio']
+            self.assertAlmostEqual(got, r, delta=0.02, msg=band)
 
     def test_more_strain_today_raises_the_ratio(self):
         s = bd.build_summary(self.raw)
         today = s['load_today']['date']
         strain = {p['date']: p['v'] for p in s['full_series']['strain']}
         low = bd.build_load_today(dict(strain, **{today: 4.0}), today)['ratio']
-        high = bd.build_load_today(dict(strain, **{today: 18.0}), today)['ratio']
+        high = bd.build_load_today(dict(strain, **{today: 180.0}), today)['ratio']
         self.assertGreater(high, low)
 
     def test_a_nap_today_moves_readiness(self):

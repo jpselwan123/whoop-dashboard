@@ -443,7 +443,7 @@
 
   <section class="card">
     <div class="section-head"><h2>Acute:Chronic Workload Ratio</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Last 7 days of strain vs the last 28 — a widely used injury-risk measure, though later research disputes how well these bands predict injury.</div>
+    <div class="section-sub">Last 7 days of training load vs the last 28 — minutes in each heart-rate zone weighted by intensity, the linear load these bands were built on. A widely used injury-risk measure, though later research disputes how well the bands predict injury.</div>
     <div class="metric-row">
       <span class="big tnum" id="acwrValue">—</span>
       <span class="zone-badge" id="acwrZone">—</span>
@@ -558,7 +558,7 @@
   <footer>
     <div class="grp">
       <b>Measured vs. modeled</b>
-      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines your 7-day HRV, resting HR and sleep, each against your previous 4 weeks (50 = a median day for you), with a breathing-rate illness sign and a limit of 2 hard days in a row. Click the orb for the numbers.</span>
+      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines your 7-day HRV, resting HR and sleep, each against your previous 4 weeks (50 = a median day for you), with a limit of 2 hard days in a row. Breathing rate is shown but not acted on — no published threshold for a nightly rise. Click the orb for the numbers.</span>
     </div>
     <div class="grp"><span id="baselineNote"></span></div>
     <div class="grp"><span id="coverageNote"></span></div>
@@ -647,7 +647,7 @@ const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); 
 // a standard score vs your previous 4 weeks, averaged with equal weights (Thornton et al. 2019) and
 // shown as a percentile of your own days (50 = your median day). 31+ Train as planned, 7–30 Go easy,
 // under 7 Rest — the trials' −0.5 SD and −1.5 SD lines in that unit. No trial prescribes a harder
-// session for being above the band, so there is no fourth answer above. Also Rest when breathing rate is 3+ above usual, and Go easy after
+// session for being above the band, so there is no fourth answer above. Go easy after
 // 2 hard days in a row. The plan is one session a day — once trained, it is Done. Sources: README.
 const ACTIONS = {
   moderate: {label:'Train as planned', c:'var(--good)',      bg:'var(--good-bg)',     headline:'Train as planned today.'},
@@ -687,19 +687,22 @@ function computeReadiness(){
   return { action, plan, reasons, sessions, trained, load, cost, R };
 }
 
-// One sentence on where today's strain has left the load ratio and how much room is left.
+// One sentence on where today's training load has left the load ratio, and how much room is left.
+// Load here is training load (minutes in each heart-rate zone weighted by intensity), not strain:
+// the ratio's bands come from research on linear loads, and strain is logarithmic.
 function loadText(calc){
   const Ld = calc.load; if(!Ld || calc.reasons.includes('load')) return '';
-  const r = Ld.ratio.toFixed(2), B = Ld.bands, at = Ld.strain_at, s = Ld.strain.toFixed(1);
-  if(Ld.ratio > B.high)    return `Today's strain ${s} has taken your load ratio to ${r}, above ${B.high} — keep the rest of the day easy.`;
-  if(Ld.ratio > B.caution) return `Today's strain ${s} has taken your load ratio to ${r}, past the ${B.caution} caution line.`;
+  const r = Ld.ratio.toFixed(2), B = Ld.bands, at = Ld.load_at, L = Ld.load;
+  if(Ld.ratio > B.high)    return `Today's training load of ${L} has taken your load ratio to ${r}, above ${B.high} — keep the rest of the day easy.`;
+  if(Ld.ratio > B.caution) return `Today's training load of ${L} has taken your load ratio to ${r}, past the ${B.caution} caution line.`;
   const training = calc.plan === 'moderate';
-  if(Ld.ratio < B.low) return training && at.low != null && at.low > Ld.strain && at.low < 21
-    ? `Load ratio ${r}, below ${B.low}: a day strain of ${at.low.toFixed(1)} brings it back into range.`
+  if(Ld.ratio < B.low) return training && at.low != null && at.low > L
+    ? `Load ratio ${r}, below ${B.low}: a training load of ${at.low} today brings it back into range.`
     : `Load ratio ${r}, below ${B.low}.`;
-  if(at.caution == null || at.caution >= 21) return `Load ratio ${r}, in range — no strain today would take it past ${B.caution}.`;
-  return `Load ratio ${r}, in range — it passes ${B.caution} if today's strain goes over ${at.caution.toFixed(1)}.`;
+  if(at.caution == null) return `Load ratio ${r}, in range.`;
+  return `Load ratio ${r}, in range — it passes ${B.caution} if today's training load goes over ${at.caution}.`;
 }
+
 
 const SESSION_RANK = {easy:1, strength:1, moderate:2, hard:3};
 const PLAN_RANK = {rest:0, easy:1, moderate:2};
@@ -727,9 +730,8 @@ function reasonText(calc, key){
     if(R.last_night && R.last_night.state === 'below') worse.unshift('last night was below your normal');
     return `readiness is ${R.score}, below your normal` + (worse.length ? ` — ${listAnd(worse)}` : '');
   }
-  if(key === 'breathing') return `last night's breathing rate was ${one(R.breathing.value)} /min, 3 or more above your usual ${one(R.breathing.usual)} — a possible sign of illness`;
   if(key === 'streak') return `you've trained hard ${R.hard_days_in_a_row} days in a row (limit ${R.max_hard_days})`;
-  if(key === 'load') return `today's strain of ${calc.load.strain.toFixed(1)} has taken your load ratio to ${calc.load.ratio.toFixed(2)}, above the ${calc.load.bands.high} high-risk line`;
+  if(key === 'load') return `today's training load of ${calc.load.load} has taken your load ratio to ${calc.load.ratio.toFixed(2)}, above the ${calc.load.bands.high} high-risk line`;
   if(key === 'days_low') return `readiness has been below your normal ${R.days_below_normal} days in a row — a run of low days, not one low night, is what counts`;
   return '';
 }
@@ -1400,7 +1402,7 @@ function renderStageChart(){
 
 /* ================= today's signals (not in the WHOOP app) ================= */
 function renderTodaySignals(){
-  // warning signs: the protocol's markers plus the published breathing-rate illness sign
+  // warning signs: the protocol's markers (breathing rate is reported alongside, never as a flag)
   const R = DATA.readiness, aEl = $('anomalySignal'), aTxt = $('anomalyText');
   if(!R){
     aEl.className = 'signal';
@@ -1410,7 +1412,6 @@ function renderTodaySignals(){
     if(R.hrv.state === 'below') signs.push(`7-day HRV <b>${R.hrv.value} ms</b> is below your normal (${R.hrv.normal[0]}–${R.hrv.normal[1]})`);
     if(R.rhr && R.rhr.state === 'above') signs.push(`7-day resting HR <b>${one(R.rhr.value)} bpm</b> is above your normal (${one(R.rhr.normal[0])}–${one(R.rhr.normal[1])})`);
     if(R.sleep && R.sleep.state === 'below') signs.push(`7-day sleep <b>${fmtHM(R.sleep.value)}</b> is below your normal (${markerRange('sleep', R.sleep)})`);
-    if(R.breathing && R.breathing.flagged) signs.push(`breathing rate <b>${one(R.breathing.value)} /min</b> last night, 3+ above your usual ${one(R.breathing.usual)} — a possible sign of illness`);
     if(signs.length){
       aEl.className = 'signal warn';
       aTxt.innerHTML = `<b>Warning sign${signs.length > 1 ? 's' : ''}:</b> ${listAnd(signs)}.`;
@@ -1820,7 +1821,8 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
       band('Go easy', 'easy', `${L2.rest}–${L2.train - 1}`);
       band('Rest', 'rest', `under ${L2.rest}, or ${R.days_low_to_rest} days low`);
       out.push(section('Also checked', 'today / limit'));
-      if(R.breathing) out.push(row('Breathing rate', `${one(R.breathing.value)} /min`, `rest at ${one(R.breathing.limit)}+`, R.breathing.flagged ? 'flagged' : ''));
+      // shown, not acted on: no published threshold for a nightly rise, so none is applied
+      if(R.breathing) out.push(row('Breathing rate', `${one(R.breathing.value)} /min`, `usual ${one(R.breathing.usual)}`, ''));
       out.push(row('Hard days in a row', `${R.hard_days_in_a_row}`, `limit ${R.max_hard_days}`, R.hard_days_in_a_row >= R.max_hard_days ? 'flagged' : ''));
       if(calc.cost) out.push(row('After today’s training', `${calc.cost.after}`, `${calc.cost.morning} this morning, −${Math.abs(calc.cost.cost)}`, 'flagged'));
       if(calc.load) out.push(row('Load ratio · with today', calc.load.ratio.toFixed(2), `go easy above ${calc.load.bands.high}`, calc.load.ratio > calc.load.bands.caution ? 'flagged' : ''));

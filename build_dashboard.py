@@ -79,12 +79,17 @@ def _calendar_window(days, i, span):
 ACWR_MIN_DAYS = {'acute': 4, 'chronic': 21}   # days with data needed inside the 7 / 28-day windows
 
 
-def build_acwr(strain_by_day):
+def build_acwr(load_by_day):
     """Acute:Chronic Workload Ratio — sports-science injury-risk metric, not in the WHOOP app.
-    Acute = average strain over the last 7 calendar days, Chronic = last 28 calendar days
-    (both including the day itself); skipped when too few days have data."""
+    Acute = average training load over the last 7 calendar days, Chronic = last 28 calendar days
+    (both including the day itself); skipped when too few days have data.
+
+    Load is Edwards TRIMP, not WHOOP day strain. Gabbett's 0.8 / 1.3 / 1.5 bands were derived on
+    linear loads; averaging a logarithmic 0–21 strain compresses the ratio so far that the bands are
+    unreachable — over 565 days here the strain ratio never once passed 1.5 (highest 1.48, SD 0.17),
+    while on TRIMP it passes 1.5 on 17% of days. Same reason strain is never summed across sessions."""
     from datetime import date as _date
-    days = sorted(strain_by_day.keys())
+    days = sorted(load_by_day.keys())
     out = []
     for i, d in enumerate(days):
         acute_idx = list(_calendar_window(days, i, 6)) + [i]
@@ -93,10 +98,10 @@ def build_acwr(strain_by_day):
             continue
         if (_date.fromisoformat(d) - _date.fromisoformat(days[0])).days < 27:   # a full 28 days of history first
             continue
-        chronic = mean(strain_by_day[days[j]] for j in chronic_idx)
+        chronic = mean(load_by_day[days[j]] for j in chronic_idx)
         if chronic == 0:
             continue
-        acute = mean(strain_by_day[days[j]] for j in acute_idx)
+        acute = mean(load_by_day[days[j]] for j in acute_idx)
         out.append({'date': d, 'v': round(acute / chronic, 2)})
     return out
 
@@ -106,26 +111,25 @@ def build_acwr(strain_by_day):
 ACWR_BANDS = {'low': 0.8, 'caution': 1.3, 'high': 1.5}
 
 
-def build_load_today(strain_by_day, today):
-    """Today's load ratio from the strain so far, and the day strain at which it would cross each
-    band line — so the plan can say how much room is left as the day's strain climbs.
+def build_load_today(load_by_day, today):
+    """Today's load ratio from the training load so far, and the load at which it would cross each
+    band line — so the plan can say how much room is left as the day goes on.
 
     The ratio includes today in both windows (as `build_acwr` does), so with A / C the strain summed
     over the other days in the 7 / 28-day windows and a / c the day counts including today, the day
     strain S that puts the ratio exactly at r solves (A + S) / a = r (C + S) / c:
         S = (r C / c − A / a) / (1 / a − r / c)
-    Pure algebra on the band lines above — no new threshold. Strain is WHOOP's day strain (0–21),
-    averaged across days, never summed across sessions."""
-    days = sorted(strain_by_day)
+    Pure algebra on the band lines above — no new threshold. Load is Edwards TRIMP (see build_acwr)."""
+    days = sorted(load_by_day)
     if not days or days[-1] != today:
         return None
     i = len(days) - 1
-    acute = [strain_by_day[days[j]] for j in _calendar_window(days, i, 6)]
-    chronic = [strain_by_day[days[j]] for j in _calendar_window(days, i, 27)]
+    acute = [load_by_day[days[j]] for j in _calendar_window(days, i, 6)]
+    chronic = [load_by_day[days[j]] for j in _calendar_window(days, i, 27)]
     a, c = len(acute) + 1, len(chronic) + 1
     if a < ACWR_MIN_DAYS['acute'] or c < ACWR_MIN_DAYS['chronic']:
         return None
-    A, C, S = sum(acute), sum(chronic), strain_by_day[today]
+    A, C, S = sum(acute), sum(chronic), load_by_day[today]
     if C + S == 0:
         return None
 
@@ -133,11 +137,11 @@ def build_load_today(strain_by_day, today):
         den = 1 / a - r / c
         if den <= 0:
             return None
-        return round(max(0.0, min(21.0, (r * C / c - A / a) / den)), 1)
+        return max(0.0, (r * C / c - A / a) / den)
 
-    return {'date': today, 'strain': round(S, 1), 'ratio': round(((A + S) / a) / ((C + S) / c), 2),
+    return {'date': today, 'load': round(S), 'ratio': round(((A + S) / a) / ((C + S) / c), 2),
             'bands': dict(ACWR_BANDS),
-            'strain_at': {k: strain_at(v) for k, v in ACWR_BANDS.items()}}
+            'load_at': {k: (None if strain_at(v) is None else round(strain_at(v))) for k, v in ACWR_BANDS.items()}}
 
 
 # ---- Statistics helpers ----------------------------------------------------------------
@@ -367,13 +371,17 @@ READY_LINES = {'train': round(normal_percentile(-READY_SWC)),
                'rest': round(normal_percentile(-READY_REST_SD))}
 MAX_HARD_DAYS_IN_A_ROW = 2
 # Below the normal band the trials prescribe "low intensity exercise (or passive rest)"
-# (Manresa-Rocamora et al. 2021). Which of the two is decided the way the method papers say to read
-# HRV — by a sustained fall, not one low night (Plews et al. 2013; Buchheit 2014): the third day in
-# a row below your normal is a rest day. Never more than two rest days in a row, the same limit
-# HRV-guided protocols put on consecutive rest days to avoid detraining (Kiviniemi et al. 2007).
-DAYS_LOW_TO_REST = 3
+# (Manresa-Rocamora et al. 2021). Which of the two follows Kiviniemi et al. 2007, who prescribed
+# "low-intensity training or rest" on a value below the reference OR a "decreasing trend for 2 days":
+# the second day in a row below your normal is a rest day. Never more than two rest days in a row —
+# "will not accumulate more than two consecutive rest sessions" (Carrasco-Poyatos et al. 2020, a
+# published trial protocol rather than a result).
+DAYS_LOW_TO_REST = 2
 MAX_REST_DAYS_IN_A_ROW = 2
-BREATHING_RISE = 3.0
+# Breathing rate is still measured and shown, but it no longer changes the plan. The "+3 breaths/min"
+# cut-off was attributed to Natarajan et al. 2021, which gives no such number — it detects illness with
+# a z-score against a rolling baseline, not a fixed rise — so the threshold was ours, not a source's.
+# It had also never fired: over 491 eligible days the largest rise was +2.3/min.
 BREATHING_BASELINE = (30, 90)
 BREATHING_MIN_NIGHTS = 30
 
@@ -430,8 +438,8 @@ def breathing_check(rr_by_day, d):
     if len(base) < BREATHING_MIN_NIGHTS:
         return None
     usual = mean(base)
-    return {'value': round(rr_by_day[d], 1), 'usual': round(usual, 1), 'limit': round(usual + BREATHING_RISE, 1),
-            'flagged': rr_by_day[d] >= usual + BREATHING_RISE}
+    return {'value': round(rr_by_day[d], 1), 'usual': round(usual, 1),
+            'above_usual': round(rr_by_day[d] - usual, 1)}
 
 
 def hard_days_in_a_row(hard_days, d):
@@ -528,12 +536,8 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
         while scores.get(cur) is not None and scores[cur] < READY_LINES['train']:
             days_below += 1
             cur = _date_minus(cur, 1)
-        # the cap on consecutive rest days applies to both score-driven rest paths; an illness sign
-        # is exempt, because that is a reason to keep resting for as long as it lasts
         rested_two = all(answers.get(_date_minus(d, k)) == 'rest' for k in (1, 2))
-        if breathing and breathing['flagged']:
-            answer, reasons = 'rest', ['breathing']
-        elif score < READY_LINES['rest']:
+        if score < READY_LINES['rest']:
             answer, reasons = ('easy', ['low']) if rested_two else ('rest', ['low'])
         elif score < READY_LINES['train']:
             # below the normal band the trials prescribe low intensity OR rest; a sustained fall is
@@ -910,8 +914,9 @@ def build_summary(d):
         day_sessions[dd] = (sport_label(top['sport_name']), 'strength' if top['sport_name'] in STRENGTH_SPORTS else
                             session_level(intensity_minutes(top['score'].get('zone_durations'), max_hr, rest_hr_for(dd))))
 
-    acwr = build_acwr(strain_by_day)
-    load_today = build_load_today(strain_by_day, day(cyc[-1]['created_at']))
+    trimp_by_day = {d: load_by_day.get(d, 0.0) for d in strain_by_day}   # 0 on days without a workout
+    acwr = build_acwr(trimp_by_day)
+    load_today = build_load_today(trimp_by_day, day(cyc[-1]['created_at']))
     monotony = build_monotony(load_by_day, strain_by_day.keys())
     sport_recovery_cost = build_sport_recovery_cost(day_sessions, recovery_by_day, {sport_label(w['sport_name']) for w in wo})
     sleep_composition = build_sleep_composition(sleep, now)

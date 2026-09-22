@@ -53,15 +53,17 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   earlier composites (`percentile_series`, 28+ days — averaging z-scores shrinks the spread, so the average is
   NOT on a 1-SD scale; the old T scale made above-normal days read as average) and read off the normal curve.
   It sets the day's plan, one session a day as in the trials: **31+ Train as planned** · 7–30 Go easy · <7 Rest
-  (`READY_LINES`, = −0.5/−1.5 SD as percentiles). There is NO answer above the band — no cited trial prescribes a
+  (`READY_LINES`, = −0.5/−1.5 SD as percentiles; −0.5 SD is the trials' smallest worthwhile change, **−1.5 SD
+  is our own extension** — Thornton's "worth acting on" line could not be verified). There is NO answer above the band — no cited trial prescribes a
   harder session for being above it (Kiviniemi 2007 "increase or no change"; Javaloyes 2019 "above or within";
   Vesterinen 2016 "within"; Manresa-Rocamora 2021 "within or above"). The 7-day windows stop the day before
   (`rolling_7`), so last night is counted once, not twice. Rest when the fall is large
   (<7) or sustained — 3rd day in a row below the band (`DAYS_LOW_TO_REST`), never 3 rest days in a row
   (`MAX_REST_DAYS_IN_A_ROW`; Manresa-Rocamora 2021 "low intensity or passive rest"; Plews 2013/Buchheit 2014
-  sustained not single-day; Kiviniemi 2007 caps consecutive rest days). Rest on breathing +3/min; Go easy after 2 hard days in a row. Once any session is
+  sustained not single-day; Kiviniemi 2007 caps consecutive rest days). Breathing rate is reported, never acted on (Natarajan 2021 gives no numeric rise; the old +3/min was ours and never fired). Go easy after 2 hard days in a row (Carrasco-Poyatos 2020). Once any session is
   logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Before a session, today's
-  live load ratio (`build_load_today`, strain so far) steps the plan down: >1.5 → Go easy.
+  live load ratio (`build_load_today`) steps the plan down: >1.5 → Go easy. The ratio runs on **Edwards TRIMP,
+  never day strain** — Gabbett's bands are linear-load, and the strain ratio never passed 1.5 in 565 days.
   After a session the orb shows readiness net of today's training cost (`build_training_cost`: OLS of next-morning
   readiness on day strain, holding readiness constant, on the person's own history; significant & negative only;
   cost = effect × strain above median rest-day strain, never positive). The plan still comes from the morning score. The panel's "last night" block is the raw

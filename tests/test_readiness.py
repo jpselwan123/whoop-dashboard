@@ -1,7 +1,7 @@
 """Readiness: 7-day HRV, resting HR and sleep, each a standard score vs the 7-day averages of the
 previous 4 weeks, averaged, then read as a percentile of the person's own earlier scores (50 = a median
 day). 69+ Train hard, 31–68 Train as planned, 7–30 Go easy, under 7 Rest; Rest on a breathing-rate
-illness sign, Go easy after 2 hard days in a row."""
+Go easy after 2 hard days in a row."""
 import math, random, unittest
 from datetime import date, timedelta
 from statistics import mean
@@ -146,8 +146,8 @@ class ProtocolTest(unittest.TestCase):
         self.assertEqual(latest['answer'], 'moderate')
 
     def test_rest_needs_a_run_of_low_days_not_one(self):
-        """Below the band the trials prescribe low intensity OR rest; a sustained fall - not one
-        low night - is what the method papers act on, so rest waits for the third day in a row."""
+        """Below the band the trials prescribe low intensity OR rest; Kiviniemi acted on a
+        "decreasing trend for 2 days", so rest waits for the second day in a row."""
         h, r, b, ds = steady(flat_last=8)
         for d in ds[-8:]:                       # a sustained dip, mild enough to stay in the band
             h[d] *= 0.93
@@ -161,9 +161,9 @@ class ProtocolTest(unittest.TestCase):
         rests = [d for d, p in by_day.items() if p['answer'] == 'rest']
         self.assertTrue(rests, 'a sustained dip must produce rest days')
         for d in rests:                         # every rest is a big drop or the 3rd low day
-            self.assertTrue(by_day[d]['v'] < 7 or runs[d] >= 3, (d, by_day[d]['v'], runs[d]))
-        for d, p in by_day.items():             # one or two low days on their own stay easy
-            if 7 <= p['v'] < 31 and runs[d] < 3:
+            self.assertTrue(by_day[d]['v'] < 7 or runs[d] >= 2, (d, by_day[d]['v'], runs[d]))
+        for d, p in by_day.items():             # a single low day on its own stays easy
+            if 7 <= p['v'] < 31 and runs[d] < 2:
                 self.assertEqual(p['answer'], 'easy', (d, p['v'], runs[d]))
 
     def test_never_more_than_two_rest_days_in_a_row(self):
@@ -177,16 +177,18 @@ class ProtocolTest(unittest.TestCase):
         for i in range(2, len(answers)):
             self.assertNotEqual(answers[i - 2:i + 1], ['rest'] * 3, answers[-10:])
 
-    def test_breathing_rate_3_above_usual_means_easy(self):
-        h, r, b, ds = steady(n=100)
+    def test_breathing_rate_is_reported_but_never_changes_the_plan(self):
+        """Natarajan 2021 gives no numeric rise threshold, so none is applied — the rate is shown."""
+        h, r, b, ds = steady()
         usual = sum(b[d] for d in ds if 30 <= (date.fromisoformat(ds[-1]) - date.fromisoformat(d)).days <= 90)
         usual /= sum(1 for d in ds if 30 <= (date.fromisoformat(ds[-1]) - date.fromisoformat(d)).days <= 90)
-        b[ds[-1]] = usual + 3.05
-        latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertIn('breathing', latest['reasons'])
-        b[ds[-1]] = usual + 2.9
-        latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertNotIn('breathing', latest['reasons'])
+        calm, _ = bd.build_readiness(h, r, b, set())
+        b[ds[-1]] = usual + 12                      # a rise far beyond anything real
+        loud, _ = bd.build_readiness(h, r, b, set())
+        self.assertEqual(loud['answer'], calm['answer'])
+        self.assertEqual(loud['reasons'], calm['reasons'])
+        self.assertAlmostEqual(loud['breathing']['above_usual'], 12, delta=0.2)
+        self.assertNotIn('flagged', loud['breathing'])
 
     def test_breathing_needs_30_nights_of_history(self):
         h, r, b, _ = steady(n=58)          # only 29 nights sit 30–90 days back
@@ -295,13 +297,6 @@ class ScoreTest(unittest.TestCase):
         self.assertAlmostEqual(share(lambda v: v >= 31), 69.1, delta=8)
         self.assertAlmostEqual(share(lambda v: 7 <= v < 31), 24.2, delta=6)
         self.assertAlmostEqual(share(lambda v: v < 7), 6.7, delta=4)
-
-    def test_breathing_sign_means_rest_even_with_a_normal_score(self):
-        h, r, b, ds = steady()
-        b[ds[-1]] = 40.0
-        latest, _ = bd.build_readiness(h, r, b, set())
-        self.assertGreaterEqual(latest['score'], 31)
-        self.assertEqual((latest['answer'], latest['reasons']), ('rest', ['breathing']))
 
     def test_shorter_sleep_lowers_the_score(self):
         h, r, b, ds = steady()
