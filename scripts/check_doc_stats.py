@@ -112,6 +112,8 @@ def measured_facts(data_dir):
         'variance_shares': _variance_shares(series, inputs),
         'breathing': _breathing(inputs['rr']),
         'strain_ratio': _strain_ratio(raw),
+        'training_cost': _training_cost(data_dir),
+        'plan_effect': _plan_effect(data_dir),
     }
 
 
@@ -217,6 +219,66 @@ def _strain_ratio(raw):
     m = sum(vals) / len(vals)
     return {'days': len(vals), 'highest': round(max(vals), 2),
             'sd': round(math.sqrt(sum((v - m) ** 2 for v in vals) / (len(vals) - 1)), 2)}
+
+
+def _training_cost(data_dir):
+    """What the README quotes about today's strain and the next night, straight from the build.
+
+    The figures are produced by `build_training_cost` and carried in the dashboard payload, so this
+    reads them rather than reimplementing the regression — the independent check script is what
+    verifies the maths.
+    """
+    path = os.path.join(data_dir, 'dashboard_data.json')
+    if not os.path.exists(path):
+        return None
+    tc = json.load(open(path)).get('training_cost')
+    if not tc:
+        return None
+    mae = tc.get('holdout_mae') or [None, None]
+    return {
+        'per_strain': tc.get('per_strain'),
+        'p': tc.get('p'),
+        'pairs': tc.get('pairs'),
+        'terciles': tc.get('tercile_next_night'),
+        'holdout_mae_null': mae[0],
+        'holdout_mae_adjusted': mae[1],
+        'significant': tc.get('significant'),
+        'monotone': tc.get('linear'),
+        'beats_doing_nothing': tc.get('holdout_better'),
+        'displayed': tc.get('usable'),
+    }
+
+
+def _plan_effect(data_dir):
+    """The offline question: what does a session cost the next night, and does readiness change it?
+
+    Same regression as `scripts/analyse_plan_effect.py`, imported rather than copied so the two can
+    never disagree.
+    """
+    try:
+        import analyse_plan_effect as ape
+    except ImportError:
+        return None
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        ape.main(data_dir)
+    rows = {}
+    for line in buf.getvalue().splitlines():
+        parts = line.strip().split()
+        if 't' not in parts or 'se' not in parts:
+            continue
+        i_se, i_t = parts.index('se'), parts.index('t')
+        rows[' '.join(parts[:i_se - 1])] = {'coefficient': float(parts[i_se - 1]),
+                                            't': float(parts[i_t + 1])}
+    intensity = rows.get('session intensity')
+    interaction = next((v for k, v in rows.items() if k.startswith('score') and 'intensity' in k), None)
+    if not intensity:
+        return None
+    return {
+        'per_intensity_step': round(intensity['coefficient'], 3),
+        'intensity_t': round(intensity['t'], 2),
+        'interaction_t': round(interaction['t'], 2) if interaction else None,
+    }
 
 
 def main(argv):
