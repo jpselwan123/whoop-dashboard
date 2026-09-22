@@ -114,6 +114,8 @@ def measured_facts(data_dir):
         'strain_ratio': _strain_ratio(raw),
         'training_cost': _training_cost(data_dir),
         'plan_effect': _plan_effect(data_dir),
+        'trimp_ratio': _trimp_ratio(data_dir),
+        'rest_rules': _rest_rules(series, inputs['hrv']),
     }
 
 
@@ -139,7 +141,7 @@ def _rebuild(raw):
     finally:
         bd.build_readiness, bd.percentile_series = orig_readiness, orig_percentile
 
-    hrv, rhr, rr, _hard, sleep = grabbed['inputs']
+    hrv, rhr, rr, sleep = grabbed['inputs']
     inputs = {
         'hrv': {k: math.log(v) for k, v in hrv.items() if v and v > 0},
         'rhr': {k: v for k, v in rhr.items() if v},
@@ -281,6 +283,93 @@ def _plan_effect(data_dir):
     }
 
 
+def _trimp_ratio(data_dir):
+    """The load ratio as it is actually shown — on Edwards TRIMP."""
+    path = os.path.join(data_dir, 'dashboard_data.json')
+    if not os.path.exists(path):
+        return None
+    vals = [p['v'] for p in (json.load(open(path)).get('acwr') or [])]
+    if not vals:
+        return None
+    ordered = sorted(vals)
+    return {'days': len(vals), 'median': round(ordered[len(vals) // 2], 2), 'highest': round(max(vals), 2),
+            'over_high_pct': round(100 * sum(1 for v in vals if v > bd.ACWR_BANDS['high']) / len(vals), 1)}
+
+
+def _rest_rules(series, ln_hrv):
+    """The implemented sustained-fall rule against Kiviniemi's literal one — measured, not applied.
+
+    The dashboard rests on the 2nd consecutive day BELOW the normal band. Kiviniemi 2007's "decreasing
+    trend for 2 days" is something else: two successive DROPS in HRV, whatever level it is at. Neither
+    is obviously right, so both are measured here and the numbers are quoted in the README; only the
+    first is implemented.
+    """
+    days = [p['date'] for p in series]
+    score = {p['date']: p['v'] for p in series}
+    train = bd.READY_LINES['train']
+
+    def below_run(d):
+        n, cur = 0, d
+        while score.get(cur) is not None and score[cur] < train:
+            n += 1
+            cur = bd._date_minus(cur, 1)
+        return n
+
+    implemented, literal = set(), set()
+    for d in days:
+        if below_run(d) >= bd.DAYS_LOW_TO_REST:
+            implemented.add(d)
+        y, y2, y3 = (bd._date_minus(d, k) for k in (1, 2, 3))
+        if all(k in ln_hrv for k in (y, y2, y3)) and ln_hrv[y] < ln_hrv[y2] < ln_hrv[y3]:
+            literal.add(d)          # HRV fell on each of the two days before today
+    n = len(days)
+    return {
+        'days': n,
+        'implemented_fires': len(implemented),
+        'implemented_pct': round(100 * len(implemented) / n, 1),
+        'kiviniemi_literal_fires': len(literal),
+        'kiviniemi_literal_pct': round(100 * len(literal) / n, 1),
+        'disagree_days': len(implemented ^ literal),
+        'disagree_pct': round(100 * len(implemented ^ literal) / n, 1),
+        'both_fire': len(implemented & literal),
+    }
+
+
+def check_measured_docs(facts, root=HERE):
+    """Sentences quoting a MEASURED figure — checked only when real data is present.
+
+    These drift legitimately as days are added, so this is a report, not a CI assertion.
+    """
+    if not facts:
+        return []
+    source = open(os.path.join(root, 'build_dashboard.py')).read()
+    prompt = open(os.path.join(root, 'chat_server.py')).read()
+    sr, tr = facts.get('strain_ratio'), facts.get('trimp_ratio')
+    br, rr_ = facts.get('breathing'), facts.get('rest_rules')
+    expected = []
+    if br:
+        expected.append((source, 'build_dashboard.py',
+                         'over the %d nights with enough baseline to judge, the largest rise was\n# +%.1f/min'
+                         % (br['nights'], br['largest_rise']), 'the breathing rule that never fired'))
+    if rr_:
+        expected.append((prompt, 'chat_server.py',
+                         'firing 0 times in %d days' % rr_['days'],
+                         'how long the deleted hard-days rule sat there doing nothing'))
+    if sr:
+        expected.append((source, 'build_dashboard.py',
+                         'over %d days here the strain ratio never once passed 1.5 (highest %.2f, SD %.2f)'
+                         % (sr['days'], sr['highest'], sr['sd']), 'the strain-ratio comparison'))
+    if tr:
+        expected.append((source, 'build_dashboard.py',
+                         'it sits above 1.5 on %.1f%% of days' % tr['over_high_pct'],
+                         'how often the TRIMP ratio is above the high line'))
+        expected.append((prompt, 'chat_server.py',
+                         'above 1.5 on %.1f%% of days here' % tr['over_high_pct'],
+                         'the same figure in the AI prompt'))
+    return ['%s no longer says %r (%s)' % (where, text, what)
+            for doc, where, text, what in expected if text not in doc]
+
+
 def main(argv):
     problems = check_constant_docs()
     facts = constant_facts()
@@ -301,6 +390,7 @@ def main(argv):
             if m['key_collisions']:
                 print('\n  NOTE: %d cycle(s) share a day key — one day\'s totals overwrite another\'s.'
                       % m['key_collisions'])
+            problems += check_measured_docs(m)
 
     if problems:
         print('\nSTALE DOCUMENTATION:')
