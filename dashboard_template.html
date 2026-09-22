@@ -632,8 +632,7 @@ const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); 
 // averaged with equal weights (Thornton et al. 2019) and
 // shown as a percentile of your own days (50 = your median day). 31+ Train as planned, 7–30 Go easy,
 // under 7 Rest — the trials' −0.5 SD and −1.5 SD lines in that unit. No trial prescribes a harder
-// session for being above the band, so there is no fourth answer above. Go easy after
-// 2 hard days in a row. The plan is one session a day — once trained, the pill reads
+// session for being above the band, so there is no fourth answer above. The plan is one session a day — once trained, the pill reads
 // "N sessions logged" and the headline says whether it matched the plan. Sources: README.
 const ACTIONS = {
   moderate: {label:'Train as planned', c:'var(--good)',      bg:'var(--good-bg)',     headline:'Train as planned today.'},
@@ -720,8 +719,6 @@ function reasonText(calc, key){
     if(R.last_night && R.last_night.state === 'below') worse.unshift('last night was below your normal');
     return `readiness is ${R.score}, below your normal` + (worse.length ? ` — ${listAnd(worse)}` : '');
   }
-  if(key === 'streak') return `you've trained hard ${R.hard_days_in_a_row} days in a row (limit ${R.max_hard_days})`;
-  if(key === 'load') return `today's training load of ${calc.load.load} has taken your load ratio to ${calc.load.ratio.toFixed(2)}, above the ${calc.load.bands.high} high-risk line`;
   if(key === 'days_low') return `readiness has been below your normal ${R.days_below_normal} days in a row — a run of low days, not one low night, is what counts`;
   return '';
 }

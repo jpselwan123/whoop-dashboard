@@ -1,11 +1,13 @@
 """Readiness: HRV, resting HR and sleep — each over the last 7 days and for last night alone — as six
 standard scores against the previous 4 weeks, averaged, then read as a percentile of the person's own
 earlier scores (50 = a median day). 31+ Train as planned, 7–30 Go easy, under 7 Rest. There is no band
-above the normal range. Breathing rate is reported, never acted on; Go easy after 2 hard days in a row."""
-import math, random, unittest
+above the normal range. Breathing rate is reported, never acted on; """
+import math, os, random, unittest
 from datetime import date, timedelta
 from statistics import mean
 from helpers import generate, build_dashboard as bd
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def days(n, start=date(2026, 1, 5)):          # a Monday
@@ -46,7 +48,7 @@ class ProtocolTest(unittest.TestCase):
     def test_normal_week_means_train_as_planned(self):
         """Inside the normal band the trials prescribed the planned session, not a hard one."""
         h, r, b, _ = steady()
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         self.assertEqual((latest['answer'], latest['reasons']), ('moderate', []))
         self.assertEqual(latest['hrv']['state'], 'within')
         self.assertTrue(31 <= latest['score'] < 69)
@@ -55,7 +57,7 @@ class ProtocolTest(unittest.TestCase):
         h, r, b, ds = steady()
         for d in ds[-7:]:
             h[d] *= 0.7
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         self.assertIn(latest['answer'], ('easy', 'rest'))
         self.assertEqual(latest['reasons'], ['low'])
         self.assertLess(latest['score'], 45)
@@ -67,32 +69,32 @@ class ProtocolTest(unittest.TestCase):
         h, r, b, ds = steady()
         for d in ds[-8:-1]:
             h[d] *= 1.4
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         self.assertEqual((latest['answer'], latest['hrv']['state']), ('moderate', 'above'))
 
     def test_resting_hr_rise_means_easy(self):
         h, r, b, ds = steady()
         for d in ds[-7:]:
             r[d] += 8
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         self.assertEqual(latest['rhr']['state'], 'above')
         self.assertLess(latest['score'], 50, "higher resting HR must lower readiness")
 
     def test_a_slightly_low_night_is_diluted_by_the_7_day_average(self):
         h, r, b, ds = steady()
         h[ds[-1]] *= 0.93
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         self.assertEqual(latest['answer'], 'moderate')
 
     def test_normal_range_is_fixed_within_a_week(self):
         h, r, b, ds = steady(n=70)
-        _, _ = bd.build_readiness(h, r, b, set())
+        _, _ = bd.build_readiness(h, r, b)
         ranges = set()
         monday = date.fromisoformat(ds[-1]) - timedelta(days=date.fromisoformat(ds[-1]).weekday())
         for d in ds:
             if date.fromisoformat(d) >= monday:
                 sub = {k: v for k, v in h.items() if k <= d}
-                latest, _ = bd.build_readiness(sub, {k: v for k, v in r.items() if k <= d}, b, set())
+                latest, _ = bd.build_readiness(sub, {k: v for k, v in r.items() if k <= d}, b)
                 ranges.add(tuple(latest['hrv']['normal']))
         self.assertEqual(len(ranges), 1)
 
@@ -109,25 +111,25 @@ class ProtocolTest(unittest.TestCase):
         base = [roll(monday - timedelta(days=k)) for k in range(1, 29)]
         m = sum(base) / len(base)
         sd = math.sqrt(sum((x - m) ** 2 for x in base) / (len(base) - 1))   # sample SD
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         self.assertEqual(latest['hrv']['normal'], [round(math.exp(m - 0.5 * sd)), round(math.exp(m + 0.5 * sd))])
 
     def test_needs_3_readings_in_the_week(self):
         h, r, b, ds = steady()
         for d in ds[-7:-2]:
             h.pop(d)
-        _, series = bd.build_readiness(h, r, b, set())
+        _, series = bd.build_readiness(h, r, b)
         self.assertNotIn(ds[-1], [p['date'] for p in series])     # only 2 readings in the last 7 days
 
     def test_new_account_has_no_answer(self):
         h, r, b, _ = steady(n=28)          # starts on a Monday: 4 full weeks, answer from day 29
-        self.assertEqual(bd.build_readiness(h, r, b, set()), (None, []))
+        self.assertEqual(bd.build_readiness(h, r, b), (None, []))
         # 4 weeks to learn each measure's normal, then 4 weeks of scored days for the score's spread
         self.assertEqual(bd.readiness_progress(h), {'days': 28, 'needed': 57})
         h, r, b, _ = steady(n=56)
-        self.assertEqual(bd.build_readiness(h, r, b, set())[0], None)
+        self.assertEqual(bd.build_readiness(h, r, b)[0], None)
         h, r, b, _ = steady(n=57)
-        self.assertIsNotNone(bd.build_readiness(h, r, b, set())[0])
+        self.assertIsNotNone(bd.build_readiness(h, r, b)[0])
 
     def test_each_baseline_week_needs_3_readings(self):
         h, r, b, ds = steady()
@@ -135,15 +137,8 @@ class ProtocolTest(unittest.TestCase):
         for d in list(h):
             if monday - timedelta(days=14) <= date.fromisoformat(d) < monday - timedelta(days=9):
                 h.pop(d)          # leaves 2 readings in that baseline week
-        latest, series = bd.build_readiness(h, r, b, set())
+        latest, series = bd.build_readiness(h, r, b)
         self.assertNotIn(ds[-1], [p['date'] for p in series])
-
-    def test_two_hard_days_in_a_row_means_easy(self):
-        h, r, b, ds = steady()
-        latest, _ = bd.build_readiness(h, r, b, {ds[-2], ds[-3]})
-        self.assertEqual((latest['answer'], latest['reasons']), ('easy', ['streak']))
-        latest, _ = bd.build_readiness(h, r, b, {ds[-2], ds[-4]})
-        self.assertEqual(latest['answer'], 'moderate')
 
     def test_rest_needs_a_run_of_low_days_not_one(self):
         """Below the band the trials prescribe low intensity OR rest; Kiviniemi acted on a
@@ -151,7 +146,7 @@ class ProtocolTest(unittest.TestCase):
         h, r, b, ds = steady(flat_last=8)
         for d in ds[-8:]:                       # a sustained dip, mild enough to stay in the band
             h[d] *= 0.93
-        _, series = bd.build_readiness(h, r, b, set())
+        _, series = bd.build_readiness(h, r, b)
         lines, runs = None, {}
         for p in series:
             lines = lines or p
@@ -171,7 +166,7 @@ class ProtocolTest(unittest.TestCase):
         h, r, b, ds = steady(flat_last=8)
         for d in ds[-8:]:
             h[d] *= 0.93
-        _, series = bd.build_readiness(h, r, b, set())
+        _, series = bd.build_readiness(h, r, b)
         answers = [p['answer'] for p in series]
         self.assertIn('rest', answers[-8:])
         for i in range(2, len(answers)):
@@ -182,9 +177,9 @@ class ProtocolTest(unittest.TestCase):
         h, r, b, ds = steady()
         usual = sum(b[d] for d in ds if 30 <= (date.fromisoformat(ds[-1]) - date.fromisoformat(d)).days <= 90)
         usual /= sum(1 for d in ds if 30 <= (date.fromisoformat(ds[-1]) - date.fromisoformat(d)).days <= 90)
-        calm, _ = bd.build_readiness(h, r, b, set())
+        calm, _ = bd.build_readiness(h, r, b)
         b[ds[-1]] = usual + 12                      # a rise far beyond anything real
-        loud, _ = bd.build_readiness(h, r, b, set())
+        loud, _ = bd.build_readiness(h, r, b)
         self.assertEqual(loud['answer'], calm['answer'])
         self.assertEqual(loud['reasons'], calm['reasons'])
         self.assertAlmostEqual(loud['breathing']['above_usual'], 12, delta=0.2)
@@ -192,12 +187,12 @@ class ProtocolTest(unittest.TestCase):
 
     def test_breathing_needs_30_nights_of_history(self):
         h, r, b, _ = steady(n=58)          # only 29 nights sit 30–90 days back
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         self.assertIsNone(latest['breathing'])
 
     def test_values_are_reported_in_real_units(self):
         h, r, b, _ = steady()
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         lo, hi = latest['hrv']['normal']
         self.assertTrue(60 < lo < hi < 110 and 60 < latest['hrv']['value'] < 110)
 
@@ -229,7 +224,7 @@ class ScoreTest(unittest.TestCase):
         last_week = (len(ds) - 1) // 7
         sleep = {d: 7.5 + LN_PATTERN[i % 7] + (0 if i // 7 == last_week else (0.3 if (i // 7) % 2 else -0.3))
                  for i, d in enumerate(ds)}
-        latest, _ = bd.build_readiness(h, r, b, set(), sleep)
+        latest, _ = bd.build_readiness(h, r, b, sleep)
         monday = date.fromisoformat(ds[-1]) - timedelta(days=date.fromisoformat(ds[-1]).weekday())
         def z(src, f, flip):
             def roll(day):                      # the 7 days BEFORE the day, not including it
@@ -254,7 +249,7 @@ class ScoreTest(unittest.TestCase):
         # the average standard score, standardised against every earlier day's average and read off
         # the normal curve — recomputed here from the series the same function returned
         raw = {p['date']: p for p in []}
-        _, series = bd.build_readiness(h, r, b, set(), sleep)
+        _, series = bd.build_readiness(h, r, b, sleep)
         self.assertEqual(series[-1]['v'], latest['score'])
         history = [x for x in _raw_composites(h, r, sleep, ds) if x[0] < ds[-1]]
         prev = [v for _, v in history]
@@ -270,7 +265,7 @@ class ScoreTest(unittest.TestCase):
             hh = dict(h)
             for d in ds[-7:]:
                 hh[d] = h[d] * factor
-            latest, _ = bd.build_readiness(hh, r, b, set())
+            latest, _ = bd.build_readiness(hh, r, b)
             s = latest['score']
             want = 'moderate' if s >= 31 else 'easy' if s >= 7 else 'rest'
             self.assertEqual(latest['answer'], want, (factor, s))
@@ -280,7 +275,7 @@ class ScoreTest(unittest.TestCase):
         """Band edges are the trials' SD cut-offs read as percentiles: -0.5 SD = 31, -1.5 SD = 7.
         There is no line above the band — no trial prescribes a harder session for being above it."""
         h, r, b, _ = steady()
-        latest, _ = bd.build_readiness(h, r, b, set())
+        latest, _ = bd.build_readiness(h, r, b)
         L = latest['lines']
         self.assertEqual(sorted(L), ['rest', 'train'])
         self.assertEqual([L['train'], L['rest']], [31, 7])
@@ -291,7 +286,7 @@ class ScoreTest(unittest.TestCase):
         """A percentile only means something if the days land where it says: over a long run the
         bands must cut off about the share of days their SD lines intend (31% / 38% / 24% / 7%)."""
         h, r, b, _ = steady(n=560)
-        _, series = bd.build_readiness(h, r, b, set())
+        _, series = bd.build_readiness(h, r, b)
         self.assertGreater(len(series), 400)
         share = lambda f: 100 * sum(1 for p in series if f(p['v'])) / len(series)
         self.assertAlmostEqual(share(lambda v: v >= 31), 69.1, delta=8)
@@ -301,17 +296,50 @@ class ScoreTest(unittest.TestCase):
     def test_shorter_sleep_lowers_the_score(self):
         h, r, b, ds = steady()
         sleep = {d: 7.5 + (0.3 if (i // 7) % 2 else -0.3) for i, d in enumerate(ds)}
-        normal, _ = bd.build_readiness(h, r, b, set(), sleep)
+        normal, _ = bd.build_readiness(h, r, b, sleep)
         for d in ds[-7:]:
             sleep[d] = 5.0
-        short, _ = bd.build_readiness(h, r, b, set(), sleep)
+        short, _ = bd.build_readiness(h, r, b, sleep)
         self.assertEqual(short['sleep']['state'], 'below')
         self.assertLess(short['score'], normal['score'])
 
     def test_series_carries_score_and_answer(self):
         h, r, b, _ = steady()
-        _, series = bd.build_readiness(h, r, b, set())
+        _, series = bd.build_readiness(h, r, b)
         self.assertTrue(all(0 <= p['v'] <= 100 and p['answer'] in ('moderate', 'easy', 'rest') for p in series))
+
+
+class RulesThatWereDeletedTest(unittest.TestCase):
+    """Two rules were removed after measuring that they never changed an answer.
+
+    Both were real citations, and both read like safeguards while doing nothing — the breathing
+    threshold and the consecutive-hard-days cap. These tests stop either creeping back in.
+    """
+
+    def test_no_consecutive_hard_days_rule(self):
+        h, r, b, _ = steady()
+        latest, series = bd.build_readiness(h, r, b)
+        self.assertNotIn('hard_days_in_a_row', latest)
+        self.assertNotIn('max_hard_days', latest)
+        self.assertFalse(hasattr(bd, 'MAX_HARD_DAYS_IN_A_ROW'))
+        self.assertFalse(hasattr(bd, 'hard_days_in_a_row'))
+        self.assertTrue(all(p['answer'] in ('moderate', 'easy', 'rest') for p in series))
+
+    def test_breathing_is_reported_but_never_acted_on(self):
+        h, r, b, ds = steady()
+        for d in ds[-3:]:
+            b[d] = b[ds[0]] + 10            # a rise no threshold should act on
+        latest, _ = bd.build_readiness(h, r, b)
+        self.assertIsNotNone(latest['breathing'])
+        self.assertNotIn('flagged', latest['breathing'])
+        self.assertNotIn('breathing', latest['reasons'])
+
+    def test_the_load_ratio_does_not_change_the_plan(self):
+        """The step-down lived in the template; the plan must not depend on the ratio anywhere."""
+        page = open(os.path.join(ROOT, 'dashboard_template.html')).read()
+        self.assertNotIn("reasons = ['load']", page)
+        self.assertNotIn("key === 'load'", page)
+        self.assertIn('load.ratio', page)           # still measured and shown
 
 
 class StatisticsTest(unittest.TestCase):

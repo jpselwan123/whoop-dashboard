@@ -426,9 +426,10 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #     accumulate more than two consecutive rest sessions": Carrasco-Poyatos et al. 2020, a published
 #     trial protocol rather than a result; detraining).
 #     One prescription per day: the trials read HRV each morning and set that day's session.
-#   - No more than 2 hard (moderate/high-intensity) days in a row — "athletes will perform a maximum
-#     of two consecutive sessions of moderate or high intensity" (Carrasco-Poyatos et al. 2020, again
-#     that trial's protocol, not one of its results).
+#   - There is no consecutive-hard-days rule. Carrasco-Poyatos 2020's protocol caps them, but a
+#     session is labelled by its dominant Seiler zone and "moderate" is a 5-point band, so over 530
+#     days here only 2 days ever carried a streak of 2 and the rule never once changed an answer.
+#     Deleted rather than left in place looking like a safeguard (as the breathing rule was).
 #   - Breathing rate is REPORTED ONLY and never changes the plan: no source gives a numeric rise
 #     worth acting on (see BREATHING_BASELINE below).
 READY_WINDOW_DAYS = 7
@@ -453,7 +454,6 @@ def normal_percentile(z):
 # answer here.
 READY_LINES = {'train': round(normal_percentile(-READY_SWC)),
                'rest': round(normal_percentile(-READY_REST_SD))}
-MAX_HARD_DAYS_IN_A_ROW = 2
 # Below the normal band the trials prescribe "low intensity exercise (or passive rest)"
 # (Manresa-Rocamora et al. 2021). Choosing WHICH of the two is ours. It is adapted from Kiviniemi
 # et al. 2007 (2 days of decreasing HRV → low intensity or rest), with two honest differences: his
@@ -528,15 +528,6 @@ def breathing_check(rr_by_day, d):
             'above_usual': round(rr_by_day[d] - usual, 1)}
 
 
-def hard_days_in_a_row(hard_days, d):
-    """Consecutive calendar days with a moderate/high-intensity session, ending the day before d."""
-    n, cur = 0, _date_minus(d, 1)
-    while cur in hard_days:
-        n += 1
-        cur = _date_minus(cur, 1)
-    return n
-
-
 def judge_last_night(src, d, worse):
     """Last night's single value vs the daily values of the 4 weeks before this week."""
     if d not in src:
@@ -588,7 +579,7 @@ def percentile_series(raw_by_day):
     return out
 
 
-def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day=None):
+def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, sleep_h_by_day=None):
     ln_hrv = {k: math.log(v) for k, v in hrv_by_day.items() if v and v > 0}
     rhr = {k: v for k, v in rhr_by_day.items() if v}
     sleep_h = {k: v for k, v in (sleep_h_by_day or {}).items() if v}
@@ -619,7 +610,6 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
         scores[d] = score
         night_score, night_z = pct_night.get(d, (None, None))   # information only, same scale
         breathing = breathing_check(rr_by_day, d)
-        streak = hard_days_in_a_row(hard_days, d)
         days_below = 0                 # consecutive calendar days below the normal band, today included
         cur = d
         while scores.get(cur) is not None and scores[cur] < READY_LINES['train']:
@@ -635,8 +625,6 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
                 answer, reasons = 'rest', ['days_low']
             else:
                 answer, reasons = 'easy', ['low']
-        elif streak >= MAX_HARD_DAYS_IN_A_ROW:
-            answer, reasons = 'easy', ['streak']
         else:
             answer, reasons = 'moderate', []
         answers[d] = answer
@@ -653,7 +641,7 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
                 'score': night_score,
                 'state': ('above' if night_z > READY_SWC else 'below' if night_z < -READY_SWC else 'within'),
                 'measures': sum(1 for m in night if m)},
-            'breathing': breathing, 'hard_days_in_a_row': streak, 'max_hard_days': MAX_HARD_DAYS_IN_A_ROW,
+            'breathing': breathing,
             'days_below_normal': days_below, 'days_low_to_rest': DAYS_LOW_TO_REST,
         }
     return latest, series
@@ -1058,16 +1046,12 @@ def build_summary(d):
     rest_hr_for = lambda dd: rhr_by_day.get(dd) or usual_rhr
 
     # each day's hardest session and its intensity; strength sessions have no zone-based intensity
-    day_sessions, hard_days, load_by_day = {}, set(), defaultdict(float)
+    day_sessions, load_by_day = {}, defaultdict(float)
     by_day_wo = defaultdict(list)
     for w in wo:
         by_day_wo[record_day(w)].append(w)
         load_by_day[record_day(w)] += edwards_trimp(w['score'].get('zone_durations'), max_hr, rest_hr_for(record_day(w))) or 0.0
     for dd, ws in by_day_wo.items():
-        levels = [session_level(intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(dd)))
-                  for w in ws if w['sport_name'] not in STRENGTH_SPORTS]
-        if any(l in ('moderate', 'hard') for l in levels):
-            hard_days.add(dd)
         top = max(ws, key=lambda w: w['score']['strain'])
         day_sessions[dd] = (sport_label(top['sport_name']), 'strength' if top['sport_name'] in STRENGTH_SPORTS else
                             session_level(intensity_minutes(top['score'].get('zone_durations'), max_hr, rest_hr_for(dd))))
@@ -1085,7 +1069,7 @@ def build_summary(d):
     sleep_h_by_day = defaultdict(float)   # hours asleep per day, naps included
     for sl in list(sleep) + list(naps):
         sleep_h_by_day[record_day(sl)] += asleep_ms(sl) / 3600000
-    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day)
+    readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, sleep_h_by_day)
     # 'a' = the answer that day, so the page can show how often each one actually comes up
     full['readiness'] = [{'date': p['date'], 'v': p['v'], 'a': p['answer']} for p in readiness_series]
     training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), record_day(cyc[-1]))

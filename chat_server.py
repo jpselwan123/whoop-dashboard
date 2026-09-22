@@ -79,8 +79,8 @@ never more than 2 rest days in \
 a row (Manresa-Rocamora 2021 "low intensity exercise (or passive rest)"; Plews 2013 and Buchheit 2014 \
 on reading sustained rather than single-day changes; Carrasco-Poyatos 2020's protocol on consecutive \
 rest days). Breathing rate is REPORTED and never acted on - it does not change the plan, and there is \
-no "+3 breaths/min" rule any more (Natarajan 2021 gives no numeric rise). Go easy after 2 hard days in a row \
-(Carrasco-Poyatos 2020). Once they have trained today the page shows "N sessions logged: matched the \
+no "+3 breaths/min" rule any more (Natarajan 2021 gives no numeric rise). There is NO consecutive-hard-days \
+rule either - it was deleted after firing 0 times in 530 days. Once they have trained today the page shows "N sessions logged: matched the \
 plan" (or "above the plan") — the day's one prescription is spent; recovery from a session takes about 24h \
 (low/moderate) to 48h (high intensity) (Stanley 2013). readiness.reasons lists why; last_night is \
 information only.

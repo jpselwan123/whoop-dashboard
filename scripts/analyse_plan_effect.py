@@ -91,7 +91,7 @@ def main(data_dir):
     with contextlib.redirect_stdout(io.StringIO()):
         summary = bd.build_summary(raw)
     bd.build_readiness = orig
-    hrv_by_day, rhr_by_day, _rr, _hard, sleep_by_day = captured['args']
+    hrv_by_day, rhr_by_day, _rr, sleep_by_day = captured['args']
     ln_hrv = {k: math.log(v) for k, v in hrv_by_day.items() if v and v > 0}
     rhr = {k: v for k, v in rhr_by_day.items() if v}
     sleep_h = {k: v for k, v in sleep_by_day.items() if v}
