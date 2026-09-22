@@ -633,12 +633,13 @@ const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); 
 // shown as a percentile of your own days (50 = your median day). 31+ Train as planned, 7–30 Go easy,
 // under 7 Rest — the trials' −0.5 SD and −1.5 SD lines in that unit. No trial prescribes a harder
 // session for being above the band, so there is no fourth answer above. Go easy after
-// 2 hard days in a row. The plan is one session a day — once trained, it is Done. Sources: README.
+// 2 hard days in a row. The plan is one session a day — once trained, the pill reads
+// "N sessions logged" and the headline says whether it matched the plan. Sources: README.
 const ACTIONS = {
   moderate: {label:'Train as planned', c:'var(--good)',      bg:'var(--good-bg)',     headline:'Train as planned today.'},
   easy:     {label:'Go easy',          c:'var(--warn)',      bg:'var(--warn-bg)',     headline:'Go easy today.'},
   rest:     {label:'Rest',             c:'var(--critical)',  bg:'var(--critical-bg)', headline:'Rest today.'},
-  done:     {label:'Done for today',   c:'var(--ink-muted)', bg:'var(--surface-2)',   headline:'Today’s session is done.'},
+  done:     {label:'Session logged',    c:'var(--ink-muted)', bg:'var(--surface-2)',   headline:'Today’s session is done.'},
   learning: {label:'Learning',         c:'var(--accent)',    bg:'var(--accent-soft)', headline:'Learning your normal.'},
 };
 const INTENSITY_WORD = {easy:'easy', moderate:'moderate-intensity', hard:'high-intensity'};
@@ -1754,7 +1755,7 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
   function render(){
     const calc = window.__readinessCalc; if(!calc) return;
     const R = calc.R, L = DATA.last_night;
-    // the header matches the orb: after training, the after-training number and "Done for today"
+    // the header matches the orb: after training, the after-training number and "Session logged"
     $('rpScore').textContent = R ? `· ${calc.cost ? calc.cost.after : R.score} · ${ACTIONS[calc.cost ? calc.action : calc.plan].label}` : '· Learning';
     $('rpSub').textContent = 'Where today sits among your own days.';
     const out = [];
