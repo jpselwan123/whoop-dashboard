@@ -64,9 +64,10 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Before a session, today's
   live load ratio (`build_load_today`) steps the plan down: >1.5 → Go easy. The ratio runs on **Edwards TRIMP,
   never day strain** — Gabbett's bands are linear-load, and the strain ratio never passed 1.5 in 565 days.
-  After a session the orb shows readiness net of today's training cost (`build_training_cost`: OLS of next-morning
-  readiness on day strain, holding readiness constant, on the person's own history; significant & negative only;
-  cost = effect × strain above median rest-day strain, never positive). The plan still comes from the morning score. The panel's "last night" block is the raw
+  `build_training_cost` measures what today's strain costs the NEXT NIGHT's composite (regression on the composite
+  z, not the percentile; Newey-West lag 7; gates = significant & negative, monotone across strain terciles, and
+  beats doing nothing on a held-out 30%). It is currently **not displayed** — it fails the hold-out gate (MAE 13.2
+  vs 11.3), so the orb keeps the morning score. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
   values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
   score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones

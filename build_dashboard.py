@@ -627,7 +627,8 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day
         else:
             answer, reasons = 'moderate', []
         answers[d] = answer
-        series.append({'date': d, 'v': score, 'answer': answer})
+        series.append({'date': d, 'v': score, 'answer': answer, 'z': pct_all[d][1],
+                       'night_z': raw_night.get(d)})
         marker = lambda m, unit_fn: None if m is None else {'value': unit_fn(m['avg']), 'normal': [unit_fn(m['lo']), unit_fn(m['hi'])],
                                                             'state': m['state']}
         latest = {
@@ -712,35 +713,125 @@ def _ols(X, y):
     return beta, [math.sqrt(s2 * inv[a][a]) for a in range(k)], df
 
 
-# What today's training costs in readiness, measured on the person's own history rather than assumed.
-# Readiness is an overnight measurement, so a session can't change this morning's number - but it does
-# lower the next one. Each past day's day strain is regressed against the next morning's readiness,
-# holding that day's own readiness constant (ordinary least squares; t-test on the coefficient,
-# p < 0.05, 30+ pairs - the same conventions as every other comparison here). Today's cost is that
-# effect applied to the strain above a typical rest day (median day strain on days with no workout),
-# never a bonus for doing less; the page shows it once a session is logged.
-def build_training_cost(readiness_series, strain_by_day, workout_days, today):
-    scores = {p['date']: p['v'] for p in readiness_series}
-    rows = [(1.0, scores[d], strain_by_day[d], scores[_date_minus(d, -1)])
-            for d in scores if d < today and d in strain_by_day and _date_minus(d, -1) in scores]
-    rest = [v for d, v in strain_by_day.items() if d < today and d not in workout_days]
-    if len(rows) < MIN_GROUP or len(rest) < MIN_GROUP or today not in scores or today not in strain_by_day:
+# What today's training costs, measured on the person's own history rather than assumed.
+# Readiness is an overnight measurement, so a session cannot change this morning's number — it lowers
+# the next one. The regression is on the composite standard score, not the bounded percentile (a
+# percentile is squashed at both ends, so a straight line through it is the wrong shape), and the
+# outcome is the NEXT NIGHT's own composite — HRV, resting heart rate and hours asleep for that night
+# — rather than WHOOP recovery, which is built from the same measures as the score.
+#
+#     next_night_z = a + b·today_z + c·today_strain
+#
+# c is the cost per point of day strain. Standard errors are Newey-West (lag 7), because consecutive
+# days are dependent and plain errors would be too narrow. Three guards decide whether the number is
+# shown at all: it must be negative and significant; the effect must be roughly linear across strain
+# terciles; and, fitted on the first 70% of days, subtracting the cost must predict the last 30% of
+# next-morning scores better than today's score alone. This is our own measurement, not a published
+# model — labelled as such in the README.
+NEWEY_WEST_LAG = 7
+HOLDOUT = 0.3
+
+
+def _ols_newey_west(X, y, lag=NEWEY_WEST_LAG):
+    """Coefficients, Newey-West standard errors, and the residual lag-1 autocorrelation."""
+    n, k = len(y), len(X[0])
+    inv = _inverse([[sum(X[i][a] * X[i][b] for i in range(n)) for b in range(k)] for a in range(k)])
+    if inv is None:
         return None
-    fit = _ols([r[:3] for r in rows], [r[3] for r in rows])
+    xty = [sum(X[i][a] * y[i] for i in range(n)) for a in range(k)]
+    beta = [sum(inv[a][b] * xty[b] for b in range(k)) for a in range(k)]
+    u = [y[i] - sum(beta[a] * X[i][a] for a in range(k)) for i in range(n)]
+    S = [[sum(u[i] * u[i] * X[i][a] * X[i][b] for i in range(n)) for b in range(k)] for a in range(k)]
+    for L in range(1, lag + 1):
+        w = 1 - L / (lag + 1)
+        for i in range(L, n):
+            for a in range(k):
+                for b in range(k):
+                    S[a][b] += w * u[i] * u[i - L] * (X[i][a] * X[i - L][b] + X[i - L][a] * X[i][b])
+    se = [math.sqrt(max(sum(inv[a][p] * S[p][q] * inv[q][a] for p in range(k) for q in range(k)), 0.0))
+          for a in range(k)]
+    mu = mean(u)
+    r1 = sum((u[i] - mu) * (u[i - 1] - mu) for i in range(1, n)) / sum((x - mu) ** 2 for x in u)
+    return beta, se, r1
+
+
+def _inverse(m):
+    k = len(m)
+    a = [row[:] + [1.0 if i == j else 0.0 for j in range(k)] for i, row in enumerate(m)]
+    for c in range(k):
+        piv = max(range(c, k), key=lambda r: abs(a[r][c]))
+        a[c], a[piv] = a[piv], a[c]
+        if abs(a[c][c]) < 1e-12:
+            return None
+        f = a[c][c]
+        a[c] = [v / f for v in a[c]]
+        for r in range(k):
+            if r != c:
+                g = a[r][c]
+                a[r] = [x - g * y for x, y in zip(a[r], a[c])]
+    return [row[k:] for row in a]
+
+
+def build_training_cost(readiness_series, strain_by_day, workout_days, today):
+    by_day = {p['date']: p for p in readiness_series}
+    rows = []
+    for d in sorted(by_day):
+        nxt = _date_minus(d, -1)
+        if d >= today or d not in strain_by_day or nxt not in by_day or by_day[nxt].get('night_z') is None:
+            continue
+        rows.append((d, [1.0, by_day[d]['z'], strain_by_day[d]], by_day[nxt]['night_z']))
+    rest = [v for d, v in strain_by_day.items() if d < today and d not in workout_days]
+    if len(rows) < MIN_GROUP or len(rest) < MIN_GROUP or today not in by_day or today not in strain_by_day:
+        return None
+    fit = _ols_newey_west([r[1] for r in rows], [r[2] for r in rows])
     if fit is None:
         return None
-    beta, se, df = fit
-    per_strain = beta[2]
-    t = per_strain / se[2] if se[2] else 0.0
+    beta, se, resid_r1 = fit
+    per_strain, t = beta[2], (beta[2] / se[2] if se[2] else 0.0)
+    df = len(rows) - 3
     p = _betainc(df / 2, 0.5, df / (df + t * t))
+
+    # linearity: the cost should grow roughly evenly across strain terciles, not jump
+    trained = sorted((strain_by_day[d], nz) for d, _, nz in rows if d in workout_days)
+    third = len(trained) // 3
+    terciles = [trained[:third], trained[third:2 * third], trained[2 * third:]] if third >= MIN_GROUP // 3 else []
+    tercile_means = [round(mean(nz for _, nz in t_), 3) for t_ in terciles] if terciles else []
+    monotone = len(tercile_means) == 3 and tercile_means[0] >= tercile_means[1] >= tercile_means[2]
+
+    med = lambda xs: (sorted(xs)[len(xs) // 2] if len(xs) % 2 else mean(sorted(xs)[len(xs) // 2 - 1:len(xs) // 2 + 1]))
+    rest_strain = med(rest)
+
+    # out of sample: does subtracting the cost predict the next morning better than doing nothing?
+    cut = int(len(rows) * (1 - HOLDOUT))
+    train, test = rows[:cut], rows[cut:]
+    improved = None
+    if len(train) >= MIN_GROUP and len(test) >= MIN_GROUP:
+        f2 = _ols_newey_west([r[1] for r in train], [r[2] for r in train])
+        if f2:
+            c_train = f2[0][2]
+            base_err, adj_err = [], []
+            for d, x, _nz in test:
+                nxt = by_day[_date_minus(d, -1)]
+                cost = min(0.0, c_train * (strain_by_day[d] - rest_strain))
+                shown = max(1, min(99, round(normal_percentile(by_day[d]['z'] + cost))))
+                base_err.append(abs(by_day[d]['v'] - nxt['v']))
+                adj_err.append(abs(shown - nxt['v']))
+            improved = mean(adj_err) < mean(base_err)
+            base_mae, adj_mae = round(mean(base_err), 1), round(mean(adj_err), 1)
     significant = p < SIGNIFICANCE and per_strain < 0
-    rest_strain = sorted(rest)[len(rest) // 2] if len(rest) % 2 else sum(sorted(rest)[len(rest) // 2 - 1:len(rest) // 2 + 1]) / 2
+    usable = bool(significant and monotone and improved)
+    z_today = by_day[today]['z']
     strain = strain_by_day[today]
-    cost = round(min(0.0, per_strain * (strain - rest_strain))) if significant else None
-    morning = scores[today]
+    cost_z = min(0.0, per_strain * (strain - rest_strain)) if usable else None
+    morning = by_day[today]['v']
     return {'date': today, 'morning': morning, 'strain': round(strain, 1), 'rest_day_strain': round(rest_strain, 1),
-            'per_strain': round(per_strain, 2), 'p': round(p, 4), 'pairs': len(rows), 'significant': significant,
-            'cost': cost, 'after': None if cost is None else max(1, min(99, morning + cost))}
+            'per_strain': round(per_strain, 3), 'p': round(p, 4), 'pairs': len(rows),
+            'residual_autocorr': round(resid_r1, 2), 'tercile_next_night': tercile_means,
+            'linear': monotone, 'significant': significant,
+            'holdout_better': improved, 'holdout_mae': None if improved is None else [base_mae, adj_mae],
+            'usable': usable,
+            'cost': None if cost_z is None else round(normal_percentile(z_today + cost_z)) - morning,
+            'after': None if cost_z is None else max(1, min(99, round(normal_percentile(z_today + cost_z))))}
 
 
 def build_sleep_composition(sleep, now):
@@ -1009,7 +1100,6 @@ def build_summary(d):
     readiness, readiness_series = build_readiness(hrv_by_day, rhr_by_day, rr_by_day, hard_days, sleep_h_by_day)
     # 'a' = the answer that day, so the page can show how often each one actually comes up
     full['readiness'] = [{'date': p['date'], 'v': p['v'], 'a': p['answer']} for p in readiness_series]
-    plan_check = build_plan_check(readiness_series, recovery_by_day, hard_days)
     training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), record_day(cyc[-1]))
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
         entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(
@@ -1072,7 +1162,6 @@ def build_summary(d):
         'full_series': full,
         'readiness': readiness,
         'readiness_progress': readiness_progress(hrv_by_day),
-        'plan_check': plan_check,
         'last_night': last_night,
         'sleep_nights': build_sleep_nights(sleep, today),
         'workout_log': workout_log,

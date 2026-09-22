@@ -20,7 +20,7 @@ class BuildDashboardTest(unittest.TestCase):
         self.assertIn('"asOf"', html)
 
     def test_core_fields_present(self):
-        for key in ("latest", "avg30", "full_series", "acwr", "monotony", "readiness", "plan_check",
+        for key in ("latest", "avg30", "full_series", "acwr", "monotony", "readiness",
                     "sport_recovery_cost", "rest_day_stat", "today_snapshot", "records"):
             self.assertIn(key, self.summary)
 

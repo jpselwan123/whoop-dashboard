@@ -202,47 +202,96 @@ class DayAdaptsTest(unittest.TestCase):
 
 
 class TrainingCostTest(unittest.TestCase):
-    """Readiness after today's training: the strain effect measured on the person's own history."""
+    """What today's strain costs the next night, and the three gates before it is ever shown."""
 
-    def history(self, effect, n=200, seed=5):
+    def history(self, effect, n=260, seed=5, noise=0.35):
+        """Synthetic days where today's strain lowers the next night's composite by `effect`."""
         import random
         rnd = random.Random(seed)
         start = date(2026, 1, 1)
         days = [(start + timedelta(days=i)).isoformat() for i in range(n)]
-        workout_days = {d for i, d in enumerate(days) if i % 3 != 0}          # every third day off
+        workout_days = {d for i, d in enumerate(days) if i % 3 != 0}
         strain = {d: (rnd.uniform(11, 18) if d in workout_days else rnd.uniform(3, 7)) for d in days}
-        score = {days[0]: 50.0}
-        for a, b in zip(days, days[1:]):
-            score[b] = max(1, min(99, 20 + 0.6 * score[a] + effect * (strain[a] - 5) + rnd.gauss(0, 6)))
-        series = [{'date': d, 'v': round(score[d])} for d in days]
+        series, z = [], 0.0
+        for i, d in enumerate(days):
+            z = 0.5 * z + rnd.gauss(0, 0.6)
+            night = (effect * (strain[days[i - 1]] - 5) if i else 0.0) + 0.3 * z + rnd.gauss(0, noise)
+            series.append({'date': d, 'v': max(1, min(99, round(bd.normal_percentile(z)))),
+                           'answer': 'moderate', 'z': z, 'night_z': night})
         return series, strain, workout_days, days
 
-    def test_measures_the_strain_effect_and_applies_it_to_today(self):
-        series, strain, wd, days = self.history(effect=-1.0)
-        today = days[-1]
-        strain[today] = 16.0
-        out = bd.build_training_cost(series, strain, wd, today)
+    def test_measures_the_effect_on_the_next_night(self):
+        series, strain, wd, days = self.history(effect=-0.08)
+        out = bd.build_training_cost(series, strain, wd, days[-1])
         self.assertTrue(out['significant'])
-        self.assertAlmostEqual(out['per_strain'], -1.0, delta=0.25)
-        want = round(out['per_strain'] * (16.0 - out['rest_day_strain']))
-        self.assertEqual(out['cost'], want)
-        self.assertEqual(out['after'], out['morning'] + want)
+        self.assertAlmostEqual(out['per_strain'], -0.08, delta=0.03)
+        self.assertEqual(out['pairs'], len(days) - 1)
+        self.assertIn('residual_autocorr', out)
 
-    def test_no_effect_in_the_history_means_no_adjustment(self):
+    def test_no_effect_in_the_history_is_not_significant(self):
         series, strain, wd, days = self.history(effect=0.0, seed=9)
         out = bd.build_training_cost(series, strain, wd, days[-1])
-        self.assertFalse(out['significant'] and out['cost'])
-        if not out['significant']:
-            self.assertIsNone(out['cost'])
+        self.assertFalse(out['significant'])
+        self.assertFalse(out['usable'])
+        self.assertIsNone(out['after'])
+
+    def test_nothing_is_shown_unless_all_three_gates_pass(self):
+        """Significant, monotone across strain terciles, and better than nothing out of sample."""
+        series, strain, wd, days = self.history(effect=-0.08)
+        out = bd.build_training_cost(series, strain, wd, days[-1])
+        self.assertEqual(out['usable'], bool(out['significant'] and out['linear'] and out['holdout_better']))
+        if not out['usable']:
             self.assertIsNone(out['after'])
+        self.assertEqual(len(out['tercile_next_night']), 3)
 
     def test_a_quiet_day_is_never_a_bonus(self):
-        series, strain, wd, days = self.history(effect=-1.0)
-        strain[days[-1]] = 2.0                                  # below a typical rest day
+        series, strain, wd, days = self.history(effect=-0.08)
+        strain[days[-1]] = 1.0                                  # far below a typical rest day
         out = bd.build_training_cost(series, strain, wd, days[-1])
-        self.assertEqual(out['cost'], 0)
-        self.assertEqual(out['after'], out['morning'])
+        self.assertIn(out['cost'], (None, 0))
 
     def test_real_summary_carries_it(self):
         s = bd.build_summary(generate(120, 23))
         self.assertIn('training_cost', s)
+
+
+class PlanEffectScriptTest(unittest.TestCase):
+    """The offline analysis in scripts/analyse_plan_effect.py, on synthetic data only."""
+
+    def setUp(self):
+        import importlib.util, os
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            'scripts', 'analyse_plan_effect.py')
+        spec = importlib.util.spec_from_file_location('analyse_plan_effect', path)
+        self.mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.mod)
+
+    def test_recovers_a_known_effect(self):
+        import random
+        rnd = random.Random(7)
+        X, y = [], []
+        for _ in range(400):
+            score_z, lvl = rnd.gauss(0, 1), float(rnd.randint(0, 3))
+            X.append([1.0, score_z, lvl, score_z * lvl])
+            y.append(0.3 * score_z - 0.2 * lvl + rnd.gauss(0, 0.5))      # no interaction
+        beta, se, r1, n = self.mod.ols_newey_west(X, y)
+        self.assertEqual(n, 400)
+        self.assertAlmostEqual(beta[1], 0.3, delta=0.08)
+        self.assertAlmostEqual(beta[2], -0.2, delta=0.08)
+        self.assertLess(abs(beta[3] / se[3]), 2.0, 'no interaction was simulated')
+        self.assertGreater(abs(beta[2] / se[2]), 2.0, 'the intensity effect should be detected')
+
+    def test_newey_west_widens_the_error_when_days_run_together(self):
+        """Dependent days carry less information; the correction must not shrink the error."""
+        import random
+        rnd = random.Random(11)
+        X, y, e = [], [], 0.0
+        for i in range(300):
+            e = 0.8 * e + rnd.gauss(0, 0.5)                              # autocorrelated noise
+            x = rnd.gauss(0, 1)
+            X.append([1.0, x])
+            y.append(0.2 * x + e)
+        _, se_nw, r1, _ = self.mod.ols_newey_west(X, y, lag=7)
+        _, se_plain, _, _ = self.mod.ols_newey_west(X, y, lag=0)
+        self.assertGreater(se_nw[1], se_plain[1] * 0.99)
+        self.assertGreater(r1, 0.3, 'the fixture should leave autocorrelated residuals')

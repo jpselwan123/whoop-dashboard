@@ -203,7 +203,7 @@ class ProtocolTest(unittest.TestCase):
 
     def test_summary_includes_readiness(self):
         summary = bd.build_summary(generate(120))
-        for key in ('readiness', 'readiness_progress', 'plan_check', 'last_night', 'sleep_nights'):
+        for key in ('readiness', 'readiness_progress', 'training_cost', 'last_night', 'sleep_nights'):
             self.assertIn(key, summary)
         self.assertIn(summary['readiness']['answer'], ('moderate', 'easy', 'rest'))
 
