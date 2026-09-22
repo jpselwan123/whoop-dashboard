@@ -63,7 +63,7 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   sustained not single-day; Kiviniemi 2007 caps consecutive rest days). Breathing rate is reported, never acted on (Natarajan 2021 gives no numeric rise; the old +3/min was ours and never fired). Go easy after 2 hard days in a row (Carrasco-Poyatos 2020). Once any session is
   logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Before a session, today's
   live load ratio (`build_load_today`) steps the plan down: >1.5 → Go easy. The ratio runs on **Edwards TRIMP,
-  never day strain** — Gabbett's bands are linear-load, and the strain ratio never passed 1.5 in 565 days.
+  never day strain** — Gabbett's bands are linear-load, and the strain ratio never passed 1.5 in 567 days.
   `build_training_cost` measures what today's strain costs the NEXT NIGHT's composite (regression on the composite
   z, not the percentile; Newey-West lag 7; gates = significant & negative, monotone across strain terciles, and
   beats doing nothing on a held-out 30%). It is currently **not displayed** — it fails the hold-out gate (MAE 13.2
