@@ -412,21 +412,25 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #     baseline (resting HR flipped, so higher = better); the score is their average with equal
 #     weights (no study gives validated weights: Dawes 1979), then standardised against the spread
 #     of the person's own earlier composites and shown as a percentile of them (`percentile_series`)
-#     — 50 = your median day; the SD lines above become 69 / 31 / 7.
+#     — 50 = your median day; the SD lines above become 31 (−0.5 SD) and 7 (−1.5 SD).
 #   - Answer, the way the trials prescribed the day's session (Kiviniemi et al. 2007; Vesterinen
 #     et al. 2016; Javaloyes et al. 2019): at or above the bottom of the normal band (31+, i.e. not
 #     more than 0.5 SD — the smallest worthwhile change — below normal) → Train as planned, the
 #     trials' moderate/high session, with no separate step for being above the band because no
 #     trial prescribes one; below it → Go easy or Rest ("low intensity exercise (or passive
 #     rest) is prescribed when values are suppressed" — Manresa-Rocamora et al. 2021). Rest when the
-#     fall is large (1.5 SD below, the line Thornton et al. 2019 give as worth acting on) or
-#     sustained — the third day in a row below the band, since the method papers act on a sustained
-#     fall rather than one low night (Plews et al. 2013; Buchheit 2014) — but never more than two
-#     rest days in a row (Kiviniemi et al. 2007 cap consecutive rest days; detraining).
+#     fall is large (1.5 SD below — OUR OWN extension; the "worth acting on" line once attributed to
+#     Thornton et al. 2019 could not be verified in that paper) or sustained — the second day in a
+#     row below the band, since the method papers act on a sustained fall rather than one low night
+#     (Plews et al. 2013; Buchheit 2014) — but never more than two rest days in a row ("will not
+#     accumulate more than two consecutive rest sessions": Carrasco-Poyatos et al. 2020, a published
+#     trial protocol rather than a result; detraining).
 #     One prescription per day: the trials read HRV each morning and set that day's session.
-#   - No more than 2 hard (moderate/high-intensity) days in a row (Carrasco-Poyatos et al. 2020).
-#   - Breathing rate 3+ breaths/min above the person's usual rate (average of the nights 30–90
-#     days before, at least 30 nights) — an illness sign (Natarajan et al. 2021) → Rest.
+#   - No more than 2 hard (moderate/high-intensity) days in a row — "athletes will perform a maximum
+#     of two consecutive sessions of moderate or high intensity" (Carrasco-Poyatos et al. 2020, again
+#     that trial's protocol, not one of its results).
+#   - Breathing rate is REPORTED ONLY and never changes the plan: no source gives a numeric rise
+#     worth acting on (see BREATHING_BASELINE below).
 READY_WINDOW_DAYS = 7
 READY_MIN_READINGS = 3
 READY_BASELINE_DAYS = 28
@@ -451,17 +455,19 @@ READY_LINES = {'train': round(normal_percentile(-READY_SWC)),
                'rest': round(normal_percentile(-READY_REST_SD))}
 MAX_HARD_DAYS_IN_A_ROW = 2
 # Below the normal band the trials prescribe "low intensity exercise (or passive rest)"
-# (Manresa-Rocamora et al. 2021). Which of the two follows Kiviniemi et al. 2007, who prescribed
-# "low-intensity training or rest" on a value below the reference OR a "decreasing trend for 2 days":
-# the second day in a row below your normal is a rest day. Never more than two rest days in a row —
-# "will not accumulate more than two consecutive rest sessions" (Carrasco-Poyatos et al. 2020, a
-# published trial protocol rather than a result).
+# (Manresa-Rocamora et al. 2021). Choosing WHICH of the two is ours. It is adapted from Kiviniemi
+# et al. 2007 (2 days of decreasing HRV → low intensity or rest), with two honest differences: his
+# 2 days are two successive DROPS in HRV, not two days below the range, and he prescribed "low
+# intensity or rest" without choosing between them — the split between easy and rest is ours.
+# Never more than two rest days in a row — "will not accumulate more than two consecutive rest
+# sessions" (Carrasco-Poyatos et al. 2020, a published trial protocol rather than a result).
 DAYS_LOW_TO_REST = 2
 MAX_REST_DAYS_IN_A_ROW = 2
 # Breathing rate is still measured and shown, but it no longer changes the plan. The "+3 breaths/min"
 # cut-off was attributed to Natarajan et al. 2021, which gives no such number — it detects illness with
 # a z-score against a rolling baseline, not a fixed rise — so the threshold was ours, not a source's.
-# It had also never fired: over 491 eligible days the largest rise was +2.3/min.
+# It had also never fired: over the 492 nights with enough baseline to judge, the largest rise was
+# +2.3/min (recomputed by scripts/check_doc_stats.py, which reports `breathing`).
 BREATHING_BASELINE = (30, 90)
 BREATHING_MIN_NIGHTS = 30
 

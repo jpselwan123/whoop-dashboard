@@ -58,16 +58,23 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   harder session for being above it (Kiviniemi 2007 "increase or no change"; Javaloyes 2019 "above or within";
   Vesterinen 2016 "within"; Manresa-Rocamora 2021 "within or above"). The 7-day windows stop the day before
   (`rolling_7`), so last night is counted once, not twice. Rest when the fall is large
-  (<7) or sustained — 3rd day in a row below the band (`DAYS_LOW_TO_REST`), never 3 rest days in a row
+  (<7) or sustained — 2nd day in a row below the band (`DAYS_LOW_TO_REST`), never 3 rest days in a row
   (`MAX_REST_DAYS_IN_A_ROW`; Manresa-Rocamora 2021 "low intensity or passive rest"; Plews 2013/Buchheit 2014
-  sustained not single-day; Kiviniemi 2007 caps consecutive rest days). Breathing rate is reported, never acted on (Natarajan 2021 gives no numeric rise; the old +3/min was ours and never fired). Go easy after 2 hard days in a row (Carrasco-Poyatos 2020). Once any session is
-  logged today the page shows "Done for today" (plan spent) unless the plan was Rest. Before a session, today's
+  sustained not single-day; rest cap = "will not accumulate more than two consecutive rest sessions",
+  Carrasco-Poyatos 2020 — **a trial protocol, not a result**). The 2-day count is **adapted from**
+  Kiviniemi 2007 (2 days of decreasing HRV → low intensity or rest): his 2 days are two successive
+  DROPS in HRV, not two days below the range, and he never chose between easy and rest — that split is
+  ours. Breathing rate is reported, never acted on (Natarajan 2021 gives no numeric rise; the old +3/min
+  was ours and never fired). Go easy after 2 hard days in a row — "athletes will perform a maximum of two
+  consecutive sessions of moderate or high intensity" (Carrasco-Poyatos 2020, protocol not result). Once any
+  session is logged today the pill reads "N sessions logged" and the headline "N sessions logged: matched
+  the plan" / "above the plan" (plan spent) unless the plan was Rest. Before a session, today's
   live load ratio (`build_load_today`) steps the plan down: >1.5 → Go easy. The ratio runs on **Edwards TRIMP,
   never day strain** — Gabbett's bands are linear-load, and the strain ratio never passed 1.5 in 567 days.
   `build_training_cost` measures what today's strain costs the NEXT NIGHT's composite (regression on the composite
   z, not the percentile; Newey-West lag 7; gates = significant & negative, monotone across strain terciles, and
-  beats doing nothing on a held-out 30%). It is currently **not displayed** — it fails the hold-out gate (MAE 13.2
-  vs 11.3), so the orb keeps the morning score. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
+  beats doing nothing on a held-out 30%). It is currently **not displayed** — it fails the hold-out gate (MAE 13.3
+  vs 11.4), so the orb keeps the morning score. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
   values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
   score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
