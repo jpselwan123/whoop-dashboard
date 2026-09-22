@@ -773,6 +773,9 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
     # linearity: the cost should grow roughly evenly across strain terciles, not jump
     trained = sorted((strain_by_day[d], nz) for d, _, nz in rows if d in workout_days)
     third = len(trained) // 3
+    # MIN_GROUP // 3 is only 10 trained days per tercile — thin for a mean, so this gate is weak on
+    # short histories. If the hold-out gate below ever starts passing on marginal data, re-check this
+    # first: three noisy means can look monotone by chance.
     terciles = [trained[:third], trained[third:2 * third], trained[2 * third:]] if third >= MIN_GROUP // 3 else []
     tercile_means = [round(mean(nz for _, nz in t_), 3) for t_ in terciles] if terciles else []
     monotone = len(tercile_means) == 3 and tercile_means[0] >= tercile_means[1] >= tercile_means[2]
