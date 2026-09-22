@@ -627,8 +627,9 @@ const lastDays = (series, n) => {
 const SVGNS = "http://www.w3.org/2000/svg";
 const svgEl = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; };
 
-// Readiness (build_readiness in build_dashboard.py): 7-day HRV, resting HR and hours asleep, each as
-// a standard score vs your previous 4 weeks, averaged with equal weights (Thornton et al. 2019) and
+// Readiness (build_readiness in build_dashboard.py): HRV, resting HR and hours asleep, each over the
+// 7 days BEFORE today and for last night alone — six standard scores vs your previous 4 weeks,
+// averaged with equal weights (Thornton et al. 2019) and
 // shown as a percentile of your own days (50 = your median day). 31+ Train as planned, 7–30 Go easy,
 // under 7 Rest — the trials' −0.5 SD and −1.5 SD lines in that unit. No trial prescribes a harder
 // session for being above the band, so there is no fourth answer above. Go easy after
