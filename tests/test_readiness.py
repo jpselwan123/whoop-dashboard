@@ -1,7 +1,7 @@
-"""Readiness: 7-day HRV, resting HR and sleep, each a standard score vs the 7-day averages of the
-previous 4 weeks, averaged, then read as a percentile of the person's own earlier scores (50 = a median
-day). 69+ Train hard, 31–68 Train as planned, 7–30 Go easy, under 7 Rest; Rest on a breathing-rate
-Go easy after 2 hard days in a row."""
+"""Readiness: HRV, resting HR and sleep — each over the last 7 days and for last night alone — as six
+standard scores against the previous 4 weeks, averaged, then read as a percentile of the person's own
+earlier scores (50 = a median day). 31+ Train as planned, 7–30 Go easy, under 7 Rest. There is no band
+above the normal range. Breathing rate is reported, never acted on; Go easy after 2 hard days in a row."""
 import math, random, unittest
 from datetime import date, timedelta
 from statistics import mean
@@ -324,38 +324,6 @@ class StatisticsTest(unittest.TestCase):
         a = [rng.gauss(55, 15) for _ in range(200)]
         self.assertLess(bd.welch_p(a, [rng.gauss(45, 15) for _ in range(200)]), 0.05)
         self.assertGreater(bd.welch_p(a, [rng.gauss(55, 15) for _ in range(200)]), 0.05)
-
-    def test_plan_check_needs_30_days_on_both_sides(self):
-        """Few override days is the normal case — show the counts, claim nothing."""
-        days = [(date(2026, 1, 1) + timedelta(days=i)).isoformat() for i in range(60)]
-        series = [{'date': d, 'answer': 'easy' if i < 10 else 'moderate'} for i, d in enumerate(days)]
-        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): 50 for i in range(60)}
-        out = bd.build_plan_check(series, rec, set(days[:5]))     # 5 override days only
-        self.assertEqual(out['harder']['days'], 5)
-        self.assertFalse(out['enough'])
-        self.assertFalse(out['significant'])
-
-    def test_plan_check_compares_what_you_did_not_what_the_score_said(self):
-        """Overriding = a moderate/high session on a Go easy or Rest day; everything else followed."""
-        days = [(date(2026, 1, 1) + timedelta(days=i)).isoformat() for i in range(200)]
-        series = [{'date': d, 'answer': 'easy' if i % 2 else 'moderate'} for i, d in enumerate(days)]
-        hard = {d for i, d in enumerate(days) if i % 2}           # every Go easy day was overridden
-        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): (40 if i % 2 else 60) + (i % 5)
-               for i in range(200)}
-        out = bd.build_plan_check(series, rec, hard)
-        self.assertEqual(out['followed']['days'] + out['harder']['days'], out['days'])
-        self.assertEqual(out['harder']['days'], 100)
-        self.assertTrue(out['enough'] and out['significant'])
-        self.assertGreater(out['delta'], 0)
-        self.assertAlmostEqual(out['followed']['avg_next_recovery'], 62.0, delta=0.6)
-
-    def test_plan_check_ignores_hard_days_the_plan_allowed(self):
-        days = [(date(2026, 1, 1) + timedelta(days=i)).isoformat() for i in range(60)]
-        series = [{'date': d, 'answer': 'moderate'} for d in days]
-        rec = {(date(2026, 1, 2) + timedelta(days=i)).isoformat(): 50 for i in range(60)}
-        out = bd.build_plan_check(series, rec, set(days))          # trained hard every day, as allowed
-        self.assertEqual(out['harder']['days'], 0)
-        self.assertEqual(out['followed']['days'], out['days'])
 
 
 if __name__ == '__main__':

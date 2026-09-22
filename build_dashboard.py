@@ -661,34 +661,6 @@ def readiness_progress(hrv_by_day):
     return {'days': elapsed, 'needed': (ready - first).days + 1}
 
 
-# Does the plan hold up? Comparing the score against next-morning recovery was too easy a test:
-# recovery is built from HRV and resting HR, the same measures the score is built from, so the two
-# agree by construction. This compares BEHAVIOUR instead — days the plan was followed against days
-# a moderate or high-intensity session was done on a Go easy or Rest day. Same conventions as every
-# other comparison here (Welch's t-test, p < 0.05, 30+ per group), with one caveat stated on the
-# page and in the README: consecutive days are not independent (the score's day-to-day correlation
-# is about 0.87), so the p-value is optimistic.
-def build_plan_check(series, recovery_by_day, hard_days):
-    """Next-morning recovery after days the plan was followed vs days it was overridden."""
-    followed, harder = [], []
-    for p in series:
-        nxt = (datetime.fromisoformat(p['date']) + timedelta(days=1)).date().isoformat()
-        if nxt not in recovery_by_day:
-            continue
-        trained_hard = p['date'] in hard_days
-        (harder if (trained_hard and p['answer'] in ('easy', 'rest')) else followed).append(recovery_by_day[nxt])
-    p_val = welch_p(followed, harder)
-    enough = len(followed) >= MIN_GROUP and len(harder) >= MIN_GROUP
-    return {
-        'followed': {'days': len(followed), 'avg_next_recovery': round(mean(followed), 1) if followed else None},
-        'harder': {'days': len(harder), 'avg_next_recovery': round(mean(harder), 1) if harder else None},
-        'delta': round(mean(followed) - mean(harder), 1) if followed and harder else None,
-        'days': len(followed) + len(harder),
-        'enough': enough,
-        'significant': bool(enough and p_val is not None and p_val < SIGNIFICANCE),
-    }
-
-
 def _ols(X, y):
     """Least squares with standard errors (stdlib): returns (coefficients, standard errors, df)."""
     n, k = len(y), len(X[0])

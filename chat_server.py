@@ -74,12 +74,14 @@ their spread, so the average is not on a 1-SD scale of its own). It prescribes o
 the day, the way the HRV-guided trials did: 31+ Train as planned (the trials' moderate/high session; \
 no cited trial prescribes a harder session for being above the band, so there is no answer above it), \
 and below the band Go easy or Rest: rest when the fall is large (under 7, \
-1.5 SD below) or sustained - the 3rd day in a row below the band - and never more than 2 rest days in \
+1.5 SD below) or sustained - the 2nd day in a row below the band, the count Kiviniemi used - and \
+never more than 2 rest days in \
 a row (Manresa-Rocamora 2021 "low intensity exercise (or passive rest)"; Plews 2013 and Buchheit 2014 \
-on reading sustained rather than single-day changes; Kiviniemi 2007 on consecutive rest days). Rest if breathing rate last night is 3+ \
-above the usual (nights 30–90 days back; Natarajan 2021); Go easy after 2 hard days in a row \
-(Carrasco-Poyatos 2020). Once they have trained today the page shows "Done for today" — the day's plan \
-is spent — and says whether what they did matched the plan; recovery from a session takes about 24h \
+on reading sustained rather than single-day changes; Carrasco-Poyatos 2020's protocol on consecutive \
+rest days). Breathing rate is REPORTED and never acted on - it does not change the plan, and there is \
+no "+3 breaths/min" rule any more (Natarajan 2021 gives no numeric rise). Go easy after 2 hard days in a row \
+(Carrasco-Poyatos 2020). Once they have trained today the page shows "N sessions logged: matched the \
+plan" (or "above the plan") — the day's one prescription is spent; recovery from a session takes about 24h \
 (low/moderate) to 48h (high intensity) (Stanley 2013). readiness.reasons lists why; last_night is \
 information only.
 - Intensity: Seiler's three zones — easy below ~82% of max HR, moderate 82–87%, hard above 87% — \
@@ -88,8 +90,9 @@ intensity is where most of its time was; strength sessions have none.
 - Training variety: Foster's monotony = weekly mean ÷ SD of daily training load (Edwards TRIMP from \
 heart-rate zone minutes, 0 on days off), complete weeks only; above 2.0 is the risk line. WHOOP strain is \
 logarithmic and must never be added across sessions.
-- Load ratio (ACWR): last-7-days average strain ÷ last-28-days average; bands 0.8 / 1.3 / 1.5 are \
-widely used but disputed. The newest value includes today's strain so far, so it rises through the \
+- Load ratio (ACWR): last-7-days average training load ÷ last-28-days average, on Edwards TRIMP and \
+NOT on WHOOP day strain (strain is logarithmic, so its ratio never even reached 1.5 here); bands \
+0.8 / 1.3 / 1.5 are widely used but disputed. The newest value includes today's load so far, so it rises through the \
 day. dashboard_summaries.load_today gives today's ratio and strain_at = the day strain at which it \
 would cross each band (algebra on the band, not a new threshold). Before any session today the page \
 steps the plan down as it climbs: past 1.5 the plan becomes Go easy. After a session it is reported, not used to rewrite the plan.
@@ -107,11 +110,10 @@ Read the card as "the last day they did nothing", never as "the last day they di
 next-morning recovery after days that sport was the hardest session, vs all other training days, with \
 the intensity most of those days were. significant = 30+ days on both sides and Welch p < 0.05; \
 otherwise the page prefixes the number with ~.
-- "Does following the plan pay off?" (plan_check): next-morning recovery after days they followed the \
-plan vs days they did a moderate/high-intensity session on a Go easy or Rest day. Welch, p < 0.05, 30+ \
-per group, otherwise the counts only. If it comes up, say the p-value is optimistic because consecutive \
-days are not independent. Comparing the score against WHOOP recovery was dropped: recovery is built \
-from the same HRV and resting HR, so the two agree by construction.
+- There is NO "does the plan pay off?" number on the page and none in the data: the comparison was \
+removed because it had only 7 override days, far below the 30 needed. If asked whether the plan works, \
+say that plainly instead of inventing a figure. Comparing the score against WHOOP recovery was dropped \
+too: recovery is built from the same HRV and resting HR, so the two agree by construction.
 - Heart-rate zone split excludes strength sessions."""
 
 
