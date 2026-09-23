@@ -433,7 +433,7 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #     trial protocol rather than a result; detraining).
 #     One prescription per day: the trials read HRV each morning and set that day's session.
 #   - There is no consecutive-hard-days rule. Carrasco-Poyatos 2020's protocol caps them, but over
-#     530 days here only 2 days ever carried a streak of 2 (the rule counted moderate OR hard days,
+#     531 days here only 2 days ever carried a streak of 2 (the rule counted moderate OR hard days,
 #     of which there are 40 — consecutive ones are simply rare), and the check sat after the band
 #     rules, so it could only ever fire on a day already scoring 31+. On both those days the score
 #     was already below the band, so it never once changed an answer. Deleted rather than left in

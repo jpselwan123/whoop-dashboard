@@ -40,20 +40,20 @@ check line by line, and an AI chat that knows your entire history.
 
 The WHOOP app tells you *what* your recovery and strain are. It doesn't tell you
 whether your training load is ramping too fast, whether this week has been
-hard-every-day, which sport actually costs you the most recovery, or *why* today is
+hard-every-day, which sports tend to come before your lower-recovery mornings, or *why* today is
 a good or bad day to push — in numbers you can check.
 
 This dashboard pulls your full history straight from the official WHOOP API and
 answers those questions. Every call it makes shows the exact numbers and thresholds
-behind it, compared with **your own** history — and every rule and threshold comes from
-published research, cited below. Where a study doesn't give a number, the dashboard doesn't
-invent one.
+behind it, compared with **your own** history — and every rule and threshold is either cited
+to published research below or labelled as our own choice. Where a study doesn't give a number,
+the dashboard says so rather than presenting one of ours as if it did.
 
 ## Features
 
 ### Daily — today's call
-- **Readiness** — one score from your 7-day HRV, resting HR and sleep, each against your previous
-  4 weeks and then placed among your own days (50 = your median day), with the day's plan:
+- **Readiness** — one score from your HRV, resting HR and sleep — last night and the last 7 days —
+  each against your previous 4 weeks and then placed among your own days (50 = your median day), with the day's plan:
   **Train as planned · Go easy · Rest**. Once you have trained, the plan is spent and
   the card says **"N sessions logged: matched the plan"** (or **"above the plan"**).
 - **Click the orb** to see every measure next to its normal range, the answer lines, and last
@@ -71,7 +71,8 @@ invent one.
 
 <img src="docs/screenshots/weekly.png" alt="Weekly view: acute:chronic workload ratio and training variety" width="880">
 
-- **Acute:Chronic Workload Ratio** with safe / caution / high-risk bands.
+- **Acute:Chronic Workload Ratio** with its commonly used bands — shown, not acted on, and disputed
+  as an injury predictor.
 - **Training variety** — one section for both kinds: how evenly your load falls across the week
   (Foster monotony, which warns when every day carried almost the same load) and what you actually
   do, sport by sport. These were two overlapping sections and are now one.
@@ -208,9 +209,9 @@ anything, and it is not comparable between people.
 | Measures | ln(RMSSD) HRV, resting HR and hours asleep (naps included) — each over the **last 7 days** and for **last night** alone: 6 standard scores | HRV: [Plews et al., 2012](https://link.springer.com/article/10.1007/s00421-012-2354-4), [2014](https://www.researchgate.net/publication/259319333_Monitoring_Training_With_Heart-Rate_Variability_How_Much_Compliance_Is_Needed_for_Valid_Assessment); resting HR: [Alfonso et al., 2025](https://www.nature.com/articles/s41598-025-13540-z); sleep: [Craven et al., 2022](https://pubmed.ncbi.nlm.nih.gov/35708888/); single days for short-term response: [Schneider et al., 2019](https://pmc.ncbi.nlm.nih.gov/articles/PMC6538885/), [Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/), [Nuuttila et al., 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11541970/) |
 | Your normal | The 4 weeks before the current week, updated weekly: 7-day averages compared with the spread of 7-day averages, last night compared with the spread of single nights; mean ± 0.5 SD (sample SD) is "normal" | [Vesterinen et al., 2016](https://jyx.jyu.fi/jyx/Record/jyx_123456789_50625); [Javaloyes et al., 2019](https://pubmed.ncbi.nlm.nih.gov/29809080/) — tabulated in [Manresa-Rocamora et al., 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8507742/); weekly update: [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/) |
 | One score | All six standard scores (resting HR flipped, so lower is better) averaged with equal weights | Standard-score composites for athlete monitoring: [Thornton et al., 2019](https://pubmed.ncbi.nlm.nih.gov/30676144/); equal weights when none are validated: [Dawes, 1979](https://www.researchgate.net/publication/232597503_The_robust_beauty_of_improper_linear_models_in_decision_making) |
-| The spread it is measured against | All of your earlier scored days, not a rolling window. Days are strongly dependent (day-to-day correlation 0.87), so 530 days behave like an effective **n ≈ 73** and the spread estimate is good to about **±8%**; a 90-day window would be ±20% and would change the plan on 10% of days — noise in the ruler, not a change in you | Standard adjustment for autocorrelated samples |
-| On a readable scale | Averaging standard scores shrinks their spread — the measures move together, but not exactly — so the average is **not** on a 1-SD-per-unit scale of its own (measured here: 0.80 SD over 530 days, which made a genuinely above-normal day read as average). The average is standardised against the spread of your own earlier scores and shown as a percentile of them | Standardising a composite before applying SD cut-offs: Thornton 2019. The percentile itself is the normal curve (Φ), not a choice — no study prescribes a display scale, so nothing here is invented: the lines stay exactly the trials' SD lines |
-| Today's plan | **31+** — at or above the bottom of the normal band → **Train as planned** (the trials' prescribed moderate/high session); below the band → **Go easy** or **Rest**. There is no separate answer for being *above* the band, because no cited trial prescribes one: Kiviniemi 2007 gives high intensity on "an increase **or no change**", Javaloyes 2019 on "above **or within** the SWC", Vesterinen 2016 programmes the moderate/high session when HRV is **within** it, and the review of the trials says high intensity "within or above baseline ranges". **7–30** → Go easy, under **7** → Rest. Over 530 days the bands caught 66.6% / 27.2% / 6.2% of days, against the 69.1 / 24.2 / 6.7% the SD lines correspond to. That is a check that **the scale is built correctly**, not evidence the score predicts anything: a percentile puts a known fraction either side of each line. **Those percentages are the readiness series alone** — the score and its band lines, nothing that reacts to today's live state (they are not the share of days the card finally showed, which the rest rules below change). The gap at the top line is the composite's mild left skew (−0.26) plus a standardised mean of −0.05, because each day is scored against earlier days only | **−0.5 SD** is the smallest worthwhile change used in the trials ([Vesterinen et al., 2016](https://jyx.jyu.fi/jyx/Record/jyx_123456789_50625); [Javaloyes et al., 2019](https://pubmed.ncbi.nlm.nih.gov/29809080/); [Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/)). **−1.5 SD is our own extension** — the "worth acting on" line attributed to Thornton 2019 could not be verified in the paper |
+| The spread it is measured against | All of your earlier scored days, not a rolling window. Days are strongly dependent (day-to-day correlation 0.87), so 531 days behave like an effective **n ≈ 74** and the spread estimate is good to about **±8%**; a 90-day window would be ±20% and would put 8% of days in a different band — noise in the ruler, not a change in you | Standard adjustment for autocorrelated samples |
+| On a readable scale | Averaging standard scores shrinks their spread — the measures move together, but not exactly — so the average is **not** on a 1-SD-per-unit scale of its own (measured here: 0.80 SD over 531 days, which made a genuinely above-normal day read as average). The average is standardised against the spread of your own earlier scores and shown as a percentile of them | Standardising a composite before applying SD cut-offs: Thornton 2019. The percentile itself is the normal curve (Φ), not a choice — no study prescribes a display scale, so nothing here is invented: the lines stay exactly the trials' SD lines |
+| Today's plan | **31+** — at or above the bottom of the normal band → **Train as planned** (the trials' prescribed moderate/high session); below the band → **Go easy** or **Rest**. There is no separate answer for being *above* the band, because no cited trial prescribes one: Kiviniemi 2007 gives high intensity on "an increase **or no change**", Javaloyes 2019 on "above **or within** the SWC", Vesterinen 2016 programmes the moderate/high session when HRV is **within** it, and the review of the trials says high intensity "within or above baseline ranges". **7–30** → Go easy, under **7** → Rest. Over 531 days the bands caught 66.7% / 27.1% / 6.2% of days, against the 69.1 / 24.2 / 6.7% the SD lines correspond to. That is a check that **the scale is built correctly**, not evidence the score predicts anything: a percentile puts a known fraction either side of each line. **Those percentages are the readiness series alone** — the score and its band lines, nothing that reacts to today's live state (they are not the share of days the card finally showed, which the rest rules below change). The gap at the top line is the composite's mild left skew (−0.26) plus a standardised mean of −0.05, because each day is scored against earlier days only | **−0.5 SD** is the smallest worthwhile change used in the trials ([Vesterinen et al., 2016](https://jyx.jyu.fi/jyx/Record/jyx_123456789_50625); [Javaloyes et al., 2019](https://pubmed.ncbi.nlm.nih.gov/29809080/); [Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/)). **−1.5 SD is our own extension** — the "worth acting on" line attributed to Thornton 2019 could not be verified in the paper |
 | Go easy or rest | Below the band the trials prescribe "low intensity exercise (or passive rest)". Rest when the fall is **large** (under 7) or **sustained** — the **second day in a row** below your normal. Never more than **2 rest days in a row** | "Low intensity exercise (or passive rest) … when values are suppressed": [Manresa-Rocamora et al., 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8507742/). The 2-day count is **adapted from** [Kiviniemi et al., 2007](https://pubmed.ncbi.nlm.nih.gov/17849143/) ("decreasing trend for 2 days" → low intensity or rest), with two differences stated plainly: his 2 days are two successive **drops in HRV**, not two days below the range, and he prescribed "low intensity **or** rest" without choosing between them — **the split between easy and rest is ours**. He also measured HF power, not ln rMSSD. **Both rules were measured on this history** (`scripts/check_doc_stats.py`, `rest_rules`): the implemented one triggers on **134 of 531 days (25.2%)** *(before the rest cap)*, Kiviniemi's literal one — HRV lower today than yesterday and yesterday than the day before — on **100 (18.8%)**, and they **disagree on 178 days (33.5%)**, agreeing on only 28. Both are evaluated for the same day, so the counts are comparable. After the two-in-a-row cap the plan actually says Rest on **19.2%** of days. The literal rule is measured, not applied. Rest cap: "will not accumulate more than two consecutive rest sessions", [Carrasco-Poyatos et al., 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7432021/) — **a published trial protocol, not a result** |
 | Breathing rate | Last night against your usual (average of nights 30–90 days before, 30+ nights), **reported and never acted on**. The old "3+ breaths/min → Rest" rule was ours, not Natarajan's — the paper scores a standardised deviation from a rolling baseline and gives no numeric rise — and over the 493 nights with enough baseline to judge it never once fired (largest rise +2.3/min) | [Natarajan et al., 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8443549/) |
 | Through the day | Every refresh recomputes the load ratio with today's **training load** (Edwards TRIMP) so far, and the card says how much room is left before the caution line ("passes 1.3 if today's training load goes over 340") — the load that puts the ratio exactly on the line, solved from the same 7- and 28-day averages. **The ratio is reported and never acts on the plan.** It used to step the plan down to Go easy past 1.5; it no longer does. An acute:chronic ratio is a mean over calendar days, and this schedule has many days with no training at all, which swings the ratio far harder than it does for the near-daily squads Gabbett's bands were drawn from — here it sits above 1.5 on **15.7%** of days (median 1.01, highest 3.69). A nap changes readiness itself, because hours asleep count naps. "Today" is the current WHOOP day, from one sleep to the next | Load-ratio bands: [Gabbett, 2016](https://bjsm.bmj.com/content/50/5/273) — disputed as an injury predictor: [Impellizzeri et al., 2020](https://pubmed.ncbi.nlm.nih.gov/32502973/) |
@@ -220,7 +221,7 @@ anything, and it is not comparable between people.
 | Session today | The plan is **one session a day** — the trials read HRV each morning and set that day's session. Once you have trained, the card shows **“N sessions logged: matched the plan”** (or **“above the plan”**); recovery takes ~24 h after a low or moderate session and ~48 h after a hard one | Daily prescription: Kiviniemi 2007, Vesterinen 2016, Javaloyes 2019; recovery time: [Stanley, Peake & Buchheit, 2013](https://link.springer.com/article/10.1007/s40279-013-0083-4) |
 
 Last night is three of the six inputs and the previous 7 days are the other three, but **equal weights
-do not make them equal halves**. Measured over 530 days, the trend inputs carry **62%** of the score's
+do not make them equal halves**. Measured over 531 days, the trend inputs carry **62%** of the score's
 variance and last night **38%**, because the trend z-scores move more (SD 1.4–1.6) than the single-night
 ones (1.1–1.2): HRV 26% / resting heart rate 26% / sleep 9% on the trend side, 17% / 18% / 4% for last
 night. HRV and resting heart rate correlate **0.93**, so between them they are **87%** of the score and
@@ -247,7 +248,7 @@ WHOOP recovery are shown next to the score.
 | **Bedtime target** | Tonight's sleep need, **WHOOP's own figure** straight from the API (`sleep_needed` = baseline + sleep debt + recent strain + recent naps), and how much of it is repaying debt. The only arithmetic is usual wake time minus that need — so on a big-debt day the card says that clearing *all* of it in one night would mean being asleep by that time, rather than printing an early hour as if it were a normal bedtime. Usual wake time is the median of the last 30 nights, each in its own time zone, and its spread is **always stated** (±1h 30m here) — no study defines when a wake time is too variable to aim at, so no cut-off is applied | WHOOP's `sleep_needed`; median and spread are plain descriptive statistics |
 | **Rest day** | The last finished day with no logged workout — a fact, no threshold | — |
 | **Sport recovery cost** | One row per sport: next-morning recovery after days that sport was your hardest session, vs all your other training days, with the intensity most of those days were. Your 4 most-played sports are shown, the rest in a dropdown; a gap counts as real only with 30+ days on both sides and Welch's t-test p < 0.05, otherwise the number is prefixed with ~ | Standard statistical conventions |
-| **Does following the plan pay off?** | Not on the page — the comparison exists but cannot be tested here. Next-morning recovery after days the plan was followed (519 days → 51.7) against days a moderate or high-intensity session was done on a **Go easy** or **Rest** day (**7 days** → 31.4). Seven override days is far below the 30 needed, so no claim is made, and the card was removed rather than show a number that means nothing. Comparing the score with WHOOP recovery was dropped too: recovery is built from the same HRV and resting heart rate. `scripts/analyse_plan_effect.py` runs the question properly offline, on the next night's own composite with Newey-West errors: a session costs **−0.150 SD per intensity step** (t = −3.20), and the cost does not depend on how ready you were (interaction t = +0.17) | Standard statistical conventions; dependence between days handled with Newey-West errors |
+| **Does following the plan pay off?** | Not on the page — the comparison exists but cannot be tested here. Next-morning recovery after days the plan was followed (520 days → 51.6) against days a moderate or high-intensity session was done on a **Go easy** or **Rest** day (**7 days** → 31.4). Seven override days is far below the 30 needed, so no claim is made, and the card was removed rather than show a number that means nothing. Comparing the score with WHOOP recovery was dropped too: recovery is built from the same HRV and resting heart rate. `scripts/analyse_plan_effect.py` runs the question properly offline, on the next night's own composite with Newey-West errors: a session costs **−0.151 SD per intensity step** (t = −3.21), and the cost does not depend on how ready you were (interaction t = +0.16) | Standard statistical conventions; dependence between days handled with Newey-West errors |
 | **▲▼ vs 30-day average** | Shown after 28 days; "= avg" when within ±0.5 SD of the last 30 days | Same smallest-worthwhile-change line as the protocol |
 
 **Honest limits.** The pooled evidence for HRV-guided training is weak: in the meta-analysis
@@ -262,10 +263,32 @@ measures, not weights validated for this purpose — and equal weights do not pr
 (measured: HRV 26%, resting HR 26%, sleep 9% on the trend side; 17% / 18% / 4% for last night).
 Reading the composite as a percentile assumes your days are **normally** distributed, not merely
 symmetric. They are close but not normal: skewness −0.26, excess kurtosis +0.20. The bands therefore
-land near their targets rather than on them — 66.6% above the lower line where the normal curve says
+land near their targets rather than on them — 66.7% above the lower line where the normal curve says
 69.1%, and 6.2% below the rest line where it says 6.7%. Zone
 conversion assumes minutes are evenly spread inside each WHOOP zone. Self-reported well-being, which
 the trials also used, isn't available from the WHOOP API.
+
+### Choices that are ours
+
+Every number below is a choice made here, not taken from a study. They are listed so none of them
+passes as sourced. The ones that are published — the −0.5 SD band, the 0.8 / 1.3 / 1.5 load bands, the
+2.0 monotony line, Seiler's 82% / 87% lines, Edwards' zone weights, the AASM 7 hours, the SRI's 30-day
+window, p < 0.05 with 30+ per group — are cited in the tables above.
+
+| Choice | Value | Why |
+|---|---|---|
+| Rest on a large fall | below **−1.5 SD** (7) | Our extension of the trials' −0.5 SD band; the "worth acting on" line attributed to Thornton 2019 could not be found in the paper |
+| Rest on a sustained fall | **2nd** day in a row below the band | Adapted from Kiviniemi 2007, who counted two successive *drops* in HRV and did not choose between easy and rest |
+| Last-night baseline | at least **14** single nights in the 4 weeks before | Half the 28-day window, so a baseline is never read off a handful of nights |
+| Load ratio needs | **4** days of data in the 7-day window, **21** in the 28 | Enough of each window that one missing day cannot swing the ratio |
+| Hold-out split | fit on the first **70%**, test on the last **30%** | A conventional split; nothing prescribes one for a single person's history |
+| Newey-West lag | **7** days | A week — the longest window the score itself uses |
+| Tercile gate | at least **10** days in each third | A third of the 30-per-group rule; thin, and flagged as such in the code |
+| Sleep regularity | at least **15** of the 30 days observed | Half the window, before a value is reported |
+| Usual wake time | median of the last **30** nights | One month, matching the regularity window |
+| What-if slider range | shortest to longest night in the last **365** days | The owner's own specification: "my own min to max over the last year" |
+| Breathing baseline | nights **30–90** days back, **30**+ of them | Display only — breathing never changes the plan |
+| Strength sessions | weightlifting, powerlifting | Left out of the zone split: rest between sets reads as easy time |
 
 ## Architecture
 

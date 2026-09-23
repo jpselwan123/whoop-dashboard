@@ -57,6 +57,22 @@ def check_constant_docs(root=HERE):
          % (f['target_plan'], f['target_easy'], f['target_rest']), 'the target band shares'),
         (source, 'build_dashboard.py', "−0.5 SD = %d" % f['train_line'], 'the lower line'),
         (source, 'build_dashboard.py', "−1.5 SD = %d" % f['rest_line'], 'the rest line'),
+        # the "choices that are ours" table must quote the constants the code actually uses
+        (readme, 'README.md', 'at least **%d** single nights' % (bd.READY_BASELINE_DAYS // 2), 'the last-night baseline minimum'),
+        (readme, 'README.md', '**%d** days of data in the 7-day window, **%d** in the 28'
+         % (bd.ACWR_MIN_DAYS['acute'], bd.ACWR_MIN_DAYS['chronic']), 'the load-ratio data minimums'),
+        (readme, 'README.md', 'fit on the first **%d%%**, test on the last **%d%%**'
+         % (round(100 * (1 - bd.HOLDOUT)), round(100 * bd.HOLDOUT)), 'the hold-out split'),
+        (readme, 'README.md', '| Newey-West lag | **%d** days' % bd.NEWEY_WEST_LAG, 'the Newey-West lag'),
+        (readme, 'README.md', 'at least **%d** days in each third' % (bd.MIN_GROUP // 3), 'the tercile minimum'),
+        (readme, 'README.md', 'at least **%d** of the %d days observed' % (bd.SRI_WINDOW_DAYS // 2, bd.SRI_WINDOW_DAYS),
+         'the regularity minimum'),
+        (readme, 'README.md', 'median of the last **%d** nights' % bd.BEDTIME_WAKE_WINDOW_DAYS, 'the wake-time window'),
+        (readme, 'README.md', 'in the last **%d** days' % bd.WHAT_IF_WINDOW_DAYS, 'the what-if range'),
+        (readme, 'README.md', 'nights **%d–%d** days back, **%d**+ of them'
+         % (bd.BREATHING_BASELINE[0], bd.BREATHING_BASELINE[1], bd.BREATHING_MIN_NIGHTS), 'the breathing baseline'),
+        (readme, 'README.md', '| Rest on a sustained fall | **%s** day in a row' % {2: '2nd', 3: '3rd'}.get(bd.DAYS_LOW_TO_REST, bd.DAYS_LOW_TO_REST),
+         'the sustained-fall count'),
     ]
     return ['%s no longer says %r (%s)' % (where, text, what)
             for doc, where, text, what in expected if text not in doc]
@@ -119,6 +135,8 @@ def measured_facts(data_dir):
         'what_moves': _what_moves(data_dir),
         'sleep_regularity': _sleep_regularity(data_dir),
         'bedtime': _bedtime(data_dir),
+        'window_90d': _window_experiment(series, composites),
+        'plan_adherence': _plan_adherence(data_dir, series),
     }
 
 
@@ -382,6 +400,50 @@ def _bedtime(data_dir):
             'spread_hm': '%dh %02dm' % divmod(total_min, 60) if total_min >= 60 else '%dm' % total_min}
 
 
+def _window_experiment(series, composites):
+    """How much a 90-day rolling ruler would change the band, against the expanding one used."""
+    ordered = sorted(composites)
+    lines = bd.READY_LINES
+    band = lambda v: 'plan' if v >= lines['train'] else 'easy' if v >= lines['rest'] else 'rest'
+    shown = {p['date']: p['v'] for p in series}
+    changed = total = 0
+    for i, d in enumerate(ordered):
+        if d not in shown:
+            continue
+        hist = [composites[k] for k in ordered[:i] if k >= bd._date_minus(d, 90)]
+        if len(hist) < bd.READY_BASELINE_DAYS:
+            continue
+        m = sum(hist) / len(hist)
+        sd = math.sqrt(sum((v - m) ** 2 for v in hist) / (len(hist) - 1))
+        if not sd:
+            continue
+        v90 = max(1, min(99, round(bd.normal_percentile((composites[d] - m) / sd))))
+        total += 1
+        changed += band(v90) != band(shown[d])
+    return {'days': total, 'band_changes_pct': round(100 * changed / total) if total else None}
+
+
+def _plan_adherence(data_dir, series):
+    """Next-morning recovery after days the plan was followed vs overridden (the card that was removed)."""
+    path = os.path.join(data_dir, 'dashboard_data.json')
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        D = json.load(fh)
+    rec = {p['date']: p['v'] for p in D['full_series'].get('recovery', [])}
+    hard = {w['date'] for w in D['workout_log'] if w.get('intensity') in ('moderate', 'hard')}
+    followed, overrode = [], []
+    for p in series:
+        nxt = bd._date_minus(p['date'], -1)
+        if nxt not in rec:
+            continue
+        (overrode if (p['date'] in hard and p['answer'] in ('easy', 'rest')) else followed).append(rec[nxt])
+    if not followed or not overrode:
+        return None
+    return {'followed_days': len(followed), 'followed_mean': round(sum(followed) / len(followed), 1),
+            'overrode_days': len(overrode), 'overrode_mean': round(sum(overrode) / len(overrode), 1)}
+
+
 def check_measured_docs(facts, root=HERE):
     """Sentences quoting a MEASURED figure — checked only when real data is present.
 
@@ -432,6 +494,70 @@ def check_measured_docs(facts, root=HERE):
     if bt:
         expected.append((readme, 'README.md', '**always stated** (\u00b1%s here)' % bt['spread_hm'],
                          'the wake-time spread under the bedtime target'))
+    claude = open(os.path.join(root, 'CLAUDE.md')).read()
+    minus = lambda v: ('−' if v < 0 else '+') + '%s'
+    n, bs = facts.get('scored_days'), facts.get('band_shares')
+    if n and bs:
+        expected += [
+            (readme, 'README.md', 'Over %d days the bands caught %.1f%% / %.1f%% / %.1f%% of days'
+             % (n, bs['plan'], bs['easy'], bs['rest']), 'the observed band shares'),
+            (readme, 'README.md', '%.1f%% above the lower line' % bs['plan'], 'the band share restated under Limitations'),
+            (readme, 'README.md', '%.1f%% below the rest line' % bs['rest'], 'the rest share restated under Limitations'),
+            (readme, 'README.md', 'Measured over %d days, the trend inputs carry' % n, 'the day count behind the weights'),
+            (claude, 'CLAUDE.md', 'in %d days only 2 days ever carried a streak of 2' % n, 'the deleted hard-days rule'),
+            (source, 'build_dashboard.py', '#     %d days here only 2 days ever carried a streak of 2' % n,
+             'the deleted hard-days rule, in the source'),
+            (prompt, 'chat_server.py', 'firing 0 times in %d days' % n, 'the deleted hard-days rule, in the AI prompt'),
+        ]
+    if n and facts.get('effective_n'):
+        expected.append((readme, 'README.md',
+                         'so %d days behave like an effective **n ≈ %d** and the spread estimate is good to about '
+                         '**±%d%%**; a 90-day window would be ±%d%%'
+                         % (n, facts['effective_n'], round(facts['sd_error_pct']), round(facts['sd_error_90d_pct'])),
+                         'the effective sample size and the spread error'))
+    words = {0: 'none', 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six'}
+    if facts.get('collisions_if_utc_day') in words and facts.get('collisions_if_cycle_start') in words:
+        expected.append((source, 'build_dashboard.py', 'collides\n    on %s and the local date of the cycle start on %s'
+                         % (words[facts['collisions_if_utc_day']], words[facts['collisions_if_cycle_start']]),
+                         'the day-key collision counts in the DayKey docstring'))
+    if facts.get('composite_sd') is not None:
+        expected.append((source, 'build_dashboard.py', 'here its spread was %.2f SD' % facts['composite_sd'],
+                         "the composite's spread, in the percentile_series docstring"))
+    if n and facts.get('composite_sd') is not None:
+        expected.append((readme, 'README.md', '(measured here: %.2f SD over %d days' % (facts['composite_sd'], n),
+                         "the composite's own spread"))
+    if facts.get('composite_skew') is not None:
+        expected.append((readme, 'README.md', 'skewness %s, excess kurtosis %s' % (
+            ('−%.2f' if facts['composite_skew'] < 0 else '+%.2f') % abs(facts['composite_skew']),
+            ('−%.2f' if facts['composite_kurtosis'] < 0 else '+%.2f') % abs(facts['composite_kurtosis'])),
+            'how far the days are from normal'))
+    w90 = facts.get('window_90d')
+    if w90 and w90.get('band_changes_pct') is not None:
+        expected.append((readme, 'README.md', 'would put %d%% of days in a different band' % w90['band_changes_pct'],
+                         'the rolling-window experiment'))
+    pa = facts.get('plan_adherence')
+    if pa:
+        expected.append((readme, 'README.md', 'followed (%d days → %.1f)' % (pa['followed_days'], pa['followed_mean']),
+                         'the plan-adherence split'))
+        expected.append((readme, 'README.md', '(**%d days** → %.1f)' % (pa['overrode_days'], pa['overrode_mean']),
+                         'the override group'))
+    pe = facts.get('plan_effect')
+    if pe:
+        expected.append((readme, 'README.md', '**−%.3f SD per intensity step** (t = −%.2f)'
+                         % (abs(pe['per_intensity_step']), abs(pe['intensity_t'])), 'the offline plan effect'))
+        expected.append((readme, 'README.md', '(interaction t = %s%.2f)'
+                         % ('+' if pe['interaction_t'] >= 0 else '−', abs(pe['interaction_t'])), 'its interaction'))
+    if br:
+        expected.append((readme, 'README.md', 'over the %d nights with enough baseline to judge' % br['nights'],
+                         'the breathing night count in the README'))
+    if sr:
+        expected.append((readme, 'README.md', 'over %d days the strain ratio never once reached 1.5 (highest %.2f, SD %.2f)'
+                         % (sr['days'], sr['highest'], sr['sd']), 'the strain-ratio comparison in the README'))
+        expected.append((claude, 'CLAUDE.md', 'the\n  strain ratio never passed 1.5 in %d days' % sr['days'], 'the same in CLAUDE.md'))
+    if tr:
+        expected.append((readme, 'README.md', 'above 1.5 on **%.1f%%** of days (median %.2f, highest %.2f)'
+                         % (tr['over_high_pct'], tr['median'], tr['highest']), 'the TRIMP ratio in the README'))
+        expected.append((claude, 'CLAUDE.md', 'above 1.5 on %.1f%% of days here' % tr['over_high_pct'], 'the same in CLAUDE.md'))
     tc = facts.get('training_cost')
     if tc and tc.get('per_strain') is not None:
         expected.append((readme, 'README.md',
