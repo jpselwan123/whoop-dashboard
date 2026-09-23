@@ -171,7 +171,7 @@ def build_acwr(load_by_day):
 
     The ratio is REPORTED, never acted on. It is a mean over calendar days and this schedule has many
     days with no training, which swings it far harder than it does for the near-daily squads the
-    bands came from: on TRIMP it sits above 1.5 on 15.7% of days. Gabbett's bands are disputed as an
+    bands came from: on TRIMP it sits above 1.5 on 15.8% of days. Gabbett's bands are disputed as an
     injury predictor anyway (Impellizzeri et al. 2020), so the number and its bands are shown and
     nothing in the plan depends on them. Both figures are re-measured by scripts/check_doc_stats.py."""
     from datetime import date as _date

@@ -97,7 +97,7 @@ day. dashboard_summaries.load_today gives today's ratio and load_at = the TRAINI
 not strain) today at which the ratio would cross each band (algebra on the band, not a new threshold). The ratio is REPORTED and never acts on \
 the plan - it used to step it down past 1.5 and no longer does, because an acute:chronic ratio is a mean over \
 calendar days and this person has many days with no training, which swings it far harder than for the \
-near-daily squads the bands came from (above 1.5 on 15.7% of days here).
+near-daily squads the bands came from (above 1.5 on 15.8% of days here).
 - After a session the orb shows readiness after training (dashboard_summaries.training_cost): this \
 morning's score minus what today's strain costs by tomorrow morning, measured on their own history \
 (per_strain = readiness points per point of day strain, holding readiness constant; applied to strain \

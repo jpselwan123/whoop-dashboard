@@ -76,7 +76,7 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   the plan" / "above the plan" (plan spent) unless the plan was Rest. The load ratio
   (`build_acwr` / `build_load_today`) is **reported, never acted on** — it no longer steps the plan down. An
   acute:chronic ratio is a mean over calendar days and this schedule has many zero days, so it swings far harder
-  than for the near-daily squads Gabbett's bands came from (above 1.5 on 15.7% of days here; disputed anyway,
+  than for the near-daily squads Gabbett's bands came from (above 1.5 on 15.8% of days here; disputed anyway,
   Impellizzeri 2020). It runs on **Edwards TRIMP, never day strain** — Gabbett's bands are linear-load, and the
   strain ratio never passed 1.5 in 568 days.
   `build_training_cost` measures what today's strain costs the NEXT NIGHT's composite (regression on the composite
