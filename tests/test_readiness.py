@@ -353,9 +353,10 @@ class YearHeatmapTest(unittest.TestCase):
         self.assertNotIn('all.slice(-365)', self.page)
         self.assertIn('setDate(from.getDate() - 364)', self.page)
 
-    def test_it_colours_by_the_plan_lines_not_fixed_numbers(self):
-        self.assertIn('R.lines.train', self.page)
-        self.assertIn('R.lines.rest', self.page)
+    def test_it_colours_by_the_plan_each_day_actually_got(self):
+        """A day the sustained-fall rule sent to Rest must not be painted as Go easy."""
+        self.assertIn("const plan = new Map(series.map(p => [p.date, p.a]));", self.page)
+        self.assertIn('colourOf: (iso, v)', self.page)
 
     def test_it_scrolls_inside_its_own_container(self):
         """A phone must never end up scrolling the page sideways."""
@@ -427,6 +428,28 @@ class MonotonyDisplayTest(unittest.TestCase):
         page = open(os.path.join(ROOT, 'dashboard_template.html')).read()
         self.assertIn('M.monotony.toFixed(2)', page)
         self.assertNotIn('fmt1(M.monotony)', page)
+
+
+class OneSourceOfTruthTest(unittest.TestCase):
+    """The page reads the pipeline's lines instead of retyping them; retyped numbers drift apart."""
+
+    def setUp(self):
+        self.page = open(os.path.join(ROOT, 'dashboard_template.html')).read()
+
+    def test_the_payload_carries_the_lines(self):
+        h, r, b, _ = steady()
+        from helpers import make_data_dir
+        import json
+        with open(os.path.join(make_data_dir(days=120), 'dashboard_data.json')) as fh:
+            C = json.load(fh)['constants']
+        self.assertEqual(C['ready_lines'], bd.READY_LINES)
+        self.assertEqual(C['acwr_bands'], bd.ACWR_BANDS)
+        self.assertEqual(C['monotony_limit'], bd.FOSTER_MONOTONY_LIMIT)
+
+    def test_the_template_does_not_retype_them(self):
+        for literal in ("v:31,", "v:7,", "v:0.8,", "v:1.3,", "v:1.5,", "max:0.8,", "max:1.3,", "max:1.5,",
+                        "2.0 risk line", "below 0.8</span>", "above 1.5</span>"):
+            self.assertNotIn(literal, self.page, literal)
 
 
 class StatisticsTest(unittest.TestCase):

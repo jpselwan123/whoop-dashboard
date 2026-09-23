@@ -1497,6 +1497,9 @@ def build_summary(d):
     return {
         'profile': {'name': d['profile']['first_name']},
         'synthetic': d.get('synthetic') is True,
+        # the pipeline's own lines, so the page reads them instead of repeating the numbers
+        'constants': {'ready_lines': dict(READY_LINES), 'acwr_bands': dict(ACWR_BANDS),
+                      'monotony_limit': FOSTER_MONOTONY_LIMIT},
         'asOf': latest_rec['created_at'],
         'generated_at': now_utc.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
         'latest': {

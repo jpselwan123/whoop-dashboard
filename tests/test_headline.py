@@ -62,5 +62,12 @@ class HeadlineTest(unittest.TestCase):
         self.assertIn("last night", out)
 
 
+    def test_a_worse_measure_is_never_called_all_normal(self):
+        """The score can clear 31 while one 7-day measure is worse than normal — say so."""
+        out = sentence(45, 'within', hrv='below')
+        self.assertNotIn('everything within', out)
+        self.assertIn('HRV', out)
+
+
 if __name__ == "__main__":
     unittest.main()

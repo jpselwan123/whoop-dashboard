@@ -93,8 +93,8 @@ logarithmic and must never be added across sessions.
 - Load ratio (ACWR): last-7-days average training load ÷ last-28-days average, on Edwards TRIMP and \
 NOT on WHOOP day strain (strain is logarithmic, so its ratio never even reached 1.5 here); bands \
 0.8 / 1.3 / 1.5 are widely used but disputed. The newest value includes today's load so far, so it rises through the \
-day. dashboard_summaries.load_today gives today's ratio and strain_at = the day strain at which it \
-would cross each band (algebra on the band, not a new threshold). The ratio is REPORTED and never acts on \
+day. dashboard_summaries.load_today gives today's ratio and load_at = the TRAINING LOAD (Edwards TRIMP, \
+not strain) today at which the ratio would cross each band (algebra on the band, not a new threshold). The ratio is REPORTED and never acts on \
 the plan - it used to step it down past 1.5 and no longer does, because an acute:chronic ratio is a mean over \
 calendar days and this person has many days with no training, which swings it far harder than for the \
 near-daily squads the bands came from (above 1.5 on 15.7% of days here).

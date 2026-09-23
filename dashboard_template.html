@@ -441,7 +441,7 @@
   <section class="card">
     <div class="section-head"><h2>What moves your readiness</h2><span class="beyond-badge">Beyond WHOOP</span></div>
     <div class="section-sub">Five things about a day — bedtime, strain, naps, when training finished, days since a rest day — each tested against the next morning's score. Only the ones that hold up on days they weren't fitted to are shown.</div>
-    <div class="section-sub">Each is measured on its own and they overlap, so the numbers don't add up.</div>
+    <div class="section-sub">Each is measured on its own and they overlap, so the numbers don't add up. They are patterns in your history, not proof of cause.</div>
     <div class="signal-grid" style="margin-top:12px;" id="whatMovesGrid"></div>
   </section>
 
@@ -449,23 +449,18 @@
 
   <section class="card">
     <div class="section-head"><h2>Acute:Chronic Workload Ratio</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Last 7 days of training load vs the last 28 — minutes in each heart-rate zone weighted by intensity, the linear load these bands were built on. A widely used injury-risk measure, though later research disputes how well the bands predict injury.</div>
+    <div class="section-sub">Last 7 days of training load vs the last 28 — minutes in each heart-rate zone weighted by intensity, a linear load like the ones these bands were built on. A widely used injury-risk measure, though later research disputes how well the bands predict injury.</div>
     <div class="metric-row">
       <span class="big tnum" id="acwrValue">—</span>
       <span class="zone-badge" id="acwrZone">—</span>
     </div>
-    <div class="range-legend">
-      <span class="rl-item"><span class="rl-dot" style="background:var(--ink-faint)"></span>Undertrained · below 0.8</span>
-      <span class="rl-item"><span class="rl-dot" style="background:var(--good)"></span>Sweet spot · 0.8–1.3</span>
-      <span class="rl-item"><span class="rl-dot" style="background:var(--warn)"></span>Caution · 1.3–1.5</span>
-      <span class="rl-item"><span class="rl-dot" style="background:var(--critical)"></span>High risk · above 1.5</span>
-    </div>
+    <div class="range-legend" id="acwrLegend"></div>
     <div class="chart-wrap" id="acwrChartWrap"><div class="chart-tooltip" id="acwrTooltip"></div></div>
   </section>
 
   <section class="card">
     <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Training variety</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportTotal"></span></div>
-    <div class="section-sub">Your strain each day, then how evenly the week's load was spread, then what you actually did. Training every day at the same effort carries more risk than the same total with lighter days in between.</div>
+    <div class="section-sub">Your strain each day, then how evenly the week's load was spread, then what you actually did. Training at the same effort every day has been linked to more illness than the same total with lighter days in between.</div>
     <div class="chart-wrap" id="last7ChartWrap" style="margin-bottom:14px;"><div class="chart-tooltip" id="last7Tooltip"></div></div>
     <div id="monotonyFlag"></div>
     <div id="sportRows" style="margin-top:14px;"></div>
@@ -521,7 +516,7 @@
 
   <section class="card">
     <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Readiness, every day</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="readyYearRange"></span></div>
-    <div class="section-sub">The last year, one cell per day, coloured by the plan that day's score gave.</div>
+    <div class="section-sub">The last year, one cell per day, coloured by the plan that day got.</div>
     <div class="heatmap-scroll" id="readyYearScroll" style="margin-top:10px;">
       <div id="readyYearGrid" class="heatmap-grid"></div>
       <div class="chart-tooltip" id="readyYearTooltip"></div>
@@ -710,10 +705,11 @@ function computeReadiness(){
 function loadText(calc){
   const Ld = calc.load; if(!Ld) return '';
   const r = Ld.ratio.toFixed(2), B = Ld.bands;
-  if(Ld.ratio > B.high)    return `Your training load this week is high for you — ratio ${r}, above ${B.high}.`;
-  if(Ld.ratio > B.caution) return `Your training load this week is climbing — ratio ${r}, past ${B.caution}.`;
-  if(Ld.ratio < B.low)     return `Your training load this week is light for you — ratio ${r}.`;
-  return `Your training load this week is steady — ratio ${r}.`;
+  // the ratio compares the last 7 days with the last 28 — a level, not a trend
+  if(Ld.ratio > B.high)    return `Your last 7 days of training load are far above your 4-week average — ratio ${r}, above ${B.high}.`;
+  if(Ld.ratio > B.caution) return `Your last 7 days of training load are well above your 4-week average — ratio ${r}, past ${B.caution}.`;
+  if(Ld.ratio < B.low)     return `Your last 7 days of training load are light next to your 4-week average — ratio ${r}.`;
+  return `Your last 7 days of training load are in line with your 4-week average — ratio ${r}.`;
 }
 
 
@@ -758,6 +754,9 @@ function scoreText(calc){
   if(N && N.state === 'above' && R.score < R.lines.train)
     return `readiness ${R.score}: last night was above your normal, but the last 7 days pull it down`;
   // a low night with normal weeks is the usual reason for a middling score — say so, don't claim all-normal
+  // "all within normal" must be checked, not assumed: a measure can be worse while the score still clears
+  const worse = ['hrv','rhr','sleep'].filter(k => markerWorse(k, R[k])).map(k => `7-day ${MARKER_NAME[k]}`);
+  if(worse.length) return `readiness ${R.score}, though ${listAnd(worse)} ${worse.length > 1 ? 'are' : 'is'} worse than your normal` + (night ? ` and ${night}` : '');
   if(night) return `readiness ${R.score}: your last 7 days are all within your normal, but ${night}`;
   return `readiness ${R.score}, everything within your normal range`;
 }
@@ -843,7 +842,7 @@ function renderSuggestions(calc){
 
   } else if(calc.action === 'moderate'){
     sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is inside your normal range (${calc.R.lines.train}+).`;
+    sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is at or above ${calc.R.lines.train}, the line for training as planned.`;
   }
   // the part that moves through the day: where today's strain has left the load ratio
   const lt = calc.action === 'learning' ? '' : loadText(calc);
@@ -1347,7 +1346,7 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
 
 /* ================= trend explorer ================= */
 const METRICS = [
-  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:[{v:31,color:'var(--good)'},{v:7,color:'var(--critical)'}], bounds:[0,100], formula:'7-day HRV, resting HR and sleep vs your previous 4 weeks, averaged and placed among your own days: 50 = your median day.'},
+  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:[{v:DATA.constants.ready_lines.train,color:'var(--good)'},{v:DATA.constants.ready_lines.rest,color:'var(--critical)'}], bounds:[0,100], formula:'7-day HRV, resting HR and sleep vs your previous 4 weeks, averaged and placed among your own days: 50 = your median day.'},
   {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
   {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:"WHOOP's Sleep Performance. Since WHOOP's 2025 update it blends hours vs needed with consistency, efficiency and sleep stress; readiness uses hours vs needed on its own."},
@@ -1490,12 +1489,16 @@ function renderACWR(){
   }
   const latest = series[series.length-1].v;
   $('acwrValue').textContent = latest.toFixed(2);
+  // the bands come from the pipeline (ACWR_BANDS), never retyped here
+  const B = DATA.constants.acwr_bands;
   const zones = [
-    {max:0.8, label:'Undertrained', c:'var(--ink-muted)', bg:'var(--surface-2)'},
-    {max:1.3, label:'Sweet spot', c:'var(--good)', bg:'var(--good-bg)'},
-    {max:1.5, label:'Caution', c:'var(--warn)', bg:'var(--warn-bg)'},
-    {max:Infinity, label:'High risk', c:'var(--critical)', bg:'var(--critical-bg)'},
+    {max:B.low, label:'Undertrained', c:'var(--ink-muted)', bg:'var(--surface-2)', dot:'var(--ink-faint)', text:`below ${B.low}`},
+    {max:B.caution, label:'Sweet spot', c:'var(--good)', bg:'var(--good-bg)', dot:'var(--good)', text:`${B.low}–${B.caution}`},
+    {max:B.high, label:'Caution', c:'var(--warn)', bg:'var(--warn-bg)', dot:'var(--warn)', text:`${B.caution}–${B.high}`},
+    {max:Infinity, label:'High risk', c:'var(--critical)', bg:'var(--critical-bg)', dot:'var(--critical)', text:`above ${B.high}`},
   ];
+  $('acwrLegend').innerHTML = zones.map(z =>
+    `<span class="rl-item"><span class="rl-dot" style="background:${z.dot}"></span>${z.label} · ${z.text}</span>`).join('');
   const zone = zones.find(z=>latest<z.max);
   const badge = $('acwrZone');
   // the newest point counts today's strain so far, so the ratio moves as the day does
@@ -1508,7 +1511,7 @@ function renderACWR(){
   const points = lastDays(series, 182);
   // the legend above names the bands; the chart only marks their edges, so the line stays the loud part
   lineChart('acwrChartWrap','acwrTooltip', points, {color:'var(--accent)', decimals:2, smooth:false,
-    refLines:[{v:0.8,color:'var(--ink-faint)'},{v:1.3,color:'var(--warn)'},{v:1.5,color:'var(--critical)'}]});
+    refLines:[{v:B.low,color:'var(--ink-faint)'},{v:B.caution,color:'var(--warn)'},{v:B.high,color:'var(--critical)'}]});
 }
 
 /* ================= training variety (Foster's monotony) ================= */
@@ -1529,8 +1532,8 @@ function renderMonotony(){
   const mondayISO = `${thisMonday.getFullYear()}-${String(thisMonday.getMonth()+1).padStart(2,'0')}-${String(thisMonday.getDate()).padStart(2,'0')}`;
   const weekName = monotonyWeekName = M.start >= mondayISO ? 'This week' : `The week of ${weekRangeLabel(M.start)}`;
   flagEl.innerHTML = M.high
-    ? `<div class="signal warn"><span class="dot"></span><span class="txt"><b>${weekName} had almost the same training load every day</b> — monotony ${M.monotony.toFixed(2)}, above the 2.0 risk line. Plan lighter days in between.</span></div>`
-    : `<div class="signal ok"><span class="dot"></span><span class="txt">${weekName} mixed harder and lighter days — monotony ${M.monotony == null ? '—' : M.monotony.toFixed(2)}, under the 2.0 risk line.</span></div>`;
+    ? `<div class="signal warn"><span class="dot"></span><span class="txt"><b>${weekName} had almost the same training load every day</b> — monotony ${M.monotony.toFixed(2)}, above the ${DATA.constants.monotony_limit.toFixed(1)} risk line. Plan lighter days in between.</span></div>`
+    : `<div class="signal ok"><span class="dot"></span><span class="txt">${weekName} mixed harder and lighter days — monotony ${M.monotony == null ? '—' : M.monotony.toFixed(2)}, under the ${DATA.constants.monotony_limit.toFixed(1)} risk line.</span></div>`;
 }
 
 /* ================= time in heart-rate zones ================= */
@@ -1596,10 +1599,13 @@ function renderReadinessYear(){
   const fromISO = from.getFullYear() + '-' + String(from.getMonth()+1).padStart(2,'0') + '-' + String(from.getDate()).padStart(2,'0');
   const series = all.filter(p => p.date >= fromISO);
   if(!series.length) return;
+  // coloured by the plan the day actually got — not by score band alone, which would paint a day the
+  // sustained-fall rule sent to Rest in Go-easy yellow
+  const plan = new Map(series.map(p => [p.date, p.a]));
+  const COLOUR = {moderate: 'var(--good)', easy: 'var(--warn)', rest: 'var(--critical)'};
   drawHeatmap({series, grid: 'readyYearGrid', scroll: 'readyYearScroll', tooltip: 'readyYearTooltip',
                range: 'readyYearRange', noun: 'readiness',
-               bandFor: v => v == null ? null
-                 : v >= R.lines.train ? 'var(--good)' : v >= R.lines.rest ? 'var(--warn)' : 'var(--critical)'});
+               bandFor: v => null, colourOf: (iso, v) => v == null ? null : COLOUR[plan.get(iso)] || null});
 }
 
 function drawHeatmap(opts){
@@ -1649,7 +1655,7 @@ function drawHeatmap(opts){
       const v = inRange && byDate.has(iso) ? byDate.get(iso) : null;
       const cell = document.createElement('div');
       cell.className = 'heatmap-cell';
-      const band = inRange ? bandFor(v) : null;
+      const band = inRange ? (opts.colourOf ? opts.colourOf(iso, v) : bandFor(v)) : null;
       if(band){ cell.style.background = band; cell.style.border = 'none'; }
       cell.dataset.date = iso;
       if(v != null) cell.dataset.v = v;
@@ -1781,14 +1787,14 @@ function renderWhatMoves(){
   }
   const failed = W.candidates - W.shown.length;
   grid.innerHTML = W.shown.map(r => {
-    const n = Math.abs(r.points), dir = r.points > 0 ? 'adds' : 'costs';
+    const n = Math.abs(r.points);
     const label = r.label.charAt(0).toUpperCase() + r.label.slice(1);
     // the held-out gain is stated as it is, never graded against a line of our own
     const gain = r.holdout_margin == null ? '' :
       ` On days it wasn't fitted to, it improved the forecast by ${r.holdout_margin.toFixed(2)} points.`;
     const joint = r.joint && !r.joint.significant
       ? ' Measured alongside the others it keeps its direction, but is no longer clear on its own.' : '';
-    return `<div class="signal"><span class="dot"></span><span class="txt"><b>${label}</b> ${dir} about <b>${n} point${n === 1 ? '' : 's'}</b> of tomorrow's readiness around a middling day, over ${r.days} days.${gain}${joint}</span></div>`;
+    return `<div class="signal"><span class="dot"></span><span class="txt"><b>${label}</b> was followed by readiness about <b>${n} point${n === 1 ? '' : 's'} ${r.points > 0 ? 'higher' : 'lower'}</b> the next morning, around a middling day, over ${r.days} days.${gain}${joint}</span></div>`;
   }).concat(failed ? [`<div class="signal"><span class="dot"></span><span class="txt">The other ${WORDS[failed] || failed} didn't hold up and aren't shown.</span></div>`] : []).join('');
 }
 
@@ -1924,7 +1930,7 @@ function whatIfScore(W, hours){
       for(const w of calc.sessions)
         out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));
     }
-    out.push(`<div class="rp-note">Each measure is compared with your own previous 4 weeks, updated every Monday. The six comparisons are averaged and placed among your own days, so 50 is your middle day. The two lines come from the training studies this is built on.</div>`);
+    out.push(`<div class="rp-note">Each measure is compared with your own previous 4 weeks, updated every Monday. The six comparisons are averaged and placed among your own days, so 50 is your middle day. The upper line comes from the training studies this is built on; the lower one is our own extension.</div>`);
     // the same formula with one input replaced — history, never a forecast
     const W = R && R.what_if;
     if(W){
