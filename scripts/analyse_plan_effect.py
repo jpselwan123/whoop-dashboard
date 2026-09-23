@@ -29,54 +29,6 @@ LAG = 7          # Newey-West bandwidth: a week, the longest window the score it
 LEVELS = {'easy': 1.0, 'moderate': 2.0, 'hard': 3.0, 'strength': 1.0}
 
 
-def ols_newey_west(X, y, lag=LAG):
-    """Coefficients with Newey-West standard errors, plus residual lag-1 autocorrelation."""
-    n, k = len(y), len(X[0])
-    xtx = [[sum(X[i][a] * X[i][b] for i in range(n)) for b in range(k)] for a in range(k)]
-    inv = _inverse(xtx)
-    if inv is None:
-        return None
-    xty = [sum(X[i][a] * y[i] for i in range(n)) for a in range(k)]
-    beta = [sum(inv[a][b] * xty[b] for b in range(k)) for a in range(k)]
-    resid = [y[i] - sum(beta[a] * X[i][a] for a in range(k)) for i in range(n)]
-    # meat of the sandwich: S = sum u_t^2 x_t x_t' + weighted cross-products up to `lag`
-    S = [[0.0] * k for _ in range(k)]
-    for i in range(n):
-        for a in range(k):
-            for b in range(k):
-                S[a][b] += resid[i] * resid[i] * X[i][a] * X[i][b]
-    for L in range(1, lag + 1):
-        w = 1 - L / (lag + 1)
-        for i in range(L, n):
-            for a in range(k):
-                for b in range(k):
-                    S[a][b] += w * resid[i] * resid[i - L] * (X[i][a] * X[i - L][b] + X[i - L][a] * X[i][b])
-    var = [[sum(inv[a][p] * S[p][q] * inv[q][b] for p in range(k) for q in range(k)) for b in range(k)]
-           for a in range(k)]
-    se = [math.sqrt(max(var[a][a], 0.0)) for a in range(k)]
-    mr = sum(resid) / n
-    r1 = (sum((resid[i] - mr) * (resid[i - 1] - mr) for i in range(1, n))
-          / sum((r - mr) ** 2 for r in resid))
-    return beta, se, r1, n
-
-
-def _inverse(m):
-    k = len(m)
-    a = [row[:] + [1.0 if i == j else 0.0 for j in range(k)] for i, row in enumerate(m)]
-    for c in range(k):
-        piv = max(range(c, k), key=lambda r: abs(a[r][c]))
-        a[c], a[piv] = a[piv], a[c]
-        if abs(a[c][c]) < 1e-12:
-            return None
-        f = a[c][c]
-        a[c] = [v / f for v in a[c]]
-        for r in range(k):
-            if r != c:
-                g = a[r][c]
-                a[r] = [x - g * y for x, y in zip(a[r], a[c])]
-    return [row[k:] for row in a]
-
-
 def main(data_dir):
     raw = bd.load_raw(data_dir) if hasattr(bd, 'load_raw') else __import__('json').load(
         open(os.path.join(data_dir, 'whoop_data.json')))
@@ -118,11 +70,13 @@ def main(data_dir):
     if len(rows) < bd.MIN_GROUP:
         print('not enough days')
         return
-    fit = ols_newey_west([r[0] for r in rows], [r[1] for r in rows])
+    # the pipeline's own estimator, not a second copy that could drift from it
+    fit = bd._ols_newey_west([r[0] for r in rows], [r[1] for r in rows], lag=LAG)
     if fit is None:
         print('could not fit')
         return
-    beta, se, r1, n = fit
+    beta, se, r1 = fit
+    n = len(rows)
     names = ['intercept', "today's score", 'session intensity', 'score × intensity']
     print(f'next night\'s composite on {n} day pairs (Newey-West, lag {LAG})')
     for nm, b, e in zip(names, beta, se):

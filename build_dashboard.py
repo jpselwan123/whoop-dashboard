@@ -715,30 +715,6 @@ def readiness_progress(hrv_by_day):
     return {'days': elapsed, 'needed': (ready - first).days + 1}
 
 
-def _ols(X, y):
-    """Least squares with standard errors (stdlib): returns (coefficients, standard errors, df)."""
-    n, k = len(y), len(X[0])
-    M = [[sum(X[i][a] * X[i][b] for i in range(n)) for b in range(k)] + [1.0 if a == j else 0.0 for j in range(k)]
-         for a in range(k)]
-    for c in range(k):                                   # Gauss-Jordan inverse of X'X
-        piv = max(range(c, k), key=lambda r: abs(M[r][c]))
-        M[c], M[piv] = M[piv], M[c]
-        if abs(M[c][c]) < 1e-12:
-            return None
-        f = M[c][c]
-        M[c] = [v / f for v in M[c]]
-        for r in range(k):
-            if r != c:
-                g = M[r][c]
-                M[r] = [a - g * b for a, b in zip(M[r], M[c])]
-    inv = [row[k:] for row in M]
-    xty = [sum(X[i][a] * y[i] for i in range(n)) for a in range(k)]
-    beta = [sum(inv[a][b] * xty[b] for b in range(k)) for a in range(k)]
-    df = n - k
-    s2 = sum((y[i] - sum(beta[a] * X[i][a] for a in range(k))) ** 2 for i in range(n)) / df
-    return beta, [math.sqrt(s2 * inv[a][a]) for a in range(k)], df
-
-
 # What today's training costs, measured on the person's own history rather than assumed.
 # Readiness is an overnight measurement, so a session cannot change this morning's number — it lowers
 # the next one. The regression is on the composite standard score, not the bounded percentile (a

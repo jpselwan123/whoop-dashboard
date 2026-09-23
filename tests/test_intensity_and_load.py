@@ -276,8 +276,8 @@ class PlanEffectScriptTest(unittest.TestCase):
             score_z, lvl = rnd.gauss(0, 1), float(rnd.randint(0, 3))
             X.append([1.0, score_z, lvl, score_z * lvl])
             y.append(0.3 * score_z - 0.2 * lvl + rnd.gauss(0, 0.5))      # no interaction
-        beta, se, r1, n = self.mod.ols_newey_west(X, y)
-        self.assertEqual(n, 400)
+        # the script now uses the pipeline's estimator, so that is what is checked
+        beta, se, r1 = bd._ols_newey_west(X, y, lag=self.mod.LAG)
         self.assertAlmostEqual(beta[1], 0.3, delta=0.08)
         self.assertAlmostEqual(beta[2], -0.2, delta=0.08)
         self.assertLess(abs(beta[3] / se[3]), 2.0, 'no interaction was simulated')
@@ -293,7 +293,7 @@ class PlanEffectScriptTest(unittest.TestCase):
             x = rnd.gauss(0, 1)
             X.append([1.0, x])
             y.append(0.2 * x + e)
-        _, se_nw, r1, _ = self.mod.ols_newey_west(X, y, lag=7)
-        _, se_plain, _, _ = self.mod.ols_newey_west(X, y, lag=0)
+        _, se_nw, r1 = bd._ols_newey_west(X, y, lag=7)
+        _, se_plain, _ = bd._ols_newey_west(X, y, lag=0)
         self.assertGreater(se_nw[1], se_plain[1] * 0.99)
         self.assertGreater(r1, 0.3, 'the fixture should leave autocorrelated residuals')
