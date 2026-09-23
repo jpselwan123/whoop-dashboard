@@ -439,7 +439,7 @@
 
   <section class="card">
     <div class="section-head"><h2>What moves your readiness</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Six things about a day — sleep, bedtime, strain, a nap, when training finished, days since a rest day — each tested on its own against the next morning's score. Only what survives all three checks is shown: a real effect, an even one, and one that beats doing nothing on days it was never fitted to.</div>
+    <div class="section-sub">Six things about a day — sleep, bedtime, strain, naps, when training finished, days since a rest day — each tested against the next morning's score. Only the ones that hold up on days they weren't fitted to are shown.</div>
     <div class="signal-grid" style="margin-top:12px;" id="whatMovesGrid"></div>
   </section>
 
@@ -463,7 +463,7 @@
 
   <section class="card">
     <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Training variety</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportTotal"></span></div>
-    <div class="section-sub">Two kinds of variety in one place: how evenly your load falls across the week, and what you actually do. The chart is your strain each day; the check under it uses training load — minutes in each heart-rate zone, weighted by intensity, 0 on days without a workout. Nearly the same load every day raises illness risk more than the same total with lighter days in between.</div>
+    <div class="section-sub">Your strain each day, then how evenly the week's load was spread, then what you actually did. Training every day at the same effort carries more risk than the same total with lighter days in between.</div>
     <div class="chart-wrap" id="last7ChartWrap" style="margin-bottom:14px;"><div class="chart-tooltip" id="last7Tooltip"></div></div>
     <div id="monotonyFlag"></div>
     <div id="sportRows" style="margin-top:14px;"></div>
@@ -488,7 +488,7 @@
 
   <section class="card">
     <div class="section-head"><h2>Sleep regularity</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">How likely you are to be in the same state — asleep or awake — at the same clock minute on two days running, over the last 30 days. 100 is sleeping and waking at identical times every day; 0 is no better than chance. Naps count: the measure deliberately doesn't single out a main sleep.</div>
+    <div class="section-sub">How often you are asleep — or awake — at the same time of day as you were the day before, over the last 30 days. 100 means identical sleep and wake times every day. Naps count.</div>
     <div class="signal-grid" style="margin-top:12px;" id="sriGrid"></div>
   </section>
 
@@ -707,15 +707,11 @@ function computeReadiness(){
 // the ratio's bands come from research on linear loads, and strain is logarithmic.
 function loadText(calc){
   const Ld = calc.load; if(!Ld) return '';
-  const r = Ld.ratio.toFixed(2), B = Ld.bands, at = Ld.load_at, L = Ld.load;
-  if(Ld.ratio > B.high)    return `Today's training load of ${L} has taken your load ratio to ${r}, above the ${B.high} high-risk line.`;
-  if(Ld.ratio > B.caution) return `Today's training load of ${L} has taken your load ratio to ${r}, past the ${B.caution} caution line.`;
-  const training = calc.plan === 'moderate';
-  if(Ld.ratio < B.low) return training && at.low != null && at.low > L
-    ? `Load ratio ${r}, below ${B.low}: a training load of ${at.low} today brings it back into range.`
-    : `Load ratio ${r}, below ${B.low}.`;
-  if(at.caution == null) return `Load ratio ${r}, in range.`;
-  return `Load ratio ${r}, in range — it passes ${B.caution} if today's training load goes over ${at.caution}.`;
+  const r = Ld.ratio.toFixed(2), B = Ld.bands;
+  if(Ld.ratio > B.high)    return `Your training load this week is high for you — ratio ${r}, above ${B.high}.`;
+  if(Ld.ratio > B.caution) return `Your training load this week is climbing — ratio ${r}, past ${B.caution}.`;
+  if(Ld.ratio < B.low)     return `Your training load this week is light for you — ratio ${r}.`;
+  return `Your training load this week is steady — ratio ${r}.`;
 }
 
 
@@ -845,7 +841,7 @@ function renderSuggestions(calc){
 
   } else if(calc.action === 'moderate'){
     sEl.className = 'signal ok';
-    sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is at or above your normal range (${calc.R.lines.train}+) — the trials prescribe the planned session here, hard or moderate.`;
+    sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is inside your normal range (${calc.R.lines.train}+).`;
   }
   // the part that moves through the day: where today's strain has left the load ratio
   const lt = calc.action === 'learning' ? '' : loadText(calc);
@@ -1469,10 +1465,11 @@ function renderTodaySignals(){
   if(!rest){
     rTxt.textContent = 'You have trained every day in your history so far.';
   } else {
-    const when = rest.days_since === 1 ? 'yesterday' : `${fmtDate(rest.last_rest_date)}, ${rest.days_since} days ago`;
     const since = rest.days_since - 1;   // finished days since, all of which had a session
-    rTxt.innerHTML = `<b>Your last day off was ${when}</b> — no session logged that day.`
-      + (since === 1 ? ' You trained yesterday.' : since > 1 ? ` You have trained every day since — ${since} days.` : '');
+    rTxt.innerHTML = rest.days_since === 1
+      ? `<b>Your last day off was yesterday.</b>`
+      : `<b>Your last day off was ${fmtDate(rest.last_rest_date)}</b>, ${rest.days_since} days ago`
+        + (since > 0 ? ` — you have trained every day since.` : '.');
   }
 }
 
@@ -1768,22 +1765,24 @@ function renderCoverage(){
 // Each candidate has to clear the same three gates the training-cost adjustment does: significant,
 // even across its own terciles, and better than doing nothing out of sample. Nearly everything fails,
 // which is the point — the panel says so rather than filling itself with plausible-sounding lines.
+const WORDS = {1:'one', 2:'two', 3:'three', 4:'four', 5:'five', 6:'six'};
 function renderWhatMoves(){
   const W = DATA.what_moves, grid = $('whatMovesGrid');
   if(!grid) return;
   if(!W || !W.shown.length){
     grid.innerHTML = `<div class="signal"><span class="dot"></span><span class="txt">${
-      W ? `None of the ${W.candidates} passed all three checks on your history — nothing here moved the next morning reliably enough to act on.`
+      W ? `None of the ${W.candidates} changed the next morning reliably enough to act on.`
         : 'Not enough history yet.'}</span></div>`;
     return;
   }
+  const failed = W.candidates - W.shown.length;
   grid.innerHTML = W.shown.map(r => {
-    const sign = r.points > 0 ? '+' : '−', n = Math.abs(r.points);
-    const margin = r.holdout_margin == null ? '' :
-      ` It beat doing nothing on ${r.holdout_days} later days by ${r.holdout_margin.toFixed(2)} points — ${
-        r.holdout_margin < 0.5 ? 'barely' : 'clearly'}.`;
-    return `<div class="signal"><span class="dot"></span><span class="txt"><b>${r.label}</b> is worth <b>${sign}${n} point${n === 1 ? '' : 's'}</b> on the next morning's readiness, measured over ${r.days} days.${margin}</span></div>`;
-  }).join('');
+    const n = Math.abs(r.points), dir = r.points > 0 ? 'adds' : 'costs';
+    const weak = r.holdout_margin != null && r.holdout_margin < 0.5
+      ? ' It only just passed the last check, so treat it as small.' : '';
+    const label = r.label.charAt(0).toUpperCase() + r.label.slice(1);
+    return `<div class="signal"><span class="dot"></span><span class="txt"><b>${label}</b> ${dir} about <b>${n} point${n === 1 ? '' : 's'}</b> of tomorrow's readiness, over ${r.days} days.${weak}</span></div>`;
+  }).concat(failed ? [`<div class="signal"><span class="dot"></span><span class="txt">The other ${WORDS[failed] || failed} didn't hold up and aren't shown.</span></div>`] : []).join('');
 }
 
 // Sleep Regularity Index (Phillips et al. 2017). The correlation with readiness is shown because it
@@ -1792,12 +1791,13 @@ function renderSleepRegularity(){
   const S = DATA.sleep_regularity, grid = $('sriGrid');
   if(!grid) return;
   if(!S){ grid.innerHTML = `<div class="signal"><span class="dot"></span><span class="txt">Not enough nights yet.</span></div>`; return; }
-  const rows = [`<div class="signal"><span class="dot"></span><span class="txt">Your sleep regularity is <b>${S.value.toFixed(1)}</b> out of 100${
-    S.change_30d == null ? '' : `, ${S.change_30d === 0 ? 'unchanged from' : `${Math.abs(S.change_30d).toFixed(1)} ${S.change_30d > 0 ? 'higher' : 'lower'} than`} 30 days ago`}.</span></div>`];
+  const rows = [`<div class="signal"><span class="dot"></span><span class="txt"><b>${S.value.toFixed(0)} out of 100</b>${
+    S.change_30d == null || S.change_30d === 0 ? '' : `, ${Math.abs(S.change_30d).toFixed(1)} ${S.change_30d > 0 ? 'higher' : 'lower'} than a month ago`}.</span></div>`];
   if(S.readiness_r != null){
     const a = Math.abs(S.readiness_r);
-    const strength = a < 0.1 ? 'no relationship at all' : a < 0.3 ? 'a weak relationship' : a < 0.5 ? 'a moderate relationship' : 'a strong relationship';
-    rows.push(`<div class="signal"><span class="dot"></span><span class="txt">Against your readiness on the same day there is <b>${strength}</b> (r = ${S.readiness_r.toFixed(2)}, ${S.readiness_days} days). This is a correlation on your own history — it doesn't show that one causes the other.</span></div>`);
+    rows.push(`<div class="signal"><span class="dot"></span><span class="txt">${a < 0.1
+      ? `On your ${S.readiness_days} days so far it shows no link to your readiness — steadier stretches scored about the same as ragged ones.`
+      : `Days in your steadier stretches ${S.readiness_r > 0 ? 'do tend to score higher' : 'tend to score lower'} — a pattern over ${S.readiness_days} days, not proof one causes the other.`}</span></div>`);
   }
   grid.innerHTML = rows.join('');
 }
@@ -1810,10 +1810,10 @@ function renderBedtime(){
   if(!el) return;
   if(!B){ el.textContent = 'Not enough nights yet to suggest a bedtime.'; return; }
   const steady = B.wake_spread_h <= 1;
-  el.innerHTML = `<b>Asleep by ${B.asleep_by}</b> to meet tonight's sleep need of ${fmtHM(B.need_h)} — WHOOP's own figure, not ours. ` +
+  el.innerHTML = `<b>Asleep by ${B.asleep_by}</b> for tonight's sleep need of ${fmtHM(B.need_h)} — WHOOP's figure. ` +
     (steady
-      ? `Counting back from your usual ${B.wake} wake-up (last ${B.nights} nights).`
-      : `That counts back from your <b>median</b> wake-up of ${B.wake}, but your wake time swings by about ${fmtHM(B.wake_spread_h)} either side over the last ${B.nights} nights, so treat it as rough.`);
+      ? `Counting back from your usual ${B.wake} wake-up.`
+      : `You usually wake around ${B.wake}, but it varies by about ${fmtHM(B.wake_spread_h)}, so this is a rough target.`);
 }
 
 function renderAll(){
@@ -1915,7 +1915,7 @@ function whatIfScore(W, hours){
       for(const w of calc.sessions)
         out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));
     }
-    out.push(`<div class="rp-note">Each measure is compared with your own previous 4 weeks, updated every Monday; the six comparisons are averaged and placed among your own days, so 50 is your middle day. The four lines are the training trials' own cut-offs — half a standard deviation either side of your normal, and 1.5 below it — on this scale.</div>`);
+    out.push(`<div class="rp-note">Each measure is compared with your own previous 4 weeks, updated every Monday. The six comparisons are averaged and placed among your own days, so 50 is your middle day. The two lines come from the training studies this is built on.</div>`);
     // the same formula with one input replaced — history, never a forecast
     const W = R && R.what_if;
     if(W){
@@ -1925,7 +1925,7 @@ function whatIfScore(W, hours){
         <input class="wi-slider" type="range" id="wiRange" min="${W.min}" max="${W.max}" step="0.1"
                value="${W.actual}" aria-label="Hours asleep last night">
         <div class="wi-scale"><span>${one(W.min)} h</span><span class="wi-band" id="wiBand"></span><span>${one(W.max)} h</span></div>
-        <div class="rp-note">Your shortest and longest nights of the last year, naps included. This is the same calculation with one number changed — what today's score would have been, not what tomorrow will be. Only last night moves: the 7-day part of the score stops at yesterday.</div>
+        <div class="rp-note">The range is your shortest and longest nights of the last year. This is today's score recalculated with one number changed — not a forecast for tomorrow. Only last night moves, because the 7-day part of the score stops at yesterday.</div>
       </div>`);
     }
     $('rpRows').innerHTML = out.join('');

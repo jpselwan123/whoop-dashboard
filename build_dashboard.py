@@ -875,12 +875,12 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
 # 70% of days — predicts the last 30% better than doing nothing at all. Most do not.
 WHAT_MOVES = (
     # key, label, the unit a coefficient is quoted in, and how much of it makes one step
-    ('sleep_hours', 'an hour more sleep', 'hour', 1.0),
+    ('sleep_hours', 'an extra hour of sleep', 'hour', 1.0),
     ('bedtime_offset_h', 'going to bed an hour later than usual', 'hour', 1.0),
-    ('strain', 'one more point of day strain', 'strain point', 1.0),
+    ('strain', 'each extra point of day strain', 'strain point', 1.0),
     ('nap', 'a nap', 'nap', 1.0),
     ('session_end_h', 'finishing training an hour later', 'hour', 1.0),
-    ('days_since_rest', 'one more day since a rest day', 'day', 1.0),
+    ('days_since_rest', 'each extra day since a rest day', 'day', 1.0),
 )
 
 
