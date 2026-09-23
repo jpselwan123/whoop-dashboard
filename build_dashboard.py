@@ -798,6 +798,44 @@ def _inverse(m):
     return [row[k:] for row in a]
 
 
+def _p_two_sided(coef, err, df):
+    """Two-sided p for a coefficient and its (Newey-West) standard error, via the t distribution."""
+    t = coef / err if err else 0.0
+    return _betainc(df / 2, 0.5, df / (df + t * t))
+
+
+def _residualised(rows):
+    """Next morning's score with today's score taken out — the outcome the fits actually explain.
+
+    Every model here controls for today's z, so a gate that sorts the RAW next-morning score would be
+    judging something the fit never claimed. Residuals from next_z ~ 1 + today_z put the gate on the
+    same footing as the coefficient (Frisch-Waugh).
+    """
+    zs = [r[1][1] for r in rows]
+    ys = [r[2] for r in rows]
+    mz, my = mean(zs), mean(ys)
+    vz = sum((z - mz) ** 2 for z in zs)
+    b = sum((z - mz) * (y - my) for z, y in zip(zs, ys)) / vz if vz else 0.0
+    a = my - b * mz
+    return [y - (a + b * z) for z, y in zip(zs, ys)]
+
+
+def _tercile_means(xs, outcome):
+    """Mean outcome in each third of the predictor's own range, or [] if a third is too thin."""
+    ordered = sorted(zip(xs, outcome), key=lambda p: p[0])
+    third = len(ordered) // 3
+    # MIN_GROUP // 3 is only 10 days per tercile — thin for a mean, so on a short history this gate
+    # is weak; if it starts passing on marginal data, re-check it first.
+    if third < MIN_GROUP // 3:
+        return []
+    parts = [ordered[:third], ordered[third:2 * third], ordered[2 * third:]]
+    return [round(mean(o for _x, o in part), 3) for part in parts]
+
+
+def _is_monotone(means, rising):
+    return len(means) == 3 and (means[0] <= means[1] <= means[2] if rising else means[0] >= means[1] >= means[2])
+
+
 def build_training_cost(readiness_series, strain_by_day, workout_days, today):
     by_day = {p['date']: p for p in readiness_series}
     rows = []
@@ -816,19 +854,15 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
     if fit is None:
         return None
     beta, se, resid_r1 = fit
-    per_strain, t = beta[2], (beta[2] / se[2] if se[2] else 0.0)
-    df = len(rows) - 3
-    p = _betainc(df / 2, 0.5, df / (df + t * t))
+    per_strain = beta[2]
+    p = _p_two_sided(beta[2], se[2], len(rows) - 3)
 
-    # linearity: the cost should grow roughly evenly across strain terciles, not jump
-    trained = sorted((strain_by_day[d], nz) for d, _, nz in rows if d in workout_days)
-    third = len(trained) // 3
-    # MIN_GROUP // 3 is only 10 trained days per tercile — thin for a mean, so this gate is weak on
-    # short histories. If the hold-out gate below ever starts passing on marginal data, re-check this
-    # first: three noisy means can look monotone by chance.
-    terciles = [trained[:third], trained[third:2 * third], trained[2 * third:]] if third >= MIN_GROUP // 3 else []
-    tercile_means = [round(mean(nz for _, nz in t_), 3) for t_ in terciles] if terciles else []
-    monotone = len(tercile_means) == 3 and tercile_means[0] >= tercile_means[1] >= tercile_means[2]
+    # evenness: the cost should grow across strain terciles, judged on the same residualised outcome
+    # the fit explains (today's score taken out), on training days only
+    resid = _residualised(rows)
+    trained = [(strain_by_day[d], r) for (d, _x, _nz), r in zip(rows, resid) if d in workout_days]
+    tercile_means = _tercile_means([x for x, _ in trained], [r for _, r in trained])
+    monotone = _is_monotone(tercile_means, rising=False)
 
     med = lambda xs: (sorted(xs)[len(xs) // 2] if len(xs) % 2 else mean(sorted(xs)[len(xs) // 2 - 1:len(xs) // 2 + 1]))
     rest_strain = med(rest)
@@ -874,8 +908,11 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
 # next morning evenly across its own terciles rather than in one jump, and — fitted on the first
 # 70% of days — predicts the last 30% better than doing nothing at all. Most do not.
 WHAT_MOVES = (
-    # key, label, the unit a coefficient is quoted in, and how much of it makes one step
-    ('sleep_hours', 'an extra hour of sleep', 'hour', 1.0),
+    # key, label, the unit a coefficient is quoted in, and how much of it makes one step.
+    # Hours asleep is deliberately NOT a candidate: it is one of the score's own inputs (today's
+    # last-night score) and sits inside tomorrow's 7-day window too, so regressing tomorrow on it
+    # while controlling for today measures the formula's weights, not sleep. On this history that
+    # came out as "an extra hour of sleep costs 2 points" — mechanical, and wrong to show.
     ('bedtime_offset_h', 'going to bed an hour later than usual', 'hour', 1.0),
     ('strain', 'each extra point of day strain', 'strain point', 1.0),
     ('nap', 'a nap', 'nap', 1.0),
@@ -944,8 +981,69 @@ def build_what_moves(readiness_series, features_by_day, today):
         result = _one_predictor(rows, by_day, src, key, label, unit, step)
         if result:
             out.append(result)
-    out.sort(key=lambda r: -abs(r['points']))
-    return {'date': today, 'candidates': len(WHAT_MOVES), 'shown': out}
+    shown, dropped = _joint_gate(out, by_day, features_by_day, today)
+    shown.sort(key=lambda r: -abs(r['points']))
+    return {'date': today, 'candidates': len(WHAT_MOVES), 'shown': shown, 'dropped_jointly': dropped}
+
+
+def _joint_gate(passing, by_day, features_by_day, today):
+    """Refit everything that passed on its own in ONE model, and drop what was only borrowing.
+
+    Fitted one at a time, correlated candidates steal each other's effect: a late bedtime can look
+    like it helps when it is really standing in for fewer hard days. So every survivor is refitted
+    together (today's z + all passing candidates, Newey-West errors) and must keep its sign; one that
+    keeps its sign but is no longer significant stays, and its sentence says so. The quoted effect is
+    still the one-at-a-time number — the joint fit is a gate, not the headline.
+
+    Candidates enter in WHAT_MOVES order — direct measures first, the derived day-count last — and one
+    that is an exact linear combination of those already in carries no information of its own, so it
+    is dropped as redundant. (The tolerance below is numerical, not a modelling threshold.)
+    """
+    if not passing:
+        return [], []
+    order = {k: i for i, (k, *_rest) in enumerate(WHAT_MOVES)}
+    passing = sorted(passing, key=lambda r: order[r['key']])
+    days = [d for d in sorted(by_day)
+            if d < today and by_day[d].get('z') is not None
+            and _date_minus(d, -1) in by_day and by_day[_date_minus(d, -1)].get('z') is not None
+            and all(d in (features_by_day.get(r['key']) or {}) for r in passing)]
+    if len(days) < MIN_GROUP:
+        for r in passing:
+            r['joint'] = None                        # not enough shared days to test them together
+        return passing, []
+    col = lambda key: [float(features_by_day[key][d]) for d in days]
+    base = [[1.0, by_day[d]['z']] for d in days]
+    y = [by_day[_date_minus(d, -1)]['z'] for d in days]
+
+    entered, dropped = [], []
+    for r in passing:
+        x = col(r['key'])
+        X = [row + [col_vals[i] for col_vals in [col(e['key']) for e in entered]] for i, row in enumerate(base)]
+        fit = _ols_newey_west(X, x)
+        if fit is not None:
+            resid = [x[i] - sum(fit[0][a] * X[i][a] for a in range(len(X[0]))) for i in range(len(x))]
+            spread = sum((v - mean(x)) ** 2 for v in x)
+            if spread == 0 or sum(u * u for u in resid) <= 1e-9 * spread:
+                dropped.append({'key': r['key'], 'label': r['label'], 'reason': 'redundant'})
+                continue
+        entered.append(r)
+
+    X = [row + [col(e['key'])[i] for e in entered] for i, row in enumerate(base)]
+    fit = _ols_newey_west(X, y)
+    if fit is None:
+        return [], dropped + [{'key': r['key'], 'label': r['label'], 'reason': 'redundant'} for r in entered]
+    beta, se, _r1 = fit
+    shown = []
+    for j, r in enumerate(entered):
+        c, e = beta[2 + j], se[2 + j]
+        if (c > 0) != (r['coefficient'] > 0):
+            dropped.append({'key': r['key'], 'label': r['label'], 'reason': 'flips'})
+            continue
+        r['joint'] = {'coefficient': round(c, 4), 'p': round(_p_two_sided(c, e, len(days) - len(X[0])), 4),
+                      'days': len(days)}
+        r['joint']['significant'] = r['joint']['p'] < SIGNIFICANCE
+        shown.append(r)
+    return shown, dropped
 
 
 def _one_predictor(rows, by_day, src, key, label, unit, step):
@@ -957,17 +1055,12 @@ def _one_predictor(rows, by_day, src, key, label, unit, step):
         return None
     beta, se, resid_r1 = fit
     coef, err = beta[2], se[2]
-    t = coef / err if err else 0.0
-    df = len(rows) - 3
-    p = _betainc(df / 2, 0.5, df / (df + t * t))
+    p = _p_two_sided(coef, err, len(rows) - 3)
     significant = p < SIGNIFICANCE
 
-    # evenness: split the predictor's own range in three and look at the next morning in each
-    ordered = sorted((float(src[d]), nz) for d, _x, nz in rows)
-    third = len(ordered) // 3
-    terciles = [ordered[:third], ordered[third:2 * third], ordered[2 * third:]] if third >= MIN_GROUP // 3 else []
-    means = [round(mean(nz for _v, nz in t_), 3) for t_ in terciles] if terciles else []
-    monotone = len(means) == 3 and (means[0] <= means[1] <= means[2] if coef > 0 else means[0] >= means[1] >= means[2])
+    # evenness: the predictor's own terciles, on the same residualised outcome the fit explains
+    means = _tercile_means([float(src[d]) for d, _x, _nz in rows], _residualised(rows))
+    monotone = _is_monotone(means, rising=coef > 0)
 
     # out of sample: fitted on the first 70%, does it beat doing nothing on the last 30%?
     cut = int(len(rows) * (1 - HOLDOUT))
@@ -1394,7 +1487,6 @@ def build_summary(d):
     training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), record_day(cyc[-1]))
     wm_features = build_what_moves_features(sleep, naps, wo, strain_by_day,
                                             {d for d in strain_by_day if d not in by_day_wo})
-    wm_features['sleep_hours'] = dict(sleep_h_by_day)
     what_moves = build_what_moves(readiness_series, wm_features, record_day(cyc[-1]))
     sleep_regularity = build_sleep_regularity(sleep, naps, readiness_series, record_day(cyc[-1]))
     bedtime_target = build_bedtime_target(sleep, record_day(cyc[-1]))

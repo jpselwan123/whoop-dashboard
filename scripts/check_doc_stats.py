@@ -118,6 +118,7 @@ def measured_facts(data_dir):
         'rest_rules': _rest_rules(series, inputs['hrv']),
         'what_moves': _what_moves(data_dir),
         'sleep_regularity': _sleep_regularity(data_dir),
+        'bedtime': _bedtime(data_dir),
     }
 
 
@@ -368,6 +369,19 @@ def _sleep_regularity(data_dir):
     return {k: sr[k] for k in ('value', 'change_30d', 'days', 'readiness_r', 'readiness_days')}
 
 
+def _bedtime(data_dir):
+    path = os.path.join(data_dir, 'dashboard_data.json')
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        b = json.load(fh).get('bedtime_target')
+    if not b:
+        return None
+    total_min = round(b['wake_spread_h'] * 60)
+    return {'spread_h': b['wake_spread_h'],
+            'spread_hm': '%dh %02dm' % divmod(total_min, 60) if total_min >= 60 else '%dm' % total_min}
+
+
 def check_measured_docs(facts, root=HERE):
     """Sentences quoting a MEASURED figure — checked only when real data is present.
 
@@ -407,18 +421,27 @@ def check_measured_docs(facts, root=HERE):
                          'is worth **%s point** on the next morning, over %d days' % (signed, r['days']),
                          'the one candidate that passes all three gates'))
         expected.append((readme, 'README.md',
-                         'held-out days by **%.2f points**' % r['holdout_margin'],
+                         'improved the held-out forecast by **%.2f points**' % r['holdout_margin'],
                          'how narrowly it beat doing nothing'))
     sr_idx = facts.get('sleep_regularity')
     if sr_idx and sr_idx.get('readiness_r') is not None:
         expected.append((readme, 'README.md',
                          'r = %.2f over %d days here' % (sr_idx['readiness_r'], sr_idx['readiness_days']),
                          'sleep regularity against readiness'))
+    bt = facts.get('bedtime')
+    if bt:
+        expected.append((readme, 'README.md', '**always stated** (\u00b1%s here)' % bt['spread_hm'],
+                         'the wake-time spread under the bedtime target'))
     tc = facts.get('training_cost')
     if tc and tc.get('per_strain') is not None:
         expected.append((readme, 'README.md',
                          '**\u2212%.3f per strain point, p < 0.001, %d day pairs**' % (abs(tc['per_strain']), tc['pairs']),
                          "the training cost's own figures"))
+        if tc.get('tercile_next_night'):
+            t3 = tc['tercile_next_night']
+            fmt = lambda v: ('+' if v >= 0 else '\u2212') + '%.3f' % abs(v)
+            expected.append((readme, 'README.md', '%s / %s / %s' % tuple(fmt(v) for v in t3),
+                             "the training cost's terciles"))
         if tc.get('holdout_mae'):
             expected.append((readme, 'README.md',
                              'doing nothing (mean error %.1f vs %.1f)' % (tc['holdout_mae'][1], tc['holdout_mae'][0]),

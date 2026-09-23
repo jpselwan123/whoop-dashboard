@@ -92,6 +92,79 @@ class GatesTest(unittest.TestCase):
             self.assertNotEqual(row['points'], 0)
 
 
+class JointGateTest(unittest.TestCase):
+    """Correlated candidates steal each other's effect when fitted one at a time."""
+
+    def world(self, n=500, seed=13):
+        rng = random.Random(seed)
+        ds = days(n)
+        strain = {d: rng.uniform(0, 20) for d in ds}
+        bed = {d: rng.gauss(0, 1) for d in ds}
+        z = [0.0]
+        for i in range(1, n):
+            y = ds[i - 1]
+            z.append(-0.06 * (strain[y] - 10) + 0.25 * bed[y] + rng.gauss(0, 0.25))
+        return ds, z, strain, bed
+
+    def test_a_linear_combination_of_two_others_does_not_survive(self):
+        """days_since_rest is built as strain + bedtime exactly: it carries nothing of its own."""
+        ds, z, strain, bed = self.world()
+        combo = {d: strain[d] + bed[d] for d in ds}
+        out = bd.build_what_moves(series(z, ds),
+                                  {'strain': strain, 'bedtime_offset_h': bed, 'days_since_rest': combo}, ds[-1])
+        shown = {r['key'] for r in out['shown']}
+        self.assertNotIn('days_since_rest', shown)
+        self.assertIn('strain', shown)
+        self.assertIn('bedtime_offset_h', shown)
+        self.assertIn('days_since_rest', {r['key'] for r in out['dropped_jointly']})
+
+    def test_a_stand_in_that_flips_sign_jointly_is_dropped(self):
+        """A candidate that only looked good because it moves with a real cause must go."""
+        rng = random.Random(21)
+        ds = days(500)
+        strain = {d: rng.uniform(0, 20) for d in ds}
+        # "finishing late" tracks low strain, and carries a small real effect the other way
+        late = {d: -0.5 * strain[d] + rng.gauss(0, 1.5) for d in ds}
+        z = [0.0]
+        for i in range(1, len(ds)):
+            y = ds[i - 1]
+            z.append(-0.08 * (strain[y] - 10) - 0.06 * late[y] + rng.gauss(0, 0.2))
+        out = bd.build_what_moves(series(z, ds), {'strain': strain, 'session_end_h': late}, ds[-1])
+        # on its own "finishing late" looks GOOD (it is standing in for easy days); together with
+        # strain its real, negative effect shows — so it flips and must go
+        self.assertNotIn('session_end_h', {r['key'] for r in out['shown']})
+        self.assertIn({'key': 'session_end_h', 'label': 'finishing training an hour later', 'reason': 'flips'},
+                      out['dropped_jointly'])
+        self.assertIn('strain', {r['key'] for r in out['shown']})
+
+    def test_every_survivor_carries_its_joint_result(self):
+        ds, z, strain, bed = self.world()
+        out = bd.build_what_moves(series(z, ds), {'strain': strain, 'bedtime_offset_h': bed}, ds[-1])
+        for r in out['shown']:
+            self.assertIn('joint', r)
+            self.assertEqual(r['joint']['coefficient'] > 0, r['coefficient'] > 0)
+            self.assertIn('significant', r['joint'])
+
+
+class ResidualisedGateTest(unittest.TestCase):
+    def test_terciles_are_judged_after_taking_out_todays_score(self):
+        """Tomorrow tracks today strongly; the gate must not credit a candidate for that."""
+        rng = random.Random(4)
+        ds = days(400)
+        z = [0.0]
+        for i in range(1, len(ds)):
+            z.append(0.8 * z[-1] + rng.gauss(0, 0.3))
+        # a candidate that simply copies today's score: it predicts tomorrow only THROUGH today
+        copy = {d: z[i] + rng.gauss(0, 0.01) for i, d in enumerate(ds)}
+        self.assertEqual(bd.build_what_moves(series(z, ds), {'strain': copy}, ds[-1])['shown'], [])
+
+    def test_points_are_quoted_at_a_middling_day(self):
+        """The same shift is worth most points at the middle of the curve: that is where it is read."""
+        self.assertEqual(round(bd.normal_percentile(0.1) - bd.normal_percentile(0.0)), 4)
+        self.assertLess(bd.normal_percentile(2.1) - bd.normal_percentile(2.0),
+                        bd.normal_percentile(0.1) - bd.normal_percentile(0.0))
+
+
 class FeaturesTest(unittest.TestCase):
     def test_bedtime_is_signed_hours_from_the_usual_and_wraps_past_midnight(self):
         mk = lambda d, t, off='+02:00': {'start': '%sT%s:00.000Z' % (d, t), 'end': '%sT08:00:00.000Z' % d,
