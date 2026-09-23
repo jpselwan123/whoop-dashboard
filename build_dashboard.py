@@ -432,10 +432,12 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #     accumulate more than two consecutive rest sessions": Carrasco-Poyatos et al. 2020, a published
 #     trial protocol rather than a result; detraining).
 #     One prescription per day: the trials read HRV each morning and set that day's session.
-#   - There is no consecutive-hard-days rule. Carrasco-Poyatos 2020's protocol caps them, but a
-#     session is labelled by its dominant Seiler zone and "moderate" is a 5-point band, so over 530
-#     days here only 2 days ever carried a streak of 2 and the rule never once changed an answer.
-#     Deleted rather than left in place looking like a safeguard (as the breathing rule was).
+#   - There is no consecutive-hard-days rule. Carrasco-Poyatos 2020's protocol caps them, but over
+#     530 days here only 2 days ever carried a streak of 2 (the rule counted moderate OR hard days,
+#     of which there are 40 — consecutive ones are simply rare), and the check sat after the band
+#     rules, so it could only ever fire on a day already scoring 31+. On both those days the score
+#     was already below the band, so it never once changed an answer. Deleted rather than left in
+#     place looking like a safeguard (as the breathing rule was).
 #   - Breathing rate is REPORTED ONLY and never changes the plan: no source gives a numeric rise
 #     worth acting on (see BREATHING_BASELINE below).
 READY_WINDOW_DAYS = 7

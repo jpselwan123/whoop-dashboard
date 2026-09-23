@@ -66,8 +66,9 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   DROPS in HRV, not two days below the range, and he never chose between easy and rest — that split is
   ours. Breathing rate is reported, never acted on (Natarajan 2021 gives no numeric rise; the old +3/min
   was ours and never fired). There is **no consecutive-hard-days rule**: Carrasco-Poyatos 2020's protocol caps
-  them, but a session is labelled by its dominant Seiler zone and "moderate" is a 5-point band, so in 530 days
-  only 2 days ever carried a streak of 2 and the rule never once changed an answer — deleted, like breathing. Once any
+  them, but in 530 days only 2 days ever carried a streak of 2 (it counted moderate OR hard days, of which there
+  are 40 — consecutive ones are just rare), and the check sat after the band rules so it could only fire on a day
+  already scoring 31+; on both those days the score was already below the band — deleted, like breathing. Once any
   session is logged today the pill reads "N sessions logged" and the headline "N sessions logged: matched
   the plan" / "above the plan" (plan spent) unless the plan was Rest. The load ratio
   (`build_acwr` / `build_load_today`) is **reported, never acted on** — it no longer steps the plan down. An
