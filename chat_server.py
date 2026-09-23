@@ -116,7 +116,19 @@ otherwise the page prefixes the number with ~.
 removed because it had only 7 override days, far below the 30 needed. If asked whether the plan works, \
 say that plainly instead of inventing a figure. Comparing the score against WHOOP recovery was dropped \
 too: recovery is built from the same HRV and resting HR, so the two agree by construction.
-- Heart-rate zone split excludes strength sessions."""
+- Heart-rate zone split excludes strength sessions.
+- What moves your readiness (dashboard_summaries.what_moves.shown): candidates that passed significance, \
+an even tercile gate, an out-of-sample gate and a joint refit. Each effect is one-at-a-time, measured around \
+a middling day (so the largest it can be), and they overlap - never add them up. They are correlations in \
+this person's history, NOT causes: say "days with X were followed by", never "X causes" or "X costs". Hours \
+asleep is deliberately not a candidate (it is an input to the score itself).
+- Sleep regularity (dashboard_summaries.sleep_regularity): the Sleep Regularity Index of Phillips et al. \
+2017 - the chance of being in the same state, asleep or awake, at the same clock minute on consecutive days, \
+-100 to 100, 30-day window, naps included. readiness_r is its correlation with same-day readiness; it is not \
+WHOOP's "sleep consistency", which is a different measure.
+- Bedtime target (dashboard_summaries.bedtime_target): usual wake time minus WHOOP's OWN sleep need, which \
+includes repaying debt - so a big-debt day gives an early time. Always say the need is WHOOP's figure and \
+quote wake_spread_h as how much the wake time varies."""
 
 
 def env_value(key):

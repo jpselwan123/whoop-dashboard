@@ -75,7 +75,9 @@
   .dt-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);}
   .dt-row:last-child{border-bottom:none;}
   .dt-row .k{font-size:11.5px;color:var(--ink-muted);}
-  .dt-row .v{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--ink);text-align:right;white-space:nowrap;}
+  .dt-row .k{flex:0 1 auto;min-width:0;}
+  .dt-row .v{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--ink);text-align:right;
+    flex:0 1 auto;min-width:0;overflow-wrap:anywhere;}
   .dt-row .lim{font-weight:400;color:var(--ink-faint);}
   .dt-row.flagged .k{color:var(--ink);}
   .dt-row.flagged .v{color:var(--warn);}
@@ -1925,7 +1927,7 @@ function whatIfScore(W, hours){
       // shown, not acted on: no published threshold for a nightly rise, so none is applied
       if(R.breathing) out.push(row('Breathing rate', `${one(R.breathing.value)} /min`, `usual ${one(R.breathing.usual)}`, ''));
       if(calc.cost) out.push(row('After today’s training', `${calc.cost.after}`, `${calc.cost.morning} this morning, −${Math.abs(calc.cost.cost)}`, 'flagged'));
-      if(calc.load) out.push(row('Load ratio · with today', calc.load.ratio.toFixed(2), `high above ${calc.load.bands.high} · reported, not acted on`, calc.load.ratio > calc.load.bands.caution ? 'flagged' : ''));
+      if(calc.load) out.push(row('Load ratio · for information', calc.load.ratio.toFixed(2), `high above ${calc.load.bands.high}`, calc.load.ratio > calc.load.bands.caution ? 'flagged' : ''));
       out.push(row('Days below your normal', `${R.days_below_normal}`, `rest at ${R.days_low_to_rest}`, R.days_below_normal >= R.days_low_to_rest ? 'flagged' : ''));
       for(const w of calc.sessions)
         out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));

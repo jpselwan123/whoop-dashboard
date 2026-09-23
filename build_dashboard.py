@@ -904,7 +904,7 @@ def _local_hour(ts, offset):
 
 
 def build_what_moves_features(sleep, naps, wo, strain_by_day, rest_days):
-    """The six candidates, each as one number per day, in units a sentence can quote.
+    """The five candidates, each as one number per day, in units a sentence can quote.
 
     Bedtime is signed hours from this person's own median bedtime (so 0 is their usual night and the
     sign means later), wrapped across midnight so 00:30 counts as late rather than as the small

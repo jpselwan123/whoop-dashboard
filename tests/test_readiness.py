@@ -452,6 +452,15 @@ class OneSourceOfTruthTest(unittest.TestCase):
             self.assertNotIn(literal, self.page, literal)
 
 
+class NarrowScreenTest(unittest.TestCase):
+    def test_panel_rows_may_wrap(self):
+        """At 390px a long limit ran 68px past the screen edge because the value refused to wrap."""
+        page = open(os.path.join(ROOT, 'dashboard_template.html')).read()
+        rule = page[page.index('.dt-row .v{'):page.index('}', page.index('.dt-row .v{'))]
+        self.assertNotIn('nowrap', rule)
+        self.assertIn('overflow-wrap:anywhere', rule)
+
+
 class StatisticsTest(unittest.TestCase):
     def test_incomplete_beta_matches_known_value(self):
         # two-sided p for t = 2.0 with 10 degrees of freedom is 0.0734

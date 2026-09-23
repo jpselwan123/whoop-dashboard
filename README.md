@@ -62,7 +62,7 @@ the dashboard says so rather than presenting one of ours as if it did.
   to your usual but never changes the plan (no study gives a numeric rise worth acting on).
 - **Today's plan** — training advice, sleep (nights with 7+ hours), the last day without a
   workout, and tonight's bedtime target from WHOOP's own sleep need.
-- **What moves your readiness** — six things about a day, each tested against the next morning's
+- **What moves your readiness** — five things about a day, each tested against the next morning's
   score. Only the ones that hold up on days they weren't fitted to are shown; most don't.
 
 <img src="docs/screenshots/analysis.png" alt="What moves your readiness: each candidate tested against the next morning's score, with the ones that failed left out" width="880">
@@ -289,6 +289,8 @@ window, p < 0.05 with 30+ per group — are cited in the tables above.
 | What-if slider range | shortest to longest night in the last **365** days | The owner's own specification: "my own min to max over the last year" |
 | Breathing baseline | nights **30–90** days back, **30**+ of them | Display only — breathing never changes the plan |
 | Strength sessions | weightlifting, powerlifting | Left out of the zone split: rest between sets reads as easy time |
+| Training-cost baseline | median day strain on rest days | The cost is only charged above a typical rest day, so doing less is never a bonus |
+| "What moves" display | at least **1** whole readiness point | A real but sub-point effect would read "0 points", which says nothing |
 
 ## Architecture
 

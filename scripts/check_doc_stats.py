@@ -362,7 +362,7 @@ def _rest_rules(series, ln_hrv):
 
 
 def _what_moves(data_dir):
-    """Which of the six candidates survive all three gates, and by how much."""
+    """Which of the candidates survive the gates, and by how much."""
     path = os.path.join(data_dir, 'dashboard_data.json')
     if not os.path.exists(path):
         return None
@@ -451,6 +451,7 @@ def check_measured_docs(facts, root=HERE):
     """
     if not facts:
         return []
+    words = {0: 'none', 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six'}
     source = open(os.path.join(root, 'build_dashboard.py')).read()
     prompt = open(os.path.join(root, 'chat_server.py')).read()
     readme = open(os.path.join(root, 'README.md')).read()
@@ -475,6 +476,10 @@ def check_measured_docs(facts, root=HERE):
                          % (rr_['kiviniemi_literal_fires'], rr_['kiviniemi_literal_pct'],
                             rr_['disagree_days'], rr_['disagree_pct'], rr_['both_fire']),
                          "Kiviniemi's literal rule and how far the two disagree"))
+    if wm:
+        expected.append((readme, 'README.md', 'On this history **%s of %s** survive%s' % (
+            words.get(wm['shown'], wm['shown']), words.get(wm['candidates'], wm['candidates']),
+            's' if wm['shown'] == 1 else ''), 'how many candidates survive'))
     if wm and wm['shown'] == 1 and wm['rows'][0]['key'] == 'strain':
         r = wm['rows'][0]
         # the prose uses a typographic minus, so the guard has to look for the same character
@@ -515,7 +520,6 @@ def check_measured_docs(facts, root=HERE):
                          '**±%d%%**; a 90-day window would be ±%d%%'
                          % (n, facts['effective_n'], round(facts['sd_error_pct']), round(facts['sd_error_90d_pct'])),
                          'the effective sample size and the spread error'))
-    words = {0: 'none', 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six'}
     if facts.get('collisions_if_utc_day') in words and facts.get('collisions_if_cycle_start') in words:
         expected.append((source, 'build_dashboard.py', 'collides\n    on %s and the local date of the cycle start on %s'
                          % (words[facts['collisions_if_utc_day']], words[facts['collisions_if_cycle_start']]),
