@@ -303,6 +303,11 @@ def _rest_rules(series, ln_hrv):
     trend for 2 days" is something else: two successive DROPS in HRV, whatever level it is at. Neither
     is obviously right, so both are measured here and the numbers are quoted in the README; only the
     first is implemented.
+
+    Both rules must be evaluated for the SAME day: today's HRV is known each morning, so Kiviniemi's
+    two drops end today, exactly as the implemented run of low days includes today. An earlier version
+    compared a run ending today against drops ending yesterday, which made the two look far more
+    different than they are.
     """
     days = [p['date'] for p in series]
     score = {p['date']: p['v'] for p in series}
@@ -319,9 +324,9 @@ def _rest_rules(series, ln_hrv):
     for d in days:
         if below_run(d) >= bd.DAYS_LOW_TO_REST:
             implemented.add(d)
-        y, y2, y3 = (bd._date_minus(d, k) for k in (1, 2, 3))
-        if all(k in ln_hrv for k in (y, y2, y3)) and ln_hrv[y] < ln_hrv[y2] < ln_hrv[y3]:
-            literal.add(d)          # HRV fell on each of the two days before today
+        y, y2 = (bd._date_minus(d, k) for k in (1, 2))
+        if all(k in ln_hrv for k in (d, y, y2)) and ln_hrv[d] < ln_hrv[y] < ln_hrv[y2]:
+            literal.add(d)          # HRV fell on today and on the day before
     n = len(days)
     return {
         'days': n,

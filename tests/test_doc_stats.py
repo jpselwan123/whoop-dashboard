@@ -12,6 +12,7 @@ band shares, day counts, spreads) move as days are added — `scripts/check_doc_
 those on demand, and this file only checks that the script itself still runs.
 """
 import io, contextlib, os, sys, unittest
+from datetime import date, timedelta
 
 from helpers import build_dashboard as bd, make_data_dir
 
@@ -52,6 +53,24 @@ class MeasuredFiguresTest(unittest.TestCase):
         self.assertAlmostEqual(sum(facts['answer_shares'].values()), 100.0, delta=0.3)
         self.assertGreater(facts['scored_days'], 0)
         self.assertLessEqual(facts['effective_n'], facts['scored_days'])
+
+    def test_both_rest_rules_are_judged_on_the_same_day(self):
+        """The comparison is meaningless if one rule looks at today and the other at yesterday.
+
+        Today's HRV is known each morning, so Kiviniemi's two drops end today, exactly as the
+        implemented run of low days includes today. An earlier version compared a run ending today
+        against drops ending yesterday, which inflated the disagreement.
+        """
+        series = [{'date': (date(2026, 1, 1) + timedelta(days=i)).isoformat(), 'v': 50}
+                  for i in range(40)]
+        falling = {p['date']: 4.0 - i * 0.01 for i, p in enumerate(series)}   # HRV drops every day
+        out = cds._rest_rules(series, falling)
+        # every day with two prior readings qualifies under the literal rule, today included
+        self.assertEqual(out['kiviniemi_literal_fires'], len(series) - 2)
+        self.assertEqual(out['days'], len(series))
+        # and with no day below the band, the implemented rule fires on none of them
+        self.assertEqual(out['implemented_fires'], 0)
+        self.assertEqual(out['disagree_days'], out['kiviniemi_literal_fires'])
 
     def test_variance_shares_account_for_the_whole_score(self):
         """Equal weights are not equal shares — but the six shares still have to add up."""
