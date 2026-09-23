@@ -78,6 +78,9 @@ invent one.
 
 <img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap and recovery cost by sport at the same intensity" width="880">
 
+- **Readiness, every day** — the last year as one cell per day, coloured by the plan that day's
+  score gave (the same three band colours, no new ones). Calendar days, so the gap in the export
+  shows as a gap; scrolls inside its own container.
 - **Recovery calendar heatmap** of every day on record.
 - **Recovery cost by sport** — one row per sport against your other training days, with your 4
   most-played shown and the rest in a dropdown; gaps that could be chance say so.

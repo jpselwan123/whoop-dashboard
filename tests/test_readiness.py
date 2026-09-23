@@ -342,6 +342,31 @@ class RulesThatWereDeletedTest(unittest.TestCase):
         self.assertIn('load.ratio', page)           # still measured and shown
 
 
+class YearHeatmapTest(unittest.TestCase):
+    """One year of daily readiness, coloured by the plan each day's score gave."""
+
+    def setUp(self):
+        self.page = open(os.path.join(ROOT, 'dashboard_template.html')).read()
+
+    def test_the_window_is_calendar_days_not_the_last_365_records(self):
+        """The export has a seven-month gap; 365 records would quietly span twenty months."""
+        self.assertNotIn('all.slice(-365)', self.page)
+        self.assertIn('setDate(from.getDate() - 364)', self.page)
+
+    def test_it_colours_by_the_plan_lines_not_fixed_numbers(self):
+        self.assertIn('R.lines.train', self.page)
+        self.assertIn('R.lines.rest', self.page)
+
+    def test_it_scrolls_inside_its_own_container(self):
+        """A phone must never end up scrolling the page sideways."""
+        self.assertIn('id="readyYearScroll"', self.page)
+        self.assertIn('class="heatmap-scroll"', self.page)
+
+    def test_it_is_drawn_and_reuses_the_existing_heatmap(self):
+        self.assertIn('renderReadinessYear();', self.page)
+        self.assertIn('function drawHeatmap(', self.page)
+
+
 class StatisticsTest(unittest.TestCase):
     def test_incomplete_beta_matches_known_value(self):
         # two-sided p for t = 2.0 with 10 degrees of freedom is 0.0734

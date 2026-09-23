@@ -524,6 +524,20 @@
   </section>
 
   <section class="card">
+    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Readiness, every day</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="readyYearRange"></span></div>
+    <div class="section-sub">The last year, one cell per day, coloured by the plan that day's score gave.</div>
+    <div class="heatmap-scroll" id="readyYearScroll" style="margin-top:10px;">
+      <div id="readyYearGrid" class="heatmap-grid"></div>
+      <div class="chart-tooltip" id="readyYearTooltip"></div>
+    </div>
+    <div class="legend" style="margin-top:10px;">
+      <div class="li"><span class="sw" style="background:var(--good)"></span>Train as planned</div>
+      <div class="li"><span class="sw" style="background:var(--warn)"></span>Go easy</div>
+      <div class="li"><span class="sw" style="background:var(--critical)"></span>Rest</div>
+    </div>
+  </section>
+
+  <section class="card">
     <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery, every day</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="heatmapRange"></span></div>
     <div class="heatmap-scroll" id="heatmapScroll">
       <div id="heatmapGrid" class="heatmap-grid"></div>
@@ -1570,7 +1584,32 @@ function renderSportCost(){
 
 /* ================= recovery heatmap ================= */
 function renderHeatmap(){
-  const series = DATA.full_series.recovery; // guaranteed non-empty
+  drawHeatmap({series: DATA.full_series.recovery, grid: 'heatmapGrid', scroll: 'heatmapScroll',
+               tooltip: 'heatmapTooltip', range: 'heatmapRange', noun: 'recovery',
+               bandFor: v => v == null ? null : v < 34 ? 'var(--critical)' : v < 67 ? 'var(--warn)' : 'var(--good)'});
+}
+
+// One year of daily readiness, same cells and same band colours as the plan itself. Scrolls inside
+// its own container so a phone never scrolls the page sideways.
+function renderReadinessYear(){
+  const all = DATA.full_series.readiness || [], R = DATA.readiness;
+  if(!all.length || !R) return;
+  // calendar days, never "the last 365 records" — the export has a seven-month gap, and a year
+  // heatmap has to show that gap as empty rather than quietly spanning twenty months
+  const lastISO = all[all.length - 1].date;
+  const from = new Date(lastISO + 'T00:00:00'); from.setDate(from.getDate() - 364);
+  const fromISO = from.getFullYear() + '-' + String(from.getMonth()+1).padStart(2,'0') + '-' + String(from.getDate()).padStart(2,'0');
+  const series = all.filter(p => p.date >= fromISO);
+  if(!series.length) return;
+  drawHeatmap({series, grid: 'readyYearGrid', scroll: 'readyYearScroll', tooltip: 'readyYearTooltip',
+               range: 'readyYearRange', noun: 'readiness',
+               bandFor: v => v == null ? null
+                 : v >= R.lines.train ? 'var(--good)' : v >= R.lines.rest ? 'var(--warn)' : 'var(--critical)'});
+}
+
+function drawHeatmap(opts){
+  const series = opts.series;
+  if(!series || !series.length) return;
   const byDate = new Map(series.map(p => [p.date, p.v]));
   const localISO = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   // the actual first/last day WITH data, as plain strings — every "is this day in
@@ -1586,15 +1625,8 @@ function renderHeatmap(){
   const end = new Date(last); end.setDate(end.getDate() + (6 - ((end.getDay()+6)%7)));
   const totalDays = Math.round((end - start) / 86400000) + 1; // computed once, before any drift can accumulate
 
-  function bandFor(v){
-    // flat colors only — one shade per WHOOP recovery zone, no gradient within a zone
-    if(v == null) return null;
-    if(v < 34) return 'var(--critical)';
-    if(v < 67) return 'var(--warn)';
-    return 'var(--good)';
-  }
-
-  const container = $('heatmapGrid');
+  const bandFor = opts.bandFor;          // flat colors only — one shade per band, no gradient
+  const container = $(opts.grid);
   container.innerHTML = '';
   const monthsEl = document.createElement('div'); monthsEl.className = 'heatmap-months';
   const weeksEl = document.createElement('div'); weeksEl.className = 'heatmap-weeks';
@@ -1635,8 +1667,8 @@ function renderHeatmap(){
   container.appendChild(monthsEl);
   container.appendChild(weeksEl);
 
-  const tooltip = $('heatmapTooltip');
-  const scrollWrap = $('heatmapScroll');
+  const tooltip = $(opts.tooltip);
+  const scrollWrap = $(opts.scroll);
   scrollWrap.scrollLeft = scrollWrap.scrollWidth; // open on the most recent data, not the oldest
   weeksEl.onmousemove = (e)=>{
     const cell = e.target.closest('.heatmap-cell');
@@ -1647,12 +1679,14 @@ function renderHeatmap(){
     tooltip.style.top = (cellRect.top - wrapRect.top - 4) + 'px';
     tooltip.style.opacity = 1;
     tooltip.textContent = cell.dataset.v != null
-      ? `${fmtDate(cell.dataset.date)} · recovery ${cell.dataset.v}`
+      ? `${fmtDate(cell.dataset.date)} · ${opts.noun} ${cell.dataset.v}`
       : `${fmtDate(cell.dataset.date)} · no data`;
   };
   weeksEl.onmouseleave = ()=>{ tooltip.style.opacity = 0; };
+  // details open on tap as well as hover, so it works without a mouse
+  weeksEl.ontouchstart = (e)=>{ if(e.target.closest('.heatmap-cell')) weeksEl.onmousemove(e.touches[0] ? {target: e.target} : e); };
 
-  $('heatmapRange').textContent = `${fmtDate(series[0].date)} → ${fmtDate(series[series.length-1].date)}`;
+  $(opts.range).textContent = `${fmtDate(series[0].date)} → ${fmtDate(series[series.length-1].date)}`;
 }
 
 
@@ -1786,6 +1820,7 @@ function renderAll(){
   renderSportCost();
   renderExplorer();
   renderHeatmap();
+  renderReadinessYear();
   renderStageChart();
   renderRecords();
   renderLoad();
