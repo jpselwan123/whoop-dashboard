@@ -442,8 +442,8 @@
 
   <section class="card">
     <div class="section-head"><h2>What moves your readiness</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Five things about a day — bedtime, strain, naps, when training finished, days since a rest day — each tested against the next morning's score. Only the ones that hold up on days they weren't fitted to are shown.</div>
-    <div class="section-sub">Each is measured on its own and they overlap, so the numbers don't add up. They are patterns in your history, not proof of cause.</div>
+    <div class="section-sub">Patterns, not causes. Five things about a day — bedtime, strain, naps, when training finished, days since a rest day — each checked against the next morning's score. A pattern is shown only if it held in both halves of your history and on days it wasn't fitted to.</div>
+    <div class="section-sub">Each is measured on its own and they overlap, so the numbers don't add up.</div>
     <div class="signal-grid" style="margin-top:12px;" id="whatMovesGrid"></div>
   </section>
 
@@ -1783,7 +1783,7 @@ function renderWhatMoves(){
   if(!grid) return;
   if(!W || !W.shown.length){
     grid.innerHTML = `<div class="signal"><span class="dot"></span><span class="txt">${
-      W ? `None of the ${W.candidates} changed the next morning reliably enough to act on.`
+      W ? `No pattern held up: none of the ${WORDS[W.candidates] || W.candidates} went with the next morning's score consistently enough to show.`
         : 'Not enough history yet.'}</span></div>`;
     return;
   }
@@ -1792,8 +1792,8 @@ function renderWhatMoves(){
     const n = Math.abs(r.points);
     const label = r.label.charAt(0).toUpperCase() + r.label.slice(1);
     // the held-out gain is stated as it is, never graded against a line of our own
-    const gain = r.holdout_margin == null ? '' :
-      ` On days it wasn't fitted to, it improved the forecast by ${r.holdout_margin.toFixed(2)} points.`;
+    const st = r.holdout_sign_test;
+    const gain = !st ? '' : ` On days it wasn't fitted to, it improved the forecast on ${st.wins} days and worsened it on ${st.losses}.`;
     const joint = r.joint && !r.joint.significant
       ? ' Measured alongside the others it keeps its direction, but is no longer clear on its own.' : '';
     return `<div class="signal"><span class="dot"></span><span class="txt"><b>${label}</b> was followed by readiness about <b>${n} point${n === 1 ? '' : 's'} ${r.points > 0 ? 'higher' : 'lower'}</b> the next morning, around a middling day, over ${r.days} days.${gain}${joint}</span></div>`;
