@@ -31,6 +31,9 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 | `native_app/main.swift` | runs `refresh.sh`, loads `~/whoop/index.html`, spawns `chat_server.py` |
 
 ## Hard rules
+- **Python 3.9-compatible, standard library only, no third-party dependencies** (the system python
+  here is 3.9.6 — no `match`, no `X | Y` type syntax). The UI must work at **390px wide** with no
+  horizontal page scroll.
 - **Privacy first.** Never commit `.env`, `whoop_tokens.json`, `whoop_data.json`,
   `dashboard_data.json`, `index.html`. Tests/screenshots/docs use synthetic data only.
   No personal names, emails, ids, or `/Users/...` paths in tracked files.
