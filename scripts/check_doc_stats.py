@@ -117,6 +117,7 @@ def measured_facts(data_dir):
         'trimp_ratio': _trimp_ratio(data_dir),
         'rest_rules': _rest_rules(series, inputs['hrv']),
         'what_moves': _what_moves(data_dir),
+        'sleep_regularity': _sleep_regularity(data_dir),
     }
 
 
@@ -355,6 +356,18 @@ def _what_moves(data_dir):
                       'holdout_margin': r['holdout_margin']} for r in wm['shown']]}
 
 
+def _sleep_regularity(data_dir):
+    """The index, its 30-day move, and how it relates to readiness on this history."""
+    path = os.path.join(data_dir, 'dashboard_data.json')
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        sr = json.load(fh).get('sleep_regularity')
+    if not sr:
+        return None
+    return {k: sr[k] for k in ('value', 'change_30d', 'days', 'readiness_r', 'readiness_days')}
+
+
 def check_measured_docs(facts, root=HERE):
     """Sentences quoting a MEASURED figure — checked only when real data is present.
 
@@ -396,6 +409,11 @@ def check_measured_docs(facts, root=HERE):
         expected.append((readme, 'README.md',
                          'held-out days by **%.2f points**' % r['holdout_margin'],
                          'how narrowly it beat doing nothing'))
+    sr_idx = facts.get('sleep_regularity')
+    if sr_idx and sr_idx.get('readiness_r') is not None:
+        expected.append((readme, 'README.md',
+                         'r = %.2f over %d days here' % (sr_idx['readiness_r'], sr_idx['readiness_days']),
+                         'sleep regularity against readiness'))
     tc = facts.get('training_cost')
     if tc and tc.get('per_strain') is not None:
         expected.append((readme, 'README.md',

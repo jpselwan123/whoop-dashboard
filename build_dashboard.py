@@ -1003,6 +1003,89 @@ def _one_predictor(rows, by_day, src, key, label, unit, step):
             'holdout_margin': margin, 'holdout_days': held_out}
 
 
+SRI_WINDOW_DAYS = 30          # the window Phillips et al. 2017 used
+SRI_MINUTES = 1440
+
+
+def build_sleep_regularity(sleep, naps, readiness_series, today):
+    """Sleep Regularity Index (Phillips et al. 2017).
+
+    Their definition, verbatim: "SRI was computed as the likelihood that any two time-points
+    (minute-by-minute) 24 h apart were the same sleep/wake state, across all days. The value could
+    theoretically range 0 to 1, and was rescaled (y = 200 (x - 1/2)) to give a range of -100 to
+    100." 100 means sleeping and waking at exactly the same times every day; 0 is no better than
+    chance.
+
+    NAPS ARE INCLUDED. The index "does not require designation of a main daily sleep episode", which
+    is the whole reason it works for people with daytime sleep — so every scored episode counts, not
+    just the night.
+
+    Minutes are placed by CLOCK time in the record's own time zone, on the calendar date they fall
+    on, which is not the dashboard's sleep-to-sleep day: a night crossing midnight marks minutes on
+    both dates, exactly as a raster plot would. A pair of days counts only when both have sleep
+    recorded, so a gap in the export reads as missing rather than as a day spent awake.
+    """
+    asleep = {}
+    for sl in list(sleep) + list(naps):
+        tz = local_tz(sl.get('timezone_offset'))
+        start, end = parse(sl['start']).astimezone(tz), parse(sl['end']).astimezone(tz)
+        cur = start.replace(second=0, microsecond=0)
+        while cur < end:                              # one pass per calendar date the episode spans
+            d = cur.date().isoformat()
+            midnight = cur.replace(hour=0, minute=0)
+            first_min = cur.hour * 60 + cur.minute
+            last_min = min(SRI_MINUTES, int((end - midnight).total_seconds() // 60))
+            row = asleep.setdefault(d, bytearray(SRI_MINUTES))
+            row[first_min:last_min] = b'\x01' * max(0, last_min - first_min)
+            cur = midnight + timedelta(days=1)
+    if len(asleep) < 3:
+        return None
+
+    # each consecutive pair is compared once; a window is then just a sum over its pairs. Comparing
+    # 1440 minutes as one integer per day makes it a single XOR and a bit count.
+    # the first and last dates touched are only partly observed — the night before the export begins
+    # and the night still in progress — so they are dropped rather than counted as time awake
+    days = sorted(asleep)[1:-1]
+    as_int = {d: int.from_bytes(bytes(v), 'big') for d, v in asleep.items()}
+    complete = set(days)
+    pair_same = {}
+    for d in days:
+        nxt = _date_minus(d, -1)
+        if nxt in complete:
+            pair_same[d] = SRI_MINUTES - bin(as_int[d] ^ as_int[nxt]).count('1')
+
+    series = []
+    for d in days:
+        first = _date_minus(d, SRI_WINDOW_DAYS - 1)
+        window = [k for k in pair_same if first <= k <= d]
+        if len(window) < SRI_WINDOW_DAYS // 2:        # half the window must have data to report one
+            continue
+        series.append({'date': d, 'v': round(200 * (sum(pair_same[k] for k in window)
+                                                    / (SRI_MINUTES * len(window))) - 100, 1)})
+    if not series:
+        return None
+
+    # against readiness on the same day — a correlation on one person's history, nothing more
+    scores = {p['date']: p['v'] for p in readiness_series}
+    pairs = [(p['v'], scores[p['date']]) for p in series if p['date'] in scores]
+    r = None
+    if len(pairs) >= MIN_GROUP:
+        mx = mean(x for x, _ in pairs)
+        my = mean(y for _, y in pairs)
+        den = math.sqrt(sum((x - mx) ** 2 for x, _ in pairs) * sum((y - my) ** 2 for _, y in pairs))
+        if den:
+            r = round(sum((x - mx) * (y - my) for x, y in pairs) / den, 2)
+    latest = series[-1]
+    prior = next((p['v'] for p in reversed(series) if p['date'] <= _date_minus(latest['date'], SRI_WINDOW_DAYS)), None)
+    return {
+        'date': latest['date'], 'value': latest['v'],
+        'change_30d': None if prior is None else round(latest['v'] - prior, 1),
+        'window_days': SRI_WINDOW_DAYS, 'days': len(series),
+        'readiness_r': r, 'readiness_days': len(pairs),
+        'series': series,
+    }
+
+
 def build_sleep_composition(sleep, now):
     """Weekly average REM/deep(SWS)/light sleep hours, last 8 weeks. Computed here
     (not client-side) so the week key is zero-padded and sorts correctly — the same
@@ -1270,6 +1353,9 @@ def build_summary(d):
                                             {d for d in strain_by_day if d not in by_day_wo})
     wm_features['sleep_hours'] = dict(sleep_h_by_day)
     what_moves = build_what_moves(readiness_series, wm_features, record_day(cyc[-1]))
+    sleep_regularity = build_sleep_regularity(sleep, naps, readiness_series, record_day(cyc[-1]))
+    if sleep_regularity:
+        full['sleep_regularity'] = sleep_regularity['series']
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
         entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(
             intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(entry['date'])))
@@ -1343,6 +1429,7 @@ def build_summary(d):
         'load_today': load_today,
         'training_cost': training_cost,
         'what_moves': what_moves,
+        'sleep_regularity': sleep_regularity,
         'monotony': monotony,
         'sport_recovery_cost': sport_recovery_cost,
         'sleep_composition': sleep_composition,

@@ -493,6 +493,12 @@
   </section>
 
   <section class="card">
+    <div class="section-head"><h2>Sleep regularity</h2><span class="beyond-badge">Beyond WHOOP</span></div>
+    <div class="section-sub">How likely you are to be in the same state — asleep or awake — at the same clock minute on two days running, over the last 30 days. 100 is sleeping and waking at identical times every day; 0 is no better than chance. Naps count: the measure deliberately doesn't single out a main sleep.</div>
+    <div class="signal-grid" style="margin-top:12px;" id="sriGrid"></div>
+  </section>
+
+  <section class="card">
     <div class="section-head"><h2>Sleep composition</h2><span class="n">weekly avg, last 8 weeks</span></div>
     <div class="chart-wrap" id="stageChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="stageTooltip"></div></div>
     <div class="legend">
@@ -1347,6 +1353,7 @@ const METRICS = [
   {key:'sleep_consistency', label:'Sleep consistency', unit:'%', decimals:0, bounds:[0,100], formula:'sleep.score.sleep_consistency_percentage — similarity to prior nights.'},
   {key:'respiratory_rate', label:'Respiratory rate', unit:' br/min', decimals:1, formula:'sleep.score.respiratory_rate, overnight.'},
   {key:'skin_temp', label:'Skin temp', unit:'°C', decimals:1, formula:'recovery.score.skin_temp_celsius, overnight.'},
+  {key:'sleep_regularity', label:'Sleep regularity', unit:'', decimals:1, bounds:[-100,100], formula:'Sleep Regularity Index (Phillips et al. 2017): the chance of being in the same state, asleep or awake, at the same clock minute on two days running, over a 30-day window. Naps included.'},
 ];
 const RANGES = [{key:'30d',label:'30D',days:30},{key:'90d',label:'90D',days:90},{key:'6m',label:'6M',days:182},{key:'1y',label:'1Y',days:365},{key:'all',label:'All',days:Infinity}];
 let curMetric = 'readiness', curRange = '90d';
@@ -1751,11 +1758,28 @@ function renderWhatMoves(){
   }).join('');
 }
 
+// Sleep Regularity Index (Phillips et al. 2017). The correlation with readiness is shown because it
+// is the obvious question — and stated as a correlation on one person's history, which is all it is.
+function renderSleepRegularity(){
+  const S = DATA.sleep_regularity, grid = $('sriGrid');
+  if(!grid) return;
+  if(!S){ grid.innerHTML = `<div class="signal"><span class="dot"></span><span class="txt">Not enough nights yet.</span></div>`; return; }
+  const rows = [`<div class="signal"><span class="dot"></span><span class="txt">Your sleep regularity is <b>${S.value.toFixed(1)}</b> out of 100${
+    S.change_30d == null ? '' : `, ${S.change_30d === 0 ? 'unchanged from' : `${Math.abs(S.change_30d).toFixed(1)} ${S.change_30d > 0 ? 'higher' : 'lower'} than`} 30 days ago`}.</span></div>`];
+  if(S.readiness_r != null){
+    const a = Math.abs(S.readiness_r);
+    const strength = a < 0.1 ? 'no relationship at all' : a < 0.3 ? 'a weak relationship' : a < 0.5 ? 'a moderate relationship' : 'a strong relationship';
+    rows.push(`<div class="signal"><span class="dot"></span><span class="txt">Against your readiness on the same day there is <b>${strength}</b> (r = ${S.readiness_r.toFixed(2)}, ${S.readiness_days} days). This is a correlation on your own history — it doesn't show that one causes the other.</span></div>`);
+  }
+  grid.innerHTML = rows.join('');
+}
+
 function renderAll(){
   renderStats();
   renderRightNow();
   renderTodaySignals();
   renderWhatMoves();
+  renderSleepRegularity();
   renderACWR();
   renderMonotony();
   renderZoneDistribution();
