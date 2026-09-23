@@ -812,6 +812,44 @@ def _is_monotone(means, rising):
     return len(means) == 3 and (means[0] <= means[1] <= means[2] if rising else means[0] >= means[1] >= means[2])
 
 
+def _sign_test(base_err, adj_err):
+    """Does the adjusted forecast beat doing nothing on more held-out days than chance would give?
+
+    A one-sided sign test (exact binomial, p = 0.5 per day): count the days the adjusted error is
+    smaller ("wins") and larger ("losses"); days where they tie carry no information and are set
+    aside, as the test prescribes. A mean margin can be positive while the adjustment wins barely
+    half the days — this asks whether it wins MORE days than a coin would.
+    """
+    wins = sum(1 for b, a in zip(base_err, adj_err) if a < b)
+    losses = sum(1 for b, a in zip(base_err, adj_err) if a > b)
+    n = wins + losses
+    if n == 0:
+        return {'wins': 0, 'losses': 0, 'ties': len(base_err), 'p': 1.0, 'passes': False}
+    p = sum(math.comb(n, k) for k in range(wins, n + 1)) / 2 ** n
+    return {'wins': wins, 'losses': losses, 'ties': len(base_err) - n, 'p': round(p, 4),
+            'passes': p < SIGNIFICANCE}
+
+
+def _split_half(rows):
+    """Fit the same model on the first and the second half of the history, separately.
+
+    A real relationship should show up in both halves, with the same sign and p < 0.05 in each; one
+    that only exists across the whole run is often a single stretch of days carrying it. Same kind of
+    check as the hold-out, not a new threshold: the halves are just the history cut in two.
+    """
+    half = len(rows) // 2
+    out = []
+    for part in (rows[:half], rows[half:]):
+        if len(part) < MIN_GROUP:
+            return None
+        fit = _ols_newey_west([r[1] for r in part], [r[2] for r in part])
+        if fit is None:
+            return None
+        beta, se, _r1 = fit
+        out.append({'coefficient': round(beta[2], 4), 'p': round(_p_two_sided(beta[2], se[2], len(part) - 3), 4)})
+    return out
+
+
 def build_training_cost(readiness_series, strain_by_day, workout_days, today):
     by_day = {p['date']: p for p in readiness_series}
     rows = []
@@ -843,10 +881,11 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
     med = lambda xs: (sorted(xs)[len(xs) // 2] if len(xs) % 2 else mean(sorted(xs)[len(xs) // 2 - 1:len(xs) // 2 + 1]))
     rest_strain = med(rest)
 
-    # out of sample: does subtracting the cost predict the next morning better than doing nothing?
+    # out of sample: fitted on the first 70%, does subtracting the cost beat doing nothing on MORE of the
+    # last 30% of days than chance would (a sign test, not a comparison of means)?
     cut = int(len(rows) * (1 - HOLDOUT))
     train, test = rows[:cut], rows[cut:]
-    improved = None
+    improved, sign = None, None
     if len(train) >= MIN_GROUP and len(test) >= MIN_GROUP:
         f2 = _ols_newey_west([r[1] for r in train], [r[2] for r in train])
         if f2:
@@ -858,7 +897,8 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
                 shown = max(1, min(99, round(normal_percentile(by_day[d]['z'] + cost))))
                 base_err.append(abs(by_day[d]['v'] - nxt['v']))
                 adj_err.append(abs(shown - nxt['v']))
-            improved = mean(adj_err) < mean(base_err)
+            sign = _sign_test(base_err, adj_err)
+            improved = sign['passes']
             base_mae, adj_mae = round(mean(base_err), 1), round(mean(adj_err), 1)
     significant = p < SIGNIFICANCE and per_strain < 0
     usable = bool(significant and monotone and improved)
@@ -871,6 +911,7 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
             'residual_autocorr': round(resid_r1, 2), 'tercile_next_night': tercile_means,
             'linear': monotone, 'significant': significant,
             'holdout_better': improved, 'holdout_mae': None if improved is None else [base_mae, adj_mae],
+            'holdout_sign_test': sign,
             'usable': usable,
             'cost': None if cost_z is None else round(normal_percentile(z_today + cost_z)) - morning,
             'after': None if cost_z is None else max(1, min(99, round(normal_percentile(z_today + cost_z))))}
@@ -1038,10 +1079,11 @@ def _one_predictor(rows, by_day, src, key, label, unit, step):
     means = _tercile_means([float(src[d]) for d, _x, _nz in rows], _residualised(rows))
     monotone = _is_monotone(means, rising=coef > 0)
 
-    # out of sample: fitted on the first 70%, does it beat doing nothing on the last 30%?
+    # out of sample: fitted on the first 70%, does it beat doing nothing on MORE of the last 30% of days
+    # than chance would? A sign test — a positive mean margin alone can be a hair's breadth
     cut = int(len(rows) * (1 - HOLDOUT))
     train, test = rows[:cut], rows[cut:]
-    improved, mae, margin, held_out = None, None, None, None
+    improved, mae, margin, held_out, sign = None, None, None, None, None
     if len(train) >= MIN_GROUP and len(test) >= MIN_GROUP:
         f2 = _ols_newey_west([r[1] for r in train], [r[2] for r in train])
         if f2:
@@ -1053,13 +1095,18 @@ def _one_predictor(rows, by_day, src, key, label, unit, step):
                 shifted = by_day[d]['z'] + c_train * (float(src[d]) - typical)
                 base_err.append(abs(by_day[d]['v'] - nxt['v']))
                 adj_err.append(abs(max(1, min(99, round(normal_percentile(shifted)))) - nxt['v']))
-            improved = mean(adj_err) < mean(base_err)
-            # the margin is kept at full precision: "beats doing nothing" can be true by a hair,
-            # and a sentence that does not say so is an overclaim
+            sign = _sign_test(base_err, adj_err)
+            improved = sign['passes']
             mae = [round(mean(base_err), 2), round(mean(adj_err), 2)]
             margin = round(mean(base_err) - mean(adj_err), 3)
             held_out = len(test)
     if not (significant and monotone and improved):
+        return None
+
+    # fourth gate: the same sign and p < 0.05 in each half of the history, fitted separately
+    halves = _split_half(rows)
+    stable = bool(halves) and all(h['p'] < SIGNIFICANCE and (h['coefficient'] > 0) == (coef > 0) for h in halves)
+    if not stable:
         return None
 
     # in readiness points: what one step does to a middling day, read off the same normal curve
@@ -1069,7 +1116,8 @@ def _one_predictor(rows, by_day, src, key, label, unit, step):
     return {'key': key, 'label': label, 'unit': unit, 'points': points, 'days': len(rows),
             'coefficient': round(coef, 4), 'p': round(p, 4), 'terciles': means,
             'residual_autocorr': round(resid_r1, 2), 'holdout_mae': mae,
-            'holdout_margin': margin, 'holdout_days': held_out}
+            'holdout_margin': margin, 'holdout_days': held_out, 'holdout_sign_test': sign,
+            'halves': halves}
 
 
 SRI_WINDOW_DAYS = 30          # the window Phillips et al. 2017 used

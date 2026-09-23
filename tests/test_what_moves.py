@@ -95,7 +95,10 @@ class GatesTest(unittest.TestCase):
 class JointGateTest(unittest.TestCase):
     """Correlated candidates steal each other's effect when fitted one at a time."""
 
-    def world(self, n=500, seed=13):
+    def world(self, n=1000, seed=13):
+        # today's score carries into tomorrow, as real scores do (day-to-day r = 0.87 here): without
+        # that, "today's score plus a shift" is a poor forecast whatever the shift, and no honest
+        # out-of-sample test could pass
         rng = random.Random(seed)
         ds = days(n)
         strain = {d: rng.uniform(0, 20) for d in ds}
@@ -103,7 +106,7 @@ class JointGateTest(unittest.TestCase):
         z = [0.0]
         for i in range(1, n):
             y = ds[i - 1]
-            z.append(-0.06 * (strain[y] - 10) + 0.25 * bed[y] + rng.gauss(0, 0.25))
+            z.append(0.85 * z[-1] - 0.06 * (strain[y] - 10) + 0.25 * bed[y] + rng.gauss(0, 0.25))
         return ds, z, strain, bed
 
     def test_a_linear_combination_of_two_others_does_not_survive(self):
@@ -163,6 +166,67 @@ class ResidualisedGateTest(unittest.TestCase):
         self.assertEqual(round(bd.normal_percentile(0.1) - bd.normal_percentile(0.0)), 4)
         self.assertLess(bd.normal_percentile(2.1) - bd.normal_percentile(2.0),
                         bd.normal_percentile(0.1) - bd.normal_percentile(0.0))
+
+
+class SignTestGateTest(unittest.TestCase):
+    """The hold-out gate asks whether the adjustment wins on MORE days than chance, not on the mean."""
+
+    def test_the_binomial_arithmetic(self):
+        # 8 wins of 10 decided days: P(X >= 8 | n = 10, p = 0.5) = 56/1024
+        out = bd._sign_test([1] * 10, [0] * 8 + [2] * 2)
+        self.assertEqual((out['wins'], out['losses'], out['ties']), (8, 2, 0))
+        self.assertAlmostEqual(out['p'], 56 / 1024, places=4)
+
+    def test_ties_carry_no_information(self):
+        out = bd._sign_test([5, 5, 5, 5], [5, 5, 4, 6])
+        self.assertEqual((out['wins'], out['losses'], out['ties']), (1, 1, 2))
+
+    def test_a_tiny_mean_margin_on_a_coin_flip_of_days_fails(self):
+        """The case that prompted this: a mean margin of about 0.013 points, won on fewer than half the days."""
+        base = [10.0] * 140
+        adj = [9.0] * 67 + [11.0] * 73          # 67 wins, 73 losses — the real history's split
+        adj[0] -= 7.82                          # one big win drags the mean below the null — 67 vs 73 days still stands
+        self.assertLess(sum(adj) / len(adj), sum(base) / len(base))
+        self.assertAlmostEqual(sum(base) / len(base) - sum(adj) / len(adj), 0.013, places=3)
+        self.assertFalse(bd._sign_test(base, adj)['passes'])
+
+
+class SplitHalfGateTest(unittest.TestCase):
+    def test_an_effect_living_in_one_half_only_is_dropped(self):
+        """Strong across the whole run, absent in the second half: not a stable relationship."""
+        rng = random.Random(9)
+        ds = days(800)
+        strain = {d: rng.uniform(0, 20) for d in ds}
+        z = [0.0]
+        for i in range(1, len(ds)):
+            effect = -0.12 if i < len(ds) // 2 else 0.0
+            z.append(0.85 * z[-1] + effect * (strain[ds[i - 1]] - 10) + rng.gauss(0, 0.25))
+        self.assertEqual(run(strain, z, ds)['shown'], [])
+
+    def test_a_stable_effect_reports_both_halves(self):
+        rng = random.Random(9)
+        ds = days(800)
+        strain = {d: rng.uniform(0, 20) for d in ds}
+        z = [0.0]
+        for i in range(1, len(ds)):
+            z.append(0.85 * z[-1] - 0.08 * (strain[ds[i - 1]] - 10) + rng.gauss(0, 0.25))
+        shown = run(strain, z, ds)['shown']
+        self.assertEqual([r['key'] for r in shown], ['strain'])
+        halves = shown[0]['halves']
+        self.assertEqual(len(halves), 2)
+        self.assertTrue(all(h['p'] < 0.05 and h['coefficient'] < 0 for h in halves))
+
+
+class DemoAthleteTest(unittest.TestCase):
+    def test_the_demo_athletes_bedtime_a_known_null_does_not_survive(self):
+        """The generator gives bedtime no effect at all; three gates plus the joint fit let it through,
+        the split-half and sign-test gates must not."""
+        import io, contextlib
+        from helpers import generate
+        raw = generate(days=420, seed=23)
+        with contextlib.redirect_stdout(io.StringIO()):
+            shown = bd.build_summary(raw)['what_moves']['shown']
+        self.assertNotIn('bedtime_offset_h', {r['key'] for r in shown})
 
 
 class FeaturesTest(unittest.TestCase):

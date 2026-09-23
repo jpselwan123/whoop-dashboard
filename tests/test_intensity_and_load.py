@@ -257,6 +257,18 @@ class TrainingCostTest(unittest.TestCase):
         self.assertIn('training_cost', s)
 
 
+class TrainingCostSignTestTest(unittest.TestCase):
+    """The training cost's hold-out gate is the same sign test as the panel's — not a comparison of means."""
+
+    def test_the_hold_out_gate_is_the_sign_test(self):
+        series, strain, wd, days = TrainingCostTest().history(effect=-0.08)
+        out = bd.build_training_cost(series, strain, wd, days[-1])
+        st = out['holdout_sign_test']
+        self.assertIsNotNone(st)
+        self.assertEqual(out['holdout_better'], st['passes'])
+        self.assertEqual(st['passes'], st['p'] < bd.SIGNIFICANCE)
+
+
 class PlanEffectScriptTest(unittest.TestCase):
     """The offline analysis in scripts/analyse_plan_effect.py, on synthetic data only."""
 
