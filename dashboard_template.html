@@ -435,6 +435,7 @@
       <div class="signal" id="anomalySignal"><span class="dot"></span><span class="txt" id="anomalyText">Checking…</span></div>
       <div class="signal" id="sportCostSignal"><span class="dot"></span><span class="txt" id="sportCostText">Checking…</span></div>
       <div class="signal" id="restDaySignal"><span class="dot"></span><span class="txt" id="restDayText">Checking…</span></div>
+      <div class="signal" id="bedtimeSignal"><span class="dot"></span><span class="txt" id="bedtimeText">Checking…</span></div>
     </div>
   </section>
 
@@ -1808,12 +1809,27 @@ function renderSleepRegularity(){
   grid.innerHTML = rows.join('');
 }
 
+// Tonight's target = your usual wake time minus WHOOP's OWN sleep need (baseline + debt + recent
+// strain + naps, all from the API). The only arithmetic here is the subtraction. How much your wake
+// time actually varies is stated rather than judged: no study says when it is too variable to aim at.
+function renderBedtime(){
+  const B = DATA.bedtime_target, el = $('bedtimeText');
+  if(!el) return;
+  if(!B){ el.textContent = 'Not enough nights yet to suggest a bedtime.'; return; }
+  const steady = B.wake_spread_h <= 1;
+  el.innerHTML = `<b>Asleep by ${B.asleep_by}</b> to meet tonight's sleep need of ${fmtHM(B.need_h)} — WHOOP's own figure, not ours. ` +
+    (steady
+      ? `Counting back from your usual ${B.wake} wake-up (last ${B.nights} nights).`
+      : `That counts back from your <b>median</b> wake-up of ${B.wake}, but your wake time swings by about ${fmtHM(B.wake_spread_h)} either side over the last ${B.nights} nights, so treat it as rough.`);
+}
+
 function renderAll(){
   renderStats();
   renderRightNow();
   renderTodaySignals();
   renderWhatMoves();
   renderSleepRegularity();
+  renderBedtime();
   renderACWR();
   renderMonotony();
   renderZoneDistribution();

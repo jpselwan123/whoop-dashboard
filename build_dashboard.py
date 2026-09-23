@@ -1086,6 +1086,48 @@ def build_sleep_regularity(sleep, naps, readiness_series, today):
     }
 
 
+BEDTIME_WAKE_WINDOW_DAYS = 30
+BEDTIME_STEADY_SD_H = None          # no threshold invented: see build_bedtime_target
+
+
+def build_bedtime_target(sleep, today):
+    """When to be asleep tonight to meet WHOOP's own sleep need, from your usual wake time.
+
+    The need is WHOOP's, not ours: `sleep_needed` = baseline + sleep debt + recent strain + recent
+    naps, all supplied by the API. The only arithmetic here is usual wake time minus that need.
+
+    "Usual wake time" is the median of the last 30 nights in each night's own time zone. How much it
+    varies is reported in plain hours rather than judged against a cut-off, because no study defines
+    when a wake time is too variable to aim at — the page shows the spread and lets the reader
+    decide.
+    """
+    nights = [s for s in sleep if s.get('score') and s['score'].get('sleep_needed')]
+    if not nights:
+        return None
+    recent = sorted(nights, key=lambda s: s['end'])[-BEDTIME_WAKE_WINDOW_DAYS:]
+    if len(recent) < READY_MIN_READINGS:
+        return None
+    wakes = sorted(_local_hour(s['end'], s.get('timezone_offset')) for s in recent)
+    median_wake = wakes[len(wakes) // 2] if len(wakes) % 2 else mean(wakes[len(wakes) // 2 - 1:len(wakes) // 2 + 1])
+    spread = pstdev(wakes) if len(wakes) > 1 else 0.0
+
+    need = recent[-1]['score']['sleep_needed']
+    parts = {k: need.get(k, 0) / 3600000.0 for k in
+             ('baseline_milli', 'need_from_sleep_debt_milli',
+              'need_from_recent_strain_milli', 'need_from_recent_nap_milli')}
+    total_h = sum(parts.values())
+    asleep_by = (median_wake - total_h) % 24
+    return {
+        'date': today,
+        'asleep_by': '%02d:%02d' % (int(asleep_by), round((asleep_by % 1) * 60) % 60),
+        'need_h': round(total_h, 2),
+        'wake': '%02d:%02d' % (int(median_wake), round((median_wake % 1) * 60) % 60),
+        'wake_spread_h': round(spread, 1),
+        'nights': len(recent),
+        'parts_h': {k.replace('_milli', '').replace('need_from_', ''): round(v, 2) for k, v in parts.items()},
+    }
+
+
 def build_sleep_composition(sleep, now):
     """Weekly average REM/deep(SWS)/light sleep hours, last 8 weeks. Computed here
     (not client-side) so the week key is zero-padded and sorts correctly — the same
@@ -1354,6 +1396,7 @@ def build_summary(d):
     wm_features['sleep_hours'] = dict(sleep_h_by_day)
     what_moves = build_what_moves(readiness_series, wm_features, record_day(cyc[-1]))
     sleep_regularity = build_sleep_regularity(sleep, naps, readiness_series, record_day(cyc[-1]))
+    bedtime_target = build_bedtime_target(sleep, record_day(cyc[-1]))
     if sleep_regularity:
         full['sleep_regularity'] = sleep_regularity['series']
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
@@ -1430,6 +1473,7 @@ def build_summary(d):
         'training_cost': training_cost,
         'what_moves': what_moves,
         'sleep_regularity': sleep_regularity,
+        'bedtime_target': bedtime_target,
         'monotony': monotony,
         'sport_recovery_cost': sport_recovery_cost,
         'sleep_composition': sleep_composition,
