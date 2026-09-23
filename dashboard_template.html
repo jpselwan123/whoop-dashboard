@@ -438,6 +438,12 @@
     </div>
   </section>
 
+  <section class="card">
+    <div class="section-head"><h2>What moves your readiness</h2><span class="beyond-badge">Beyond WHOOP</span></div>
+    <div class="section-sub">Six things about a day — sleep, bedtime, strain, a nap, when training finished, days since a rest day — each tested on its own against the next morning's score. Only what survives all three checks is shown: a real effect, an even one, and one that beats doing nothing on days it was never fitted to.</div>
+    <div class="signal-grid" style="margin-top:12px;" id="whatMovesGrid"></div>
+  </section>
+
   <div class="group-header"><span class="glabel">Weekly</span><span class="grule"></span><span class="gcaption">load, patterns, injury-risk signals</span></div>
 
   <section class="card">
@@ -1724,10 +1730,32 @@ function renderCoverage(){
   $('totalDaysNote').textContent = `${DATA.n_days_total} days on record (${fmtDate(start)} → ${fmtDate(end)})`;
 }
 
+// Each candidate has to clear the same three gates the training-cost adjustment does: significant,
+// even across its own terciles, and better than doing nothing out of sample. Nearly everything fails,
+// which is the point — the panel says so rather than filling itself with plausible-sounding lines.
+function renderWhatMoves(){
+  const W = DATA.what_moves, grid = $('whatMovesGrid');
+  if(!grid) return;
+  if(!W || !W.shown.length){
+    grid.innerHTML = `<div class="signal"><span class="dot"></span><span class="txt">${
+      W ? `None of the ${W.candidates} passed all three checks on your history — nothing here moved the next morning reliably enough to act on.`
+        : 'Not enough history yet.'}</span></div>`;
+    return;
+  }
+  grid.innerHTML = W.shown.map(r => {
+    const sign = r.points > 0 ? '+' : '−', n = Math.abs(r.points);
+    const margin = r.holdout_margin == null ? '' :
+      ` It beat doing nothing on ${r.holdout_days} later days by ${r.holdout_margin.toFixed(2)} points — ${
+        r.holdout_margin < 0.5 ? 'barely' : 'clearly'}.`;
+    return `<div class="signal"><span class="dot"></span><span class="txt"><b>${r.label}</b> is worth <b>${sign}${n} point${n === 1 ? '' : 's'}</b> on the next morning's readiness, measured over ${r.days} days.${margin}</span></div>`;
+  }).join('');
+}
+
 function renderAll(){
   renderStats();
   renderRightNow();
   renderTodaySignals();
+  renderWhatMoves();
   renderACWR();
   renderMonotony();
   renderZoneDistribution();

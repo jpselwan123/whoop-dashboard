@@ -116,6 +116,7 @@ def measured_facts(data_dir):
         'plan_effect': _plan_effect(data_dir),
         'trimp_ratio': _trimp_ratio(data_dir),
         'rest_rules': _rest_rules(series, inputs['hrv']),
+        'what_moves': _what_moves(data_dir),
     }
 
 
@@ -340,6 +341,20 @@ def _rest_rules(series, ln_hrv):
     }
 
 
+def _what_moves(data_dir):
+    """Which of the six candidates survive all three gates, and by how much."""
+    path = os.path.join(data_dir, 'dashboard_data.json')
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        wm = json.load(fh).get('what_moves')
+    if not wm:
+        return None
+    return {'candidates': wm['candidates'], 'shown': len(wm['shown']),
+            'rows': [{'key': r['key'], 'points': r['points'], 'days': r['days'],
+                      'holdout_margin': r['holdout_margin']} for r in wm['shown']]}
+
+
 def check_measured_docs(facts, root=HERE):
     """Sentences quoting a MEASURED figure — checked only when real data is present.
 
@@ -353,6 +368,7 @@ def check_measured_docs(facts, root=HERE):
     sr, tr = facts.get('strain_ratio'), facts.get('trimp_ratio')
     br, rr_ = facts.get('breathing'), facts.get('rest_rules')
     vs = facts.get('variance_shares')
+    wm = facts.get('what_moves')
     expected = []
     if br:
         expected.append((source, 'build_dashboard.py',
@@ -370,6 +386,16 @@ def check_measured_docs(facts, root=HERE):
                          % (rr_['kiviniemi_literal_fires'], rr_['kiviniemi_literal_pct'],
                             rr_['disagree_days'], rr_['disagree_pct'], rr_['both_fire']),
                          "Kiviniemi's literal rule and how far the two disagree"))
+    if wm and wm['shown'] == 1 and wm['rows'][0]['key'] == 'strain':
+        r = wm['rows'][0]
+        # the prose uses a typographic minus, so the guard has to look for the same character
+        signed = ('\u2212%d' % abs(r['points'])) if r['points'] < 0 else ('+%d' % r['points'])
+        expected.append((readme, 'README.md',
+                         'is worth **%s point** on the next morning, over %d days' % (signed, r['days']),
+                         'the one candidate that passes all three gates'))
+        expected.append((readme, 'README.md',
+                         'held-out days by **%.2f points**' % r['holdout_margin'],
+                         'how narrowly it beat doing nothing'))
     if vs:
         # the same measurement is quoted twice — in the weights paragraph and again in Limitations
         share = 'HRV %d%% / resting heart rate %d%% / sleep %d%% on the trend side, %d%% / %d%% / %d%% for last' % (

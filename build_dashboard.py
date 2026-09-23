@@ -863,6 +863,143 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
             'after': None if cost_z is None else max(1, min(99, round(normal_percentile(z_today + cost_z))))}
 
 
+# What actually moves the next morning's score, if anything. Each candidate is fitted on its own,
+# controlling for the same day's score (the control build_training_cost already uses), with
+# Newey-West errors because consecutive days are dependent. The three gates are deliberately the
+# SAME ones the training-cost adjustment has to pass, for the same reason: on one person's history
+# a p-value alone will find something. A predictor is shown only if it is significant, moves the
+# next morning evenly across its own terciles rather than in one jump, and — fitted on the first
+# 70% of days — predicts the last 30% better than doing nothing at all. Most do not.
+WHAT_MOVES = (
+    # key, label, the unit a coefficient is quoted in, and how much of it makes one step
+    ('sleep_hours', 'an hour more sleep', 'hour', 1.0),
+    ('bedtime_offset_h', 'going to bed an hour later than usual', 'hour', 1.0),
+    ('strain', 'one more point of day strain', 'strain point', 1.0),
+    ('nap', 'a nap', 'nap', 1.0),
+    ('session_end_h', 'finishing training an hour later', 'hour', 1.0),
+    ('days_since_rest', 'one more day since a rest day', 'day', 1.0),
+)
+
+
+def _local_hour(ts, offset):
+    """Clock time as hours after midnight, in the record's own time zone (23:30 -> 23.5)."""
+    t = parse(ts).astimezone(local_tz(offset))
+    return t.hour + t.minute / 60 + t.second / 3600
+
+
+def build_what_moves_features(sleep, naps, wo, strain_by_day, rest_days):
+    """The six candidates, each as one number per day, in units a sentence can quote.
+
+    Bedtime is signed hours from this person's own median bedtime (so 0 is their usual night and the
+    sign means later), wrapped across midnight so 00:30 counts as late rather than as the small
+    hours of a new day. Session end is the hour the last session of the day finished.
+    """
+    bedtime_raw, session_end, nap_days = {}, {}, set()
+    for sl in sleep:
+        h = _local_hour(sl['start'], sl.get('timezone_offset'))
+        bedtime_raw[record_day(sl)] = h + 24 if h < 12 else h      # 00:30 is a LATE night, not an early one
+    for n in naps:
+        nap_days.add(record_day(n))
+    for w in wo:
+        d = record_day(w)
+        session_end[d] = max(session_end.get(d, 0.0), _local_hour(w['end'], w.get('timezone_offset')))
+    median_bed = None
+    if bedtime_raw:
+        vals = sorted(bedtime_raw.values())
+        median_bed = vals[len(vals) // 2] if len(vals) % 2 else mean(vals[len(vals) // 2 - 1:len(vals) // 2 + 1])
+
+    since_rest, last_rest = {}, None
+    for d in sorted(strain_by_day):
+        if d in rest_days:
+            last_rest = d
+            since_rest[d] = 0.0
+        elif last_rest is not None:
+            since_rest[d] = float((datetime.fromisoformat(d) - datetime.fromisoformat(last_rest)).days)
+    return {
+        'bedtime_offset_h': {} if median_bed is None else {d: v - median_bed for d, v in bedtime_raw.items()},
+        'strain': dict(strain_by_day),
+        'nap': {d: (1.0 if d in nap_days else 0.0) for d in strain_by_day},
+        'session_end_h': session_end,
+        'days_since_rest': since_rest,
+    }
+
+
+def build_what_moves(readiness_series, features_by_day, today):
+    """One univariate model per candidate; only those passing all three gates are returned."""
+    by_day = {p['date']: p for p in readiness_series}
+    out = []
+    for key, label, unit, step in WHAT_MOVES:
+        src = features_by_day.get(key) or {}
+        rows = []
+        for d in sorted(by_day):
+            nxt = _date_minus(d, -1)
+            if d >= today or d not in src or by_day[d].get('z') is None:
+                continue
+            if nxt not in by_day or by_day[nxt].get('z') is None:
+                continue
+            rows.append((d, [1.0, by_day[d]['z'], float(src[d])], by_day[nxt]['z']))
+        result = _one_predictor(rows, by_day, src, key, label, unit, step)
+        if result:
+            out.append(result)
+    out.sort(key=lambda r: -abs(r['points']))
+    return {'date': today, 'candidates': len(WHAT_MOVES), 'shown': out}
+
+
+def _one_predictor(rows, by_day, src, key, label, unit, step):
+    """Fit, gate, and convert to readiness points — or None if it fails any gate."""
+    if len(rows) < MIN_GROUP:
+        return None
+    fit = _ols_newey_west([r[1] for r in rows], [r[2] for r in rows])
+    if fit is None:
+        return None
+    beta, se, resid_r1 = fit
+    coef, err = beta[2], se[2]
+    t = coef / err if err else 0.0
+    df = len(rows) - 3
+    p = _betainc(df / 2, 0.5, df / (df + t * t))
+    significant = p < SIGNIFICANCE
+
+    # evenness: split the predictor's own range in three and look at the next morning in each
+    ordered = sorted((float(src[d]), nz) for d, _x, nz in rows)
+    third = len(ordered) // 3
+    terciles = [ordered[:third], ordered[third:2 * third], ordered[2 * third:]] if third >= MIN_GROUP // 3 else []
+    means = [round(mean(nz for _v, nz in t_), 3) for t_ in terciles] if terciles else []
+    monotone = len(means) == 3 and (means[0] <= means[1] <= means[2] if coef > 0 else means[0] >= means[1] >= means[2])
+
+    # out of sample: fitted on the first 70%, does it beat doing nothing on the last 30%?
+    cut = int(len(rows) * (1 - HOLDOUT))
+    train, test = rows[:cut], rows[cut:]
+    improved, mae, margin, held_out = None, None, None, None
+    if len(train) >= MIN_GROUP and len(test) >= MIN_GROUP:
+        f2 = _ols_newey_west([r[1] for r in train], [r[2] for r in train])
+        if f2:
+            c_train = f2[0][2]
+            typical = mean(float(src[d]) for d, _x, _nz in train)
+            base_err, adj_err = [], []
+            for d, x, _nz in test:
+                nxt = by_day[_date_minus(d, -1)]
+                shifted = by_day[d]['z'] + c_train * (float(src[d]) - typical)
+                base_err.append(abs(by_day[d]['v'] - nxt['v']))
+                adj_err.append(abs(max(1, min(99, round(normal_percentile(shifted)))) - nxt['v']))
+            improved = mean(adj_err) < mean(base_err)
+            # the margin is kept at full precision: "beats doing nothing" can be true by a hair,
+            # and a sentence that does not say so is an overclaim
+            mae = [round(mean(base_err), 2), round(mean(adj_err), 2)]
+            margin = round(mean(base_err) - mean(adj_err), 3)
+            held_out = len(test)
+    if not (significant and monotone and improved):
+        return None
+
+    # in readiness points: what one step does to a middling day, read off the same normal curve
+    points = round(normal_percentile(coef * step) - normal_percentile(0.0))
+    if points == 0:
+        return None                      # real but too small to state as a whole point
+    return {'key': key, 'label': label, 'unit': unit, 'points': points, 'days': len(rows),
+            'coefficient': round(coef, 4), 'p': round(p, 4), 'terciles': means,
+            'residual_autocorr': round(resid_r1, 2), 'holdout_mae': mae,
+            'holdout_margin': margin, 'holdout_days': held_out}
+
+
 def build_sleep_composition(sleep, now):
     """Weekly average REM/deep(SWS)/light sleep hours, last 8 weeks. Computed here
     (not client-side) so the week key is zero-padded and sorts correctly — the same
@@ -1126,6 +1263,10 @@ def build_summary(d):
     # 'a' = the answer that day, so the page can show how often each one actually comes up
     full['readiness'] = [{'date': p['date'], 'v': p['v'], 'a': p['answer']} for p in readiness_series]
     training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), record_day(cyc[-1]))
+    wm_features = build_what_moves_features(sleep, naps, wo, strain_by_day,
+                                            {d for d in strain_by_day if d not in by_day_wo})
+    wm_features['sleep_hours'] = dict(sleep_h_by_day)
+    what_moves = build_what_moves(readiness_series, wm_features, record_day(cyc[-1]))
     for entry, w in zip(wlog, wo):   # wlog was built in the same order as wo
         entry['intensity'] = None if w['sport_name'] in STRENGTH_SPORTS else session_level(
             intensity_minutes(w['score'].get('zone_durations'), max_hr, rest_hr_for(entry['date'])))
@@ -1198,6 +1339,7 @@ def build_summary(d):
         'acwr': acwr,
         'load_today': load_today,
         'training_cost': training_cost,
+        'what_moves': what_moves,
         'monotony': monotony,
         'sport_recovery_cost': sport_recovery_cost,
         'sleep_composition': sleep_composition,
