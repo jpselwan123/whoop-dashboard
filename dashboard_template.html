@@ -83,6 +83,14 @@
   .dt-row.current .k,.dt-row.current .v{color:var(--ink);font-weight:600;}
   .dt-row.current .k::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle;}
   .rp-note{font-size:10.5px;color:var(--ink-faint);margin-top:10px;line-height:1.5;}
+  .wi-wrap{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .wi-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+  .wi-head .k{font-size:11.5px;color:var(--ink-muted);}
+  .wi-head .v{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink);}
+  .wi-band{font-size:11.5px;color:var(--ink-muted);}
+  .wi-slider{width:100%;margin:8px 0 2px;accent-color:var(--accent);}
+  .wi-scale{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;
+    font-size:10.5px;color:var(--ink-faint);}
   .asof{font-family:"IBM Plex Mono", monospace;font-size:11.5px;color:var(--ink-faint);}
   .asof-row{display:flex;align-items:center;gap:8px;}
   .refresh-btn{
@@ -1737,6 +1745,24 @@ renderAll();
 firstPaint = false;
 window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); renderACWR(); renderMonotony(); renderZoneDistribution(); });
 
+/* ---- "what the score would have been" ------------------------------------
+   Not a model and not a prediction: the SAME six standard scores, the same average and the same
+   percentile step (build_what_if / percentile_series), with last night's hours asleep replaced.
+   Only that one score moves — the 7-day trend window stops the day before, which is exactly why
+   last night is counted once instead of twice. Everything needed is already on the page. */
+function normalPercentile(z){                      // Φ, matching math.erf to ~1e-7
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989422804014327 * Math.exp(-z * z / 2);
+  let p = d * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return 100 * (z > 0 ? 1 - p : p);
+}
+function whatIfScore(W, hours){
+  const zSleep = (hours - W.night_mean) / W.night_sd;
+  const composite = (W.fixed_z.reduce((a, b) => a + b, 0) + zSleep) / (W.fixed_z.length + 1);
+  const z = (composite - W.composite_mean) / W.composite_sd;
+  return Math.max(1, Math.min(99, Math.round(normalPercentile(z))));
+}
+
 /* ================= readiness panel (click the orb) ================= */
 // The one place that explains today's answer: each rule of the protocol, then last night as information.
 (function(){
@@ -1794,7 +1820,31 @@ window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); re
         out.push(row(`Today · ${w.sport}`, w.intensity ? INTENSITY_WORD[w.intensity] : 'strength', `${w.dur_min} min`, 'current'));
     }
     out.push(`<div class="rp-note">Each measure is compared with your own previous 4 weeks, updated every Monday; the six comparisons are averaged and placed among your own days, so 50 is your middle day. The four lines are the training trials' own cut-offs — half a standard deviation either side of your normal, and 1.5 below it — on this scale.</div>`);
+    // the same formula with one input replaced — history, never a forecast
+    const W = R && R.what_if;
+    if(W){
+      out.push(section('What the score would have been', 'hours asleep'));
+      out.push(`<div class="wi-wrap">
+        <div class="wi-head"><span class="k">If last night had been <span class="tnum" id="wiHours">${one(W.actual)}</span> h asleep</span><span class="v" id="wiScore">${whatIfScore(W, W.actual)}</span></div>
+        <input class="wi-slider" type="range" id="wiRange" min="${W.min}" max="${W.max}" step="0.1"
+               value="${W.actual}" aria-label="Hours asleep last night">
+        <div class="wi-scale"><span>${one(W.min)} h</span><span class="wi-band" id="wiBand"></span><span>${one(W.max)} h</span></div>
+        <div class="rp-note">Your shortest and longest nights of the last year, naps included. This is the same calculation with one number changed — what today's score would have been, not what tomorrow will be. Only last night moves: the 7-day part of the score stops at yesterday.</div>
+      </div>`);
+    }
     $('rpRows').innerHTML = out.join('');
+    if(W){
+      const range = $('wiRange'), out2 = $('wiScore'), hrs = $('wiHours'), bandEl = $('wiBand');
+      const paint = () => {
+        const h = parseFloat(range.value), sc = whatIfScore(W, h);
+        hrs.textContent = one(h); out2.textContent = sc;
+        const key = sc >= R.lines.train ? 'moderate' : sc >= R.lines.rest ? 'easy' : 'rest';
+        bandEl.textContent = ACTIONS[key].label;
+        out2.style.color = ACTIONS[key].c;
+      };
+      range.addEventListener('input', paint);
+      paint();
+    }
   }
 
   function place(){

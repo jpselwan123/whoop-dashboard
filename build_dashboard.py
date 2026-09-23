@@ -166,7 +166,7 @@ def build_acwr(load_by_day):
 
     Load is Edwards TRIMP, not WHOOP day strain. Gabbett's 0.8 / 1.3 / 1.5 bands were derived on
     linear loads; averaging a logarithmic 0–21 strain compresses the ratio so far that the bands are
-    unreachable — over 567 days here the strain ratio never once passed 1.5 (highest 1.48, SD 0.17).
+    unreachable — over 568 days here the strain ratio never once passed 1.5 (highest 1.48, SD 0.17).
     Same reason strain is never summed across sessions.
 
     The ratio is REPORTED, never acted on. It is a mean over calendar days and this schedule has many
@@ -474,7 +474,7 @@ MAX_REST_DAYS_IN_A_ROW = 2
 # Breathing rate is still measured and shown, but it no longer changes the plan. The "+3 breaths/min"
 # cut-off was attributed to Natarajan et al. 2021, which gives no such number — it detects illness with
 # a z-score against a rolling baseline, not a fixed rise — so the threshold was ours, not a source's.
-# It had also never fired: over the 492 nights with enough baseline to judge, the largest rise was
+# It had also never fired: over the 493 nights with enough baseline to judge, the largest rise was
 # +2.3/min (recomputed by scripts/check_doc_stats.py, which reports `breathing`).
 BREATHING_BASELINE = (30, 90)
 BREATHING_MIN_NIGHTS = 30
@@ -549,7 +549,7 @@ def judge_last_night(src, d, worse):
     if sd == 0:
         return None
     sign = -1 if worse == 'above' else 1
-    return {'value': src[d], 'z': (src[d] - m) / sd * sign,
+    return {'value': src[d], 'z': (src[d] - m) / sd * sign, 'mean': m, 'sd': sd, 'sign': sign,
             'base_z': {k: (v - m) / sd * sign for k, v in base_by_day.items()}}
 
 
@@ -582,9 +582,53 @@ def percentile_series(raw_by_day):
             m, sd = mean(history), stdev(history)
             if sd > 0:
                 z = (raw_by_day[d] - m) / sd
-                out[d] = (max(1, min(99, round(normal_percentile(z)))), z)
+                # m and sd travel with the day so the page can re-evaluate the same formula
+                out[d] = (max(1, min(99, round(normal_percentile(z)))), z, m, sd)
         history.append(raw_by_day[d])
     return out
+
+
+WHAT_IF_WINDOW_DAYS = 365
+
+
+def build_what_if(measured_day, pct_day, sleep_h_by_day, d):
+    """The numbers the page needs to re-evaluate today's score for a different night's sleep.
+
+    This is not a model and not a prediction: it is the same six standard scores, the same average
+    and the same percentile step, with one input replaced. Only last night's hours move — the 7-day
+    trend window stops the day before (`rolling_7`), so last night is not inside it, which is
+    exactly why it is counted once rather than twice.
+
+    Returns the fixed standard scores, the baseline last night is measured against, the spread the
+    average is standardised against, and the range of the slider (this person's own shortest and
+    longest night in the last year). None when any piece is missing, so the page can skip it.
+    """
+    hrv, rest, sleep, night = measured_day
+    night_hrv, night_rhr, night_sleep = night
+    if night_sleep is None or night_sleep.get('sd') in (None, 0) or pct_day is None or len(pct_day) < 4:
+        return None
+    fixed = [m['z'] for m in (hrv, rest, sleep, night_hrv, night_rhr)
+             if m and m.get('z') is not None]
+    if not fixed:
+        return None
+    hours = _in_range(sleep_h_by_day, _date_minus(d, WHAT_IF_WINDOW_DAYS), d)
+    if len(hours) < READY_MIN_READINGS:
+        return None
+    _score, _z, comp_mean, comp_sd = pct_day
+    if not comp_sd:
+        return None
+    return {
+        'measure': 'sleep',
+        'actual': round(night_sleep['value'], 3),
+        'min': round(min(hours), 1),
+        'max': round(max(hours), 1),
+        'night_mean': round(night_sleep['mean'], 4),      # last night is scored against these
+        'night_sd': round(night_sleep['sd'], 4),
+        'fixed_z': [round(z, 6) for z in fixed],          # the five scores the slider cannot move
+        'composite_mean': round(comp_mean, 6),            # the spread the average is read against
+        'composite_sd': round(comp_sd, 6),
+        'window_days': WHAT_IF_WINDOW_DAYS,
+    }
 
 
 def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, sleep_h_by_day=None):
@@ -616,7 +660,7 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, sleep_h_by_day=None):
         hrv, rest, sleep, night = measured[d]
         score = pct_all[d][0]
         scores[d] = score
-        night_score, night_z = pct_night.get(d, (None, None))   # information only, same scale
+        night_score, night_z = (pct_night.get(d) or (None, None))[:2]   # information only, same scale
         breathing = breathing_check(rr_by_day, d)
         days_below = 0                 # consecutive calendar days below the normal band, today included
         cur = d
@@ -650,6 +694,7 @@ def build_readiness(hrv_by_day, rhr_by_day, rr_by_day, sleep_h_by_day=None):
                 'state': ('above' if night_z > READY_SWC else 'below' if night_z < -READY_SWC else 'within'),
                 'measures': sum(1 for m in night if m)},
             'breathing': breathing,
+            'what_if': build_what_if(measured[d], pct_all.get(d), sleep_h, d),
             'days_below_normal': days_below, 'days_low_to_rest': DAYS_LOW_TO_REST,
         }
     return latest, series

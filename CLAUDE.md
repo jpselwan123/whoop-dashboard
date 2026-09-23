@@ -69,7 +69,7 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   DROPS in HRV, not two days below the range, and he never chose between easy and rest — that split is
   ours. Breathing rate is reported, never acted on (Natarajan 2021 gives no numeric rise; the old +3/min
   was ours and never fired). There is **no consecutive-hard-days rule**: Carrasco-Poyatos 2020's protocol caps
-  them, but in 530 days only 2 days ever carried a streak of 2 (it counted moderate OR hard days, of which there
+  them, but in 531 days only 2 days ever carried a streak of 2 (it counted moderate OR hard days, of which there
   are 40 — consecutive ones are just rare), and the check sat after the band rules so it could only fire on a day
   already scoring 31+; on both those days the score was already below the band — deleted, like breathing. Once any
   session is logged today the pill reads "N sessions logged" and the headline "N sessions logged: matched
@@ -78,7 +78,7 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   acute:chronic ratio is a mean over calendar days and this schedule has many zero days, so it swings far harder
   than for the near-daily squads Gabbett's bands came from (above 1.5 on 15.7% of days here; disputed anyway,
   Impellizzeri 2020). It runs on **Edwards TRIMP, never day strain** — Gabbett's bands are linear-load, and the
-  strain ratio never passed 1.5 in 567 days.
+  strain ratio never passed 1.5 in 568 days.
   `build_training_cost` measures what today's strain costs the NEXT NIGHT's composite (regression on the composite
   z, not the percentile; Newey-West lag 7; gates = significant & negative, monotone across strain terciles, and
   beats doing nothing on a held-out 30%). It is currently **not displayed** — it fails the hold-out gate (MAE 13.3
