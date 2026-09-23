@@ -215,8 +215,6 @@
   /* ---- multi small chart grids ---- */
   .chart-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   @media (max-width:680px){.chart-grid-2{grid-template-columns:1fr;}}
-  .load-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;}
-  @media (max-width:680px){.load-grid{grid-template-columns:1fr;}}
 
   /* ---- right now (today) ---- */
   .rn-strain-row{display:flex;align-items:baseline;gap:10px;margin:6px 0 4px;flex-wrap:wrap;}
@@ -464,10 +462,11 @@
   </section>
 
   <section class="card">
-    <div class="section-head"><h2>Training variety, last 7 days</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Your strain each day. The check below uses training load — minutes in each heart-rate zone, weighted by intensity, 0 on days without a workout. Nearly the same load every day raises illness risk more than the same total with lighter days in between.</div>
+    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Training variety</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportTotal"></span></div>
+    <div class="section-sub">Two kinds of variety in one place: how evenly your load falls across the week, and what you actually do. The chart is your strain each day; the check under it uses training load — minutes in each heart-rate zone, weighted by intensity, 0 on days without a workout. Nearly the same load every day raises illness risk more than the same total with lighter days in between.</div>
     <div class="chart-wrap" id="last7ChartWrap" style="margin-bottom:14px;"><div class="chart-tooltip" id="last7Tooltip"></div></div>
     <div id="monotonyFlag"></div>
+    <div id="sportRows" style="margin-top:14px;"></div>
   </section>
 
   <section class="card">
@@ -482,15 +481,9 @@
     </div>
   </section>
 
-  <section class="load-grid">
-    <div class="card">
-      <div class="section-head"><h2>Sessions per week</h2><span class="n">last 8 weeks</span></div>
-      <div class="bars" id="barsRow" style="display:flex;align-items:stretch;gap:10px;height:132px;padding-top:6px;margin-top:14px;"></div>
-    </div>
-    <div class="card">
-      <div class="section-head"><h2>Training mix</h2><span class="n" id="sportTotal"></span></div>
-      <div id="sportRows" style="margin-top:12px;"></div>
-    </div>
+  <section class="card">
+    <div class="section-head"><h2>Sessions per week</h2><span class="n">last 8 weeks</span></div>
+    <div class="bars" id="barsRow" style="display:flex;align-items:stretch;gap:10px;height:132px;padding-top:6px;margin-top:14px;"></div>
   </section>
 
   <section class="card">

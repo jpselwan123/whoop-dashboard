@@ -68,8 +68,9 @@ invent one.
 <img src="docs/screenshots/weekly.png" alt="Weekly view: acute:chronic workload ratio and training variety" width="880">
 
 - **Acute:Chronic Workload Ratio** with safe / caution / high-risk bands.
-- **Training variety** (Foster monotony) — warns when a week had almost the same training
-  load every day.
+- **Training variety** — one section for both kinds: how evenly your load falls across the week
+  (Foster monotony, which warns when every day carried almost the same load) and what you actually
+  do, sport by sport. These were two overlapping sections and are now one.
 - Heart-rate zone time in research zones (strength sessions left out — their rest between sets
   would count as easy), sessions per week, training mix, sleep composition — all on
   Monday–Sunday weeks.

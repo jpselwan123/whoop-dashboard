@@ -367,6 +367,26 @@ class YearHeatmapTest(unittest.TestCase):
         self.assertIn('function drawHeatmap(', self.page)
 
 
+class SectionsTest(unittest.TestCase):
+    """The two training-variety sections overlapped and were merged into one."""
+
+    def setUp(self):
+        self.page = open(os.path.join(ROOT, 'dashboard_template.html')).read()
+
+    def test_training_mix_is_no_longer_its_own_section(self):
+        self.assertNotIn('<h2>Training mix</h2>', self.page)
+        self.assertIn('<h2>Training variety</h2>', self.page)
+
+    def test_the_sport_rows_survived_the_merge(self):
+        """Merging must not quietly drop content — the rows and their count still render."""
+        self.assertIn('id="sportRows"', self.page)
+        self.assertIn('id="sportTotal"', self.page)
+        self.assertIn('id="monotonyFlag"', self.page)
+
+    def test_the_emptied_two_column_grid_was_removed(self):
+        self.assertNotIn('load-grid', self.page)
+
+
 class StatisticsTest(unittest.TestCase):
     def test_incomplete_beta_matches_known_value(self):
         # two-sided p for t = 2.0 with 10 degrees of freedom is 0.0734
