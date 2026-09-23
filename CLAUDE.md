@@ -83,8 +83,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   z, not the percentile; Newey-West lag 7; gates = significant & negative, monotone across strain terciles, and
   beats doing nothing on a held-out 30%). Outcome AND control are the **standardised** composite z, so the
   coefficient is in the unit it is added to. It is currently **not displayed** — it passes significance and the
-  tercile gate (+0.058 / −0.069 / −0.159 on the residualised outcome) but fails the hold-out (MAE 12.0 vs
-  11.4). So the orb keeps the morning score. Tercile gates everywhere sort the RESIDUALISED next-morning z
+  tercile gate (+0.058 / −0.069 / −0.159 on the residualised outcome) but fails the hold-out sign test (53 wins / 60 losses,
+  p = 0.77). So the orb keeps the morning score. Tercile gates everywhere sort the RESIDUALISED next-morning z
   (today's z taken out), never the raw one — the fit controls for today, so the gate must too. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
   values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
   score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
@@ -131,11 +131,19 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   never shrink spacing to fit, one idea per card, no new colors.
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.
 
+## Settled decisions (closed by JP — do not reopen)
+- **Rest rule:** <7, or 2nd consecutive day below 31, max 2 rest days in a row. Fired over 531 days: large
+  fall 21, sustained fall 81, cap 34. Kiviniemi's literal reading was measured and not adopted.
+- **Weights:** equal. Variance shares trend 61.6% / last night 38.4%. Not reweighted.
+- **Monotony:** two decimals everywhere (1.96 and 2.04 must not both read 2.0).
+- **"What moves" gates:** significance, residualised terciles, a one-sided sign test on the 30% hold-out,
+  the same sign + p < 0.05 in each half, then a joint refit. The training cost uses the same sign test.
+
 ## Independent check
 `~/whoop-check/whoop_check.py [dir]` is a SECOND implementation of every displayed number, written
 to disagree: it reads the raw export and the built payload and recomputes from scratch, and
 deliberately never imports `build_dashboard`. Run it after any change to the maths
-(`python3 ~/whoop-check/whoop_check.py .` → 233 checks on real data, 213 on `demo`). It lives
+(`python3 ~/whoop-check/whoop_check.py .` → 233 checks on real data, 212 on `demo`). It lives
 outside the repo, with a copy at `~/Desktop/whoop-check-script.py` — it has been lost twice to
 `/tmp` being cleared. When it disagrees, find out which side is wrong before changing either.
 

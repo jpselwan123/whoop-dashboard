@@ -137,6 +137,7 @@ def measured_facts(data_dir):
         'bedtime': _bedtime(data_dir),
         'window_90d': _window_experiment(series, composites),
         'plan_adherence': _plan_adherence(data_dir, series),
+        'rule_firings': _rule_firings(series),
     }
 
 
@@ -259,6 +260,7 @@ def _training_cost(data_dir):
         return None
     mae = tc.get('holdout_mae') or [None, None]
     return {
+        'sign_test': tc.get('holdout_sign_test'),
         'per_strain': tc.get('per_strain'),
         'p': tc.get('p'),
         'pairs': tc.get('pairs'),
@@ -371,6 +373,7 @@ def _what_moves(data_dir):
     if not wm:
         return None
     return {'candidates': wm['candidates'], 'shown': len(wm['shown']),
+            'dropped_jointly': wm.get('dropped_jointly', []),
             'rows': [{'key': r['key'], 'points': r['points'], 'days': r['days'],
                       'holdout_margin': r['holdout_margin']} for r in wm['shown']]}
 
@@ -444,6 +447,26 @@ def _plan_adherence(data_dir, series):
             'overrode_days': len(overrode), 'overrode_mean': round(sum(overrode) / len(overrode), 1)}
 
 
+def _rule_firings(series):
+    """How often each rest rule decided the answer — the counts the settled-decisions note quotes."""
+    L = bd.READY_LINES
+    scores = {p['date']: p['v'] for p in series}
+    answers, out = {}, {'large_fall': 0, 'sustained': 0, 'cap': 0}
+    for p in sorted(series, key=lambda q: q['date']):
+        d, v = p['date'], p['v']
+        run, cur = 0, d
+        while scores.get(cur) is not None and scores[cur] < L['train']:
+            run += 1
+            cur = bd._date_minus(cur, 1)
+        rested_two = all(answers.get(bd._date_minus(d, k)) == 'rest' for k in (1, 2))
+        if v < L['rest']:
+            out['cap' if rested_two else 'large_fall'] += 1
+        elif v < L['train'] and run >= bd.DAYS_LOW_TO_REST:
+            out['cap' if rested_two else 'sustained'] += 1
+        answers[d] = p['answer']
+    return out
+
+
 def check_measured_docs(facts, root=HERE):
     """Sentences quoting a MEASURED figure — checked only when real data is present.
 
@@ -487,9 +510,7 @@ def check_measured_docs(facts, root=HERE):
         expected.append((readme, 'README.md',
                          'is worth **%s point** on the next morning, over %d days' % (signed, r['days']),
                          'the one candidate that passes all three gates'))
-        expected.append((readme, 'README.md',
-                         'improved the held-out forecast by **%.2f points**' % r['holdout_margin'],
-                         'how narrowly it beat doing nothing'))
+
     sr_idx = facts.get('sleep_regularity')
     if sr_idx and sr_idx.get('readiness_r') is not None:
         expected.append((readme, 'README.md',
@@ -562,6 +583,23 @@ def check_measured_docs(facts, root=HERE):
         expected.append((readme, 'README.md', 'above 1.5 on **%.1f%%** of days (median %.2f, highest %.2f)'
                          % (tr['over_high_pct'], tr['median'], tr['highest']), 'the TRIMP ratio in the README'))
         expected.append((claude, 'CLAUDE.md', 'above 1.5 on %.1f%% of days here' % tr['over_high_pct'], 'the same in CLAUDE.md'))
+    rf, vsh = facts.get('rule_firings'), facts.get('variance_shares')
+    if rf and n:
+        expected.append((readme, 'README.md', 'Over %d days: rest after a large fall **%d** days, after a\n   sustained fall **%d**, the two-rest-day cap turned a rest into Go easy **%d** times'
+                         % (n, rf['large_fall'], rf['sustained'], rf['cap']), 'the settled rest-rule firing counts'))
+        expected.append((claude, 'CLAUDE.md', 'Fired over %d days: large\n  fall %d, sustained fall %d, cap %d' % (n, rf['large_fall'], rf['sustained'], rf['cap']),
+                         'the same counts in CLAUDE.md'))
+    if vsh:
+        expected.append((readme, 'README.md', 'trend **%.1f%%**, last\n   night **%.1f%%**' % (vsh['trend_total'], vsh['night_total']),
+                         'the settled variance shares'))
+        expected.append((claude, 'CLAUDE.md', 'trend %.1f%% / last night %.1f%%' % (vsh['trend_total'], vsh['night_total']),
+                         'the same in CLAUDE.md'))
+    tcs = (facts.get('training_cost') or {}).get('sign_test')
+    if tcs:
+        expected.append((readme, 'README.md', 'beat doing nothing on only **%d** of the held-out days and lost on **%d** (%d ties; sign test p = %.2f)'
+                         % (tcs['wins'], tcs['losses'], tcs['ties'], tcs['p']), "the training cost's sign test"))
+        expected.append((claude, 'CLAUDE.md', 'sign test (%d wins / %d losses,\n  p = %.2f)' % (tcs['wins'], tcs['losses'], tcs['p']),
+                         'the same in CLAUDE.md'))
     tc = facts.get('training_cost')
     if tc and tc.get('per_strain') is not None:
         expected.append((readme, 'README.md',
