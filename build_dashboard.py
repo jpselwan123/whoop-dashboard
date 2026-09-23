@@ -1520,6 +1520,7 @@ def build_summary(d):
     now_utc = datetime.now(timezone.utc)
     return {
         'profile': {'name': d['profile']['first_name']},
+        'synthetic': d.get('synthetic') is True,
         'asOf': latest_rec['created_at'],
         'generated_at': now_utc.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
         'latest': {
@@ -1575,6 +1576,18 @@ def build_summary(d):
     }
 
 
+SYNTHETIC_BADGE = ('<span class="beyond-badge synthetic-badge" id="syntheticBadge">'
+                   'Synthetic athlete · not real data</span>')
+
+
+def render_page(template, summary):
+    """The page with its data injected. A build from the synthetic generator is labelled in the
+    header, in the HTML itself so it shows even if the page's JavaScript fails; a real export never
+    carries the generator's marker, so the label cannot appear on a real build."""
+    badge = SYNTHETIC_BADGE if summary.get('synthetic') else ''
+    return template.replace('__SYNTHETIC_BADGE__', badge).replace('__DATA__', json.dumps(summary))
+
+
 def main(data_dir='.'):
     here = os.path.dirname(os.path.abspath(__file__))
     raw_path = os.path.join(data_dir, 'whoop_data.json')
@@ -1587,7 +1600,7 @@ def main(data_dir='.'):
 
     with open(os.path.join(here, 'dashboard_template.html')) as f:
         template = f.read()
-    html = template.replace('__DATA__', json.dumps(summary))
+    html = render_page(template, summary)
     atomic_write(os.path.join(data_dir, 'index.html'), html)
 
     print(f"Rebuilt {os.path.join(data_dir, 'index.html')} — {summary['n_days_total']} days, "

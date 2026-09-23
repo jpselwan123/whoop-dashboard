@@ -56,6 +56,7 @@
   header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;}
   .eyebrow{font-family:"IBM Plex Mono", monospace;font-size:11.5px;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-muted);}
   .eyebrow b{color:var(--ink);font-weight:600;}
+  .beyond-badge.synthetic-badge{color:var(--warn);background:var(--warn-bg);margin-left:6px;}
   .beyond-badge{
     display:inline-flex;align-items:center;font-family:"IBM Plex Mono",monospace;font-size:9.5px;font-weight:600;
     letter-spacing:0.05em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);
@@ -374,7 +375,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Readiness Instrument · <b id="athleteName">—</b></div>
+    <div class="eyebrow">Readiness Instrument · <b id="athleteName">—</b> __SYNTHETIC_BADGE__</div>
     <div>
       <div class="asof-row">
         <div class="asof mono tnum" id="lastRefreshed">—</div>

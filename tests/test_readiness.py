@@ -2,7 +2,7 @@
 standard scores against the previous 4 weeks, averaged, then read as a percentile of the person's own
 earlier scores (50 = a median day). 31+ Train as planned, 7–30 Go easy, under 7 Rest. There is no band
 above the normal range. Breathing rate is reported, never acted on; """
-import math, os, random, unittest
+import contextlib, io, math, os, random, unittest
 from datetime import date, timedelta
 from statistics import mean
 from helpers import generate, build_dashboard as bd
@@ -385,6 +385,48 @@ class SectionsTest(unittest.TestCase):
 
     def test_the_emptied_two_column_grid_was_removed(self):
         self.assertNotIn('load-grid', self.page)
+
+
+class SyntheticLabelTest(unittest.TestCase):
+    """The demo build says it is synthetic; a real build never can."""
+
+    def page(self, synthetic):
+        tpl = open(os.path.join(ROOT, 'dashboard_template.html')).read()
+        return bd.render_page(tpl, {'synthetic': synthetic, 'x': 1})
+
+    def test_the_demo_build_is_labelled(self):
+        self.assertIn('id="syntheticBadge"', self.page(True))
+        self.assertIn('Synthetic athlete', self.page(True))
+
+    def test_a_real_build_is_never_labelled(self):
+        html = self.page(False)
+        self.assertNotIn('id="syntheticBadge"', html)
+        self.assertNotIn('__SYNTHETIC_BADGE__', html)
+
+    def test_only_the_generators_own_marker_turns_it_on(self):
+        """A real export has no 'synthetic' key; a truthy lookalike must not switch it on either."""
+        from helpers import generate
+        raw = generate(days=60, seed=2)
+        self.assertIs(raw['synthetic'], True)
+        del raw['synthetic']
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(bd.build_summary(raw)['synthetic'])
+        raw['synthetic'] = 'yes'
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(bd.build_summary(raw)['synthetic'])
+
+    def test_the_label_is_in_the_html_not_added_by_script(self):
+        """It must show even if the page's JavaScript fails."""
+        html = self.page(True)
+        self.assertLess(html.index('id="syntheticBadge"'), html.index('<script'))
+
+
+class MonotonyDisplayTest(unittest.TestCase):
+    def test_monotony_is_shown_to_two_decimals(self):
+        """At one decimal, 1.96 and 2.04 both read 2.0 while sitting either side of the line."""
+        page = open(os.path.join(ROOT, 'dashboard_template.html')).read()
+        self.assertIn('M.monotony.toFixed(2)', page)
+        self.assertNotIn('fmt1(M.monotony)', page)
 
 
 class StatisticsTest(unittest.TestCase):

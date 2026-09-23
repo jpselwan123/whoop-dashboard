@@ -193,6 +193,7 @@ def generate(days=420, seed=23, now=None):
     # most-recent first, like the API returns
     by_newest = lambda items: sorted(items, key=lambda x: x["created_at"], reverse=True)
     return {
+        "synthetic": True,     # read by build_dashboard to label the page; the WHOOP API never sends it
         "profile": {"user_id": 1, "email": "alex@example.com", "first_name": "Alex", "last_name": "Demo"},
         "body": {"height_meter": 1.78, "weight_kilogram": 74.5, "max_heart_rate": 194},
         "recovery": by_newest(recoveries), "cycles": by_newest(cycles),
