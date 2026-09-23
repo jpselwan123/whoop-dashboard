@@ -81,8 +81,9 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   strain ratio never passed 1.5 in 568 days.
   `build_training_cost` measures what today's strain costs the NEXT NIGHT's composite (regression on the composite
   z, not the percentile; Newey-West lag 7; gates = significant & negative, monotone across strain terciles, and
-  beats doing nothing on a held-out 30%). It is currently **not displayed** — it fails the hold-out gate (MAE 13.3
-  vs 11.4), so the orb keeps the morning score. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
+  beats doing nothing on a held-out 30%). Outcome AND control are the **standardised** composite z, so the
+  coefficient is in the unit it is added to. It is currently **not displayed** — it fails two gates: terciles
+  −0.063 / +0.009 / −0.166 (not even) and hold-out MAE 12.0 vs 11.4. So the orb keeps the morning score. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
   values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
   score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones

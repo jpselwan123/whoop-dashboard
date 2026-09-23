@@ -212,12 +212,14 @@ class TrainingCostTest(unittest.TestCase):
         days = [(start + timedelta(days=i)).isoformat() for i in range(n)]
         workout_days = {d for i, d in enumerate(days) if i % 3 != 0}
         strain = {d: (rnd.uniform(11, 18) if d in workout_days else rnd.uniform(3, 7)) for d in days}
-        series, z = [], 0.0
+        # the effect lands on the NEXT day's standardised composite — the scale the coefficient is
+        # fitted on and later added to
+        series, base = [], 0.0
         for i, d in enumerate(days):
-            z = 0.5 * z + rnd.gauss(0, 0.6)
-            night = (effect * (strain[days[i - 1]] - 5) if i else 0.0) + 0.3 * z + rnd.gauss(0, noise)
+            base = 0.5 * base + rnd.gauss(0, 0.6)
+            z = base + (effect * (strain[days[i - 1]] - 5) if i else 0.0) + rnd.gauss(0, noise)
             series.append({'date': d, 'v': max(1, min(99, round(bd.normal_percentile(z)))),
-                           'answer': 'moderate', 'z': z, 'night_z': night})
+                           'answer': 'moderate', 'z': z, 'night_z': z})
         return series, strain, workout_days, days
 
     def test_measures_the_effect_on_the_next_night(self):

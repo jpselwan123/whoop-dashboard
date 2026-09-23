@@ -803,9 +803,12 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
     rows = []
     for d in sorted(by_day):
         nxt = _date_minus(d, -1)
-        if d >= today or d not in strain_by_day or nxt not in by_day or by_day[nxt].get('night_z') is None:
+        # the outcome is the next day's STANDARDISED composite — the same scale the coefficient is
+        # later added to (by_day[today]['z']). Regressing the raw night composite instead, as this
+        # did, produced a coefficient in one unit and applied it in another.
+        if d >= today or d not in strain_by_day or nxt not in by_day or by_day[nxt].get('z') is None:
             continue
-        rows.append((d, [1.0, by_day[d]['z'], strain_by_day[d]], by_day[nxt]['night_z']))
+        rows.append((d, [1.0, by_day[d]['z'], strain_by_day[d]], by_day[nxt]['z']))
     rest = [v for d, v in strain_by_day.items() if d < today and d not in workout_days]
     if len(rows) < MIN_GROUP or len(rest) < MIN_GROUP or today not in by_day or today not in strain_by_day:
         return None

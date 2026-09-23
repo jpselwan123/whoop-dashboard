@@ -396,6 +396,15 @@ def check_measured_docs(facts, root=HERE):
         expected.append((readme, 'README.md',
                          'held-out days by **%.2f points**' % r['holdout_margin'],
                          'how narrowly it beat doing nothing'))
+    tc = facts.get('training_cost')
+    if tc and tc.get('per_strain') is not None:
+        expected.append((readme, 'README.md',
+                         '**\u2212%.3f per strain point, p < 0.001, %d day pairs**' % (abs(tc['per_strain']), tc['pairs']),
+                         "the training cost's own figures"))
+        if tc.get('holdout_mae'):
+            expected.append((readme, 'README.md',
+                             'doing nothing (mean error %.1f vs %.1f)' % (tc['holdout_mae'][1], tc['holdout_mae'][0]),
+                             'its hold-out errors'))
     if vs:
         # the same measurement is quoted twice — in the weights paragraph and again in Limitations
         share = 'HRV %d%% / resting heart rate %d%% / sleep %d%% on the trend side, %d%% / %d%% / %d%% for last' % (
