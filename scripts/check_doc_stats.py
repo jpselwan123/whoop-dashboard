@@ -349,8 +349,10 @@ def check_measured_docs(facts, root=HERE):
         return []
     source = open(os.path.join(root, 'build_dashboard.py')).read()
     prompt = open(os.path.join(root, 'chat_server.py')).read()
+    readme = open(os.path.join(root, 'README.md')).read()
     sr, tr = facts.get('strain_ratio'), facts.get('trimp_ratio')
     br, rr_ = facts.get('breathing'), facts.get('rest_rules')
+    vs = facts.get('variance_shares')
     expected = []
     if br:
         expected.append((source, 'build_dashboard.py',
@@ -360,6 +362,24 @@ def check_measured_docs(facts, root=HERE):
         expected.append((prompt, 'chat_server.py',
                          'firing 0 times in %d days' % rr_['days'],
                          'how long the deleted hard-days rule sat there doing nothing'))
+        expected.append((readme, 'README.md',
+                         'triggers on **%d of %d days (%.1f%%)**' % (rr_['implemented_fires'], rr_['days'], rr_['implemented_pct']),
+                         'how often the implemented rest rule fires'))
+        expected.append((readme, 'README.md',
+                         'on **%d (%.1f%%)**, and they **disagree on %d days (%.1f%%)**, agreeing on only %d'
+                         % (rr_['kiviniemi_literal_fires'], rr_['kiviniemi_literal_pct'],
+                            rr_['disagree_days'], rr_['disagree_pct'], rr_['both_fire']),
+                         "Kiviniemi's literal rule and how far the two disagree"))
+    if vs:
+        # the same measurement is quoted twice — in the weights paragraph and again in Limitations
+        share = 'HRV %d%% / resting heart rate %d%% / sleep %d%% on the trend side, %d%% / %d%% / %d%% for last' % (
+            round(vs['trend_hrv']), round(vs['trend_rhr']), round(vs['trend_sleep']),
+            round(vs['night_hrv']), round(vs['night_rhr']), round(vs['night_sleep']))
+        expected.append((readme, 'README.md', share, 'the variance shares in the weights paragraph'))
+        limits = 'measured: HRV %d%%, resting HR %d%%, sleep %d%% on the trend side; %d%% / %d%% / %d%% for last night' % (
+            round(vs['trend_hrv']), round(vs['trend_rhr']), round(vs['trend_sleep']),
+            round(vs['night_hrv']), round(vs['night_rhr']), round(vs['night_sleep']))
+        expected.append((readme, 'README.md', limits, 'the same shares restated under Limitations'))
     if sr:
         expected.append((source, 'build_dashboard.py',
                          'over %d days here the strain ratio never once passed 1.5 (highest %.2f, SD %.2f)'

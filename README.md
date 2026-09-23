@@ -247,7 +247,7 @@ not established. The protocol comes from endurance-athlete trials that measured 
 WHOOP measures it during sleep (overnight values track training at least as well —
 [Nuuttila et al., 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11541970/)). Equal weights and standard-score composites are usual ways to combine
 measures, not weights validated for this purpose — and equal weights do not produce equal influence
-(measured: HRV 26%, resting HR 26%, sleep 11% on the trend side; 17% / 17% / 4% for last night).
+(measured: HRV 26%, resting HR 26%, sleep 9% on the trend side; 17% / 18% / 4% for last night).
 Reading the composite as a percentile assumes your days are **normally** distributed, not merely
 symmetric. They are close but not normal: skewness −0.26, excess kurtosis +0.20. The bands therefore
 land near their targets rather than on them — 66.6% above the lower line where the normal curve says
