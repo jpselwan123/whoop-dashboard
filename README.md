@@ -60,8 +60,12 @@ invent one.
   night's numbers as information.
 - **Warning signs** — HRV or resting HR outside your normal range. Breathing rate is shown next
   to your usual but never changes the plan (no study gives a numeric rise worth acting on).
-- **Today's plan** — hard-training or easy-day advice, sleep (nights with 7+ hours), the last
-  day without a workout.
+- **Today's plan** — training advice, sleep (nights with 7+ hours), the last day without a
+  workout, and tonight's bedtime target from WHOOP's own sleep need.
+- **What moves your readiness** — six things about a day, each tested against the next morning's
+  score. Only the ones that hold up on days they weren't fitted to are shown; most don't.
+
+<img src="docs/screenshots/analysis.png" alt="What moves your readiness: each candidate tested against the next morning's score, with the ones that failed left out" width="880">
 
 ### Weekly — load and injury-risk signals
 
