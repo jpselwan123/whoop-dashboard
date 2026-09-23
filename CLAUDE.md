@@ -129,6 +129,14 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   never shrink spacing to fit, one idea per card, no new colors.
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.
 
+## Independent check
+`~/whoop-check/whoop_check.py [dir]` is a SECOND implementation of every displayed number, written
+to disagree: it reads the raw export and the built payload and recomputes from scratch, and
+deliberately never imports `build_dashboard`. Run it after any change to the maths
+(`python3 ~/whoop-check/whoop_check.py .` → 233 checks on real data, 213 on `demo`). It lives
+outside the repo, with a copy at `~/Desktop/whoop-check-script.py` — it has been lost twice to
+`/tmp` being cleared. When it disagrees, find out which side is wrong before changing either.
+
 ## Git
 Conventional, descriptive commit messages; small focused commits; push to `main`.
 CI (`.github/workflows/ci.yml`) runs tests on Python 3.9/3.12 and builds the macOS app.

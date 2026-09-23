@@ -1029,6 +1029,7 @@ def build_sleep_regularity(sleep, naps, readiness_series, today):
     for sl in list(sleep) + list(naps):
         tz = local_tz(sl.get('timezone_offset'))
         start, end = parse(sl['start']).astimezone(tz), parse(sl['end']).astimezone(tz)
+        # whole minutes only: an episode ending at 07:12:25 does not own the minute 07:12
         cur = start.replace(second=0, microsecond=0)
         while cur < end:                              # one pass per calendar date the episode spans
             d = cur.date().isoformat()
