@@ -1813,11 +1813,13 @@ function renderBedtime(){
   const B = DATA.bedtime_target, el = $('bedtimeText');
   if(!el) return;
   if(!B){ el.textContent = 'Not enough nights yet to suggest a bedtime.'; return; }
-  const steady = B.wake_spread_h <= 1;
-  el.innerHTML = `<b>Asleep by ${B.asleep_by}</b> for tonight's sleep need of ${fmtHM(B.need_h)} — WHOOP's figure. ` +
-    (steady
-      ? `Counting back from your usual ${B.wake} wake-up.`
-      : `You usually wake around ${B.wake}, but it varies by about ${fmtHM(B.wake_spread_h)}, so this is a rough target.`);
+  // The need includes repaying debt, so on a big-debt day the full figure means an early night. Say
+  // that plainly rather than printing "asleep by 20:03" as if it were a normal bedtime.
+  const debt = (B.parts_h && B.parts_h.sleep_debt) || 0;
+  el.innerHTML = `<b>Tonight's sleep need is ${fmtHM(B.need_h)}</b> — WHOOP's figure` +
+    (debt >= 1/60 ? `, of which ${fmtHM(debt)} is repaying sleep debt. Clearing all of it in one night would mean being asleep by ${B.asleep_by}. `
+                  : `. Meeting it means being asleep by ${B.asleep_by}. `) +
+    `That counts back from your usual wake-up of ${B.wake}, which varies by about ${fmtHM(B.wake_spread_h)}.`;
 }
 
 function renderAll(){

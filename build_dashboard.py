@@ -1181,7 +1181,6 @@ def build_sleep_regularity(sleep, naps, readiness_series, today):
 
 
 BEDTIME_WAKE_WINDOW_DAYS = 30
-BEDTIME_STEADY_SD_H = None          # no threshold invented: see build_bedtime_target
 
 
 def build_bedtime_target(sleep, today):
