@@ -15,15 +15,25 @@ Two kinds of figure are handled differently:
 
 Usage:  python3 scripts/check_doc_stats.py [data_dir]     (default: the repo root)
         python3 scripts/check_doc_stats.py --constants-only     (no data needed)
+        python3 scripts/check_doc_stats.py --fix                (rewrite stale figures in place)
 
 Exit status is 1 if any documented figure no longer matches, 0 otherwise. Reads whoop_data.json
 and the tracked docs; writes nothing.
 """
-import io, contextlib, json, math, os, sys
+import io, contextlib, json, math, os, re, sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 import build_dashboard as bd     # noqa: E402
+
+
+class Stale(str):
+    """One out-of-date sentence: prints as a one-line complaint, and carries what --fix needs."""
+
+    def __new__(cls, where, text, what):
+        obj = str.__new__(cls, '%s no longer says %r (%s)' % (where, text, what))
+        obj.where, obj.text, obj.what = where, text, what
+        return obj
 
 
 # ---- figures that follow from the constants alone ------------------------------------------
@@ -74,8 +84,7 @@ def check_constant_docs(root=HERE):
         (readme, 'README.md', '| Rest on a sustained fall | **%s** day in a row' % {2: '2nd', 3: '3rd'}.get(bd.DAYS_LOW_TO_REST, bd.DAYS_LOW_TO_REST),
          'the sustained-fall count'),
     ]
-    return ['%s no longer says %r (%s)' % (where, text, what)
-            for doc, where, text, what in expected if text not in doc]
+    return [Stale(where, text, what) for doc, where, text, what in expected if text not in doc]
 
 
 # ---- figures measured on real history --------------------------------------------------------
@@ -109,6 +118,7 @@ def measured_facts(data_dir):
     start_keys = [bd.local_day(c['start'], c.get('timezone_offset')) for c in cycles]
 
     return {
+        'as_of': max(keys) if keys else None,
         'cycles': len(cycles),
         'distinct_days': len(set(keys)),
         'key_collisions': len(cycles) - len(set(keys)),
@@ -374,6 +384,7 @@ def _what_moves(data_dir):
         return None
     return {'candidates': wm['candidates'], 'shown': len(wm['shown']),
             'dropped_jointly': wm.get('dropped_jointly', []),
+            'tested': wm.get('tested', []),
             'rows': [{'key': r['key'], 'points': r['points'], 'days': r['days'],
                       'holdout_margin': r['holdout_margin']} for r in wm['shown']]}
 
@@ -503,6 +514,11 @@ def check_measured_docs(facts, root=HERE):
         expected.append((readme, 'README.md', 'On this history **%s of %s** survive%s' % (
             words.get(wm['shown'], wm['shown']), words.get(wm['candidates'], wm['candidates']),
             's' if wm['shown'] == 1 else ''), 'how many candidates survive'))
+    closest = next((t for t in (wm or {}).get('tested', []) if t['key'] == 'strain'), None)
+    if closest and closest.get('holdout_sign_test') and not closest.get('passed'):
+        st = closest['holdout_sign_test']
+        expected.append((readme, 'README.md', 'its adjustment won **%d** and lost **%d** (sign test p = %.2f)'
+                         % (st['wins'], st['losses'], st['p']), "day strain's out-of-sample result"))
     if wm and wm['shown'] == 1 and wm['rows'][0]['key'] == 'strain':
         r = wm['rows'][0]
         # the prose uses a typographic minus, so the guard has to look for the same character
@@ -583,6 +599,9 @@ def check_measured_docs(facts, root=HERE):
         expected.append((readme, 'README.md', 'above 1.5 on **%.1f%%** of days (median %.2f, highest %.2f)'
                          % (tr['over_high_pct'], tr['median'], tr['highest']), 'the TRIMP ratio in the README'))
         expected.append((claude, 'CLAUDE.md', 'above 1.5 on %.1f%% of days here' % tr['over_high_pct'], 'the same in CLAUDE.md'))
+    if facts.get('as_of'):
+        expected.append((readme, 'README.md', 'measured on the owner\'s history **as of %s**' % facts['as_of'],
+                         'the date the quoted figures refer to'))
     rf, vsh = facts.get('rule_firings'), facts.get('variance_shares')
     if rf and n:
         expected.append((readme, 'README.md', 'Over %d days: rest after a large fall **%d** days, after a\n   sustained fall **%d**, the two-rest-day cap turned a rest into Go easy **%d** times'
@@ -635,8 +654,43 @@ def check_measured_docs(facts, root=HERE):
         expected.append((prompt, 'chat_server.py',
                          'above 1.5 on %.1f%% of days here' % tr['over_high_pct'],
                          'the same figure in the AI prompt'))
-    return ['%s no longer says %r (%s)' % (where, text, what)
-            for doc, where, text, what in expected if text not in doc]
+    return [Stale(where, text, what) for doc, where, text, what in expected if text not in doc]
+
+
+_NUMBER = r'[+−-]?\d+(?:\.\d+)?'
+_WORD = r'\b(?:none|one|two|three|four|five|six)\b'
+
+
+def _pattern(text):
+    """The sentence with every number (and number word) left open, so the stale version matches."""
+    parts, pos = [], 0
+    for m in re.finditer('(%s)|(%s)' % (_NUMBER, _WORD), text):
+        parts.append(re.escape(text[pos:m.start()]))
+        parts.append(_NUMBER if m.group(1) else _WORD)
+        pos = m.end()
+    parts.append(re.escape(text[pos:]))
+    return re.compile(''.join(parts))
+
+
+def fix(problems, root=HERE):
+    """Replace each stale sentence with the fresh one. Returns the ones it could not place.
+
+    Only a sentence that matches exactly once, with only its numbers different, is rewritten; a
+    sentence whose wording changed, or that matches in two places, is left for a person — this never
+    guesses. Nothing calls it automatically: run it after a refresh, then read the diff and commit.
+    """
+    left = []
+    for prob in problems:
+        path = os.path.join(root, prob.where)
+        text = open(path).read()
+        hits = list(_pattern(prob.text).finditer(text))
+        if len(hits) != 1:
+            left.append(prob)
+            continue
+        m = hits[0]
+        with open(path, 'w') as fh:
+            fh.write(text[:m.start()] + prob.text + text[m.end():])
+    return left
 
 
 def main(argv):
@@ -661,8 +715,14 @@ def main(argv):
                       % m['key_collisions'])
             problems += check_measured_docs(m)
 
+    if problems and '--fix' in argv:
+        left = fix(problems)
+        print('\nfixed %d stale figure(s) in place — read the diff before committing'
+              % (len(problems) - len(left)))
+        problems = left
     if problems:
-        print('\nSTALE DOCUMENTATION:')
+        print('\nSTALE DOCUMENTATION:' + (' (these need a person — wording changed or ambiguous)'
+                                            if '--fix' in argv else ''))
         for p in problems:
             print('  - ' + p)
         return 1

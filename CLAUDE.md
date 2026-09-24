@@ -15,6 +15,9 @@ python3 build_dashboard.py [dir]                    # rebuild only (default: .)
 python3 scripts/generate_demo_data.py demo && python3 build_dashboard.py demo   # synthetic
 python3 -m unittest discover -s tests -t tests      # tests (no network, no keys)
 python3 scripts/privacy_scan.py [--staged]          # must be clean before any push
+python3 scripts/check_doc_stats.py [--fix]          # quoted figures vs a fresh run; --fix rewrites stale ones
+python3 tools/whoop_check.py [dir]                  # independent second implementation of every number
+python3 scripts/screenshot_layout.py --write        # after regenerating README screenshots
 ./native_app/build.sh                               # compile the macOS app
 ```
 
@@ -89,8 +92,8 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   z, not the percentile; Newey-West lag 7; gates = significant & negative, monotone across strain terciles, and
   beats doing nothing on a held-out 30%). Outcome AND control are the **standardised** composite z, so the
   coefficient is in the unit it is added to. It is currently **not displayed** — it passes significance and the
-  tercile gate (+0.058 / −0.069 / −0.159 on the residualised outcome) but fails the hold-out sign test (53 wins / 60 losses,
-  p = 0.77). So the orb keeps the morning score. Tercile gates everywhere sort the RESIDUALISED next-morning z
+  tercile gate (+0.058 / −0.069 / −0.159 on the residualised outcome) but fails the hold-out sign test (58 wins / 65 losses,
+  p = 0.76). So the orb keeps the morning score. Tercile gates everywhere sort the RESIDUALISED next-morning z
   (today's z taken out), never the raw one — the fit controls for today, so the gate must too. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
   values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
   score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
@@ -142,16 +145,23 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   fall 21, sustained fall 81, cap 34. Kiviniemi's literal reading was measured and not adopted.
 - **Weights:** equal. Variance shares trend 61.6% / last night 38.4%. Not reweighted.
 - **Monotony:** two decimals everywhere (1.96 and 2.04 must not both read 2.0).
-- **"What moves" gates:** significance, residualised terciles, a one-sided sign test on the 30% hold-out,
-  the same sign + p < 0.05 in each half, then a joint refit. The training cost uses the same sign test.
+- **"What moves" gates:** significance, residualised terciles, a one-sided sign test on the 30% hold-out
+  (errors on the UNROUNDED percentile — rounding manufactured ties), the same sign + p < 0.05 in each half,
+  then a joint refit that also controls for every candidate significant on its own (so a real cause failing a
+  later gate still exposes its stand-ins). Every candidate's gate results are in `what_moves.tested`. When
+  nothing survives, the card collapses to one line. The training cost uses the same sign test.
+- **Docs quoting real figures:** the README says which date they were measured on; after a refresh run
+  `check_doc_stats.py --fix`, read the diff, commit. It only rewrites a sentence that matches once with only
+  its numbers changed. Demo figures are never quoted — the demo is generated relative to today.
 
 ## Independent check
-`~/whoop-check/whoop_check.py [dir]` is a SECOND implementation of every displayed number, written
-to disagree: it reads the raw export and the built payload and recomputes from scratch, and
-deliberately never imports `build_dashboard`. Run it after any change to the maths
-(`python3 ~/whoop-check/whoop_check.py .` → 233 checks on real data, ~200+ on `demo`, whose count moves with the date it is generated for). It lives
-outside the repo, with a copy at `~/Desktop/whoop-check-script.py` — it has been lost twice to
-`/tmp` being cleared. When it disagrees, find out which side is wrong before changing either.
+`tools/whoop_check.py [dir]` is a SECOND implementation of every displayed number, written to disagree:
+it reads the raw export and the built payload and recomputes from scratch. What keeps it independent is
+its imports — standard library only, never `build_dashboard` or any other repo module — and
+`tests/test_independent_check.py` enforces that and runs it on the synthetic athlete on every CI push.
+Run it on real data after any change to the maths: `python3 tools/whoop_check.py .` (demo counts move
+with the date the demo is generated for). When it disagrees, find out which side is wrong before
+changing either.
 
 ## Git
 Conventional, descriptive commit messages; small focused commits; push to `main`.

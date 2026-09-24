@@ -42,6 +42,49 @@ class DocumentedConstantsTest(unittest.TestCase):
         self.assertAlmostEqual(f['target_plan'] + f['target_easy'] + f['target_rest'], 100.0, places=6)
 
 
+class FixTest(unittest.TestCase):
+    """--fix rewrites a stale figure in place, and never guesses."""
+
+    def root(self, text):
+        import tempfile
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, 'README.md'), 'w') as f:
+            f.write(text)
+        return d
+
+    def read(self, d):
+        return open(os.path.join(d, 'README.md')).read()
+
+    def test_a_stale_figure_is_replaced_in_place(self):
+        d = self.root('Intro.\nOver 530 days the bands caught 66.6% / 27.2% / 6.2% of days, as measured.\n')
+        fresh = 'Over 531 days the bands caught 66.7% / 27.1% / 6.2% of days'
+        left = cds.fix([cds.Stale('README.md', fresh, 'band shares')], d)
+        self.assertEqual(left, [])
+        self.assertEqual(self.read(d), 'Intro.\n%s, as measured.\n' % fresh)
+
+    def test_signs_and_number_words_are_figures_too(self):
+        d = self.root('On this history **one of five** survives; a cost of \u22120.041 per point.\n')
+        cds.fix([cds.Stale('README.md', 'On this history **none of five** survives', 'survivors'),
+                 cds.Stale('README.md', 'a cost of +0.012 per point', 'cost')], d)
+        self.assertEqual(self.read(d), 'On this history **none of five** survives; a cost of +0.012 per point.\n')
+
+    def test_a_reworded_sentence_is_left_for_a_person(self):
+        d = self.root('Over 530 days the bands landed on 66.6% / 27.2% / 6.2% of days.\n')
+        before = self.read(d)
+        left = cds.fix([cds.Stale('README.md', 'Over 531 days the bands caught 66.7% / 27.1% / 6.2% of days', 'x')], d)
+        self.assertEqual(len(left), 1)
+        self.assertEqual(self.read(d), before)
+
+    def test_an_ambiguous_match_is_never_guessed(self):
+        d = self.root('rest on **21** days.\nrest on **22** days.\n')
+        before = self.read(d)
+        self.assertEqual(len(cds.fix([cds.Stale('README.md', 'rest on **23** days', 'x')], d)), 1)
+        self.assertEqual(self.read(d), before)
+
+    def test_a_finding_still_reads_as_one_line(self):
+        st = cds.Stale('README.md', 'some text', 'what it is')
+        self.assertEqual(st, "README.md no longer says 'some text' (what it is)")
+
 class MeasuredFiguresTest(unittest.TestCase):
     def test_the_measuring_script_runs_on_synthetic_data(self):
         """The script is how a real history is re-measured — it must survive a full run."""
