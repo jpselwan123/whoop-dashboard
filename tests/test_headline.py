@@ -69,5 +69,12 @@ class HeadlineTest(unittest.TestCase):
         self.assertIn('HRV', out)
 
 
+    def test_opposite_facts_are_joined_with_but(self):
+        """A worse 7-day measure and a better night pull opposite ways: "but", never "though ... and"."""
+        out = sentence(78, 'above', sleep='below')
+        self.assertIn('but', out)
+        self.assertNotIn('and last night was above', out)
+
+
 if __name__ == "__main__":
     unittest.main()

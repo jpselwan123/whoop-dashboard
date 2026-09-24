@@ -442,8 +442,8 @@
 
   <section class="card">
     <div class="section-head"><h2>What moves your readiness</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Patterns, not causes. Five things about a day — bedtime, strain, naps, when training finished, days since a rest day — each checked against the next morning's score. A pattern is shown only if it held in both halves of your history and on days it wasn't fitted to.</div>
-    <div class="section-sub">Each is measured on its own and they overlap, so the numbers don't add up.</div>
+    <div class="section-sub" id="whatMovesIntro">Patterns, not causes. Five things about a day — bedtime, strain, naps, when training finished, days since a rest day — each checked against the next morning's score. A pattern is shown only if it held in both halves of your history and on days it wasn't fitted to.</div>
+    <div class="section-sub" id="whatMovesOverlap">Each is measured on its own and they overlap, so the numbers don't add up.</div>
     <div class="signal-grid" style="margin-top:12px;" id="whatMovesGrid"></div>
   </section>
 
@@ -763,7 +763,13 @@ function scoreText(calc){
   // a low night with normal weeks is the usual reason for a middling score — say so, don't claim all-normal
   // "all within normal" must be checked, not assumed: a measure can be worse while the score still clears
   const worse = ['hrv','rhr','sleep'].filter(k => markerWorse(k, R[k])).map(k => `7-day ${MARKER_NAME[k]}`);
-  if(worse.length) return `readiness ${R.score}, though ${listAnd(worse)} ${worse.length > 1 ? 'are' : 'is'} worse than your normal` + (night ? ` and ${night}` : '');
+  if(worse.length){
+    const w = `${listAnd(worse)} ${worse.length > 1 ? 'are' : 'is'} worse than your normal`;
+    // two facts pulling opposite ways get "but", never "and"
+    if(N && N.state === 'above') return `readiness ${R.score}: last night was above your normal, but ${w}`;
+    if(N && N.state === 'below') return `readiness ${R.score}, though ${w} and last night was below it too`;
+    return `readiness ${R.score}, though ${w}`;
+  }
   if(night) return `readiness ${R.score}: your last 7 days are all within your normal, but ${night}`;
   return `readiness ${R.score}, everything within your normal range`;
 }
@@ -1456,7 +1462,7 @@ function renderTodaySignals(){
   const sessions = DATA.workout_log.filter(w => w.date === yesterday);
   sEl.className = 'signal';
   if(sessions.length === 0){
-    sTxt.innerHTML = `No session logged ${isExportToday?'yesterday':`on ${dayLabel}`} (${yesterday}) — nothing to compare.`;
+    sTxt.innerHTML = `No session logged ${isExportToday ? 'yesterday' : `on ${dayLabel}`} — nothing to compare.`;
   } else {
     const top = sessions.reduce((a,b)=> b.strain>a.strain?b:a);
     const g = top.intensity && (DATA.sport_recovery_cost.groups || []).find(x => x.intensity === top.intensity);
@@ -1786,10 +1792,15 @@ const WORDS = {1:'one', 2:'two', 3:'three', 4:'four', 5:'five', 6:'six'};
 function renderWhatMoves(){
   const W = DATA.what_moves, grid = $('whatMovesGrid');
   if(!grid) return;
-  if(!W || !W.shown.length){
-    grid.innerHTML = `<div class="signal"><span class="dot"></span><span class="txt">${
-      W ? `No pattern held up: none of the ${WORDS[W.candidates] || W.candidates} went with the next morning's score consistently enough to show.`
-        : 'Not enough history yet.'}</span></div>`;
+  // Nothing survived: one plain line instead of a card of explanation around an empty box. The
+  // explanation only earns its space when there is a pattern to explain.
+  const empty = !W || !W.shown.length;
+  ['whatMovesIntro', 'whatMovesOverlap'].forEach(id => { const el = $(id); if(el) el.hidden = empty; });
+  grid.style.marginTop = empty ? '0' : '12px';
+  if(empty){
+    grid.innerHTML = `<div class="section-sub" style="margin:0">${
+      W ? `Patterns, not causes — and none held up: of the ${WORDS[W.candidates] || W.candidates} things tested (bedtime, strain, naps, when training finished, days since a rest day), none went with your next-morning score consistently enough to show.`
+        : 'Not enough history yet to look for patterns.'}</div>`;
     return;
   }
   const failed = W.candidates - W.shown.length;
