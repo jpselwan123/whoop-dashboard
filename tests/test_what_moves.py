@@ -134,11 +134,12 @@ class JointGateTest(unittest.TestCase):
             z.append(-0.08 * (strain[y] - 10) - 0.06 * late[y] + rng.gauss(0, 0.2))
         out = bd.build_what_moves(series(z, ds), {'strain': strain, 'session_end_h': late}, ds[-1])
         # on its own "finishing late" looks GOOD (it is standing in for easy days); together with
-        # strain its real, negative effect shows — so it flips and must go
+        # strain its real, negative effect shows — so it flips and must go. This holds even though
+        # strain itself fails the out-of-sample gate here (no day-to-day persistence in this world):
+        # a real cause that fails a later gate is still controlled for in the joint fit.
         self.assertNotIn('session_end_h', {r['key'] for r in out['shown']})
         self.assertIn({'key': 'session_end_h', 'label': 'finishing training an hour later', 'reason': 'flips'},
                       out['dropped_jointly'])
-        self.assertIn('strain', {r['key'] for r in out['shown']})
 
     def test_every_survivor_carries_its_joint_result(self):
         ds, z, strain, bed = self.world()
@@ -223,7 +224,9 @@ class DemoAthleteTest(unittest.TestCase):
         the split-half and sign-test gates must not."""
         import io, contextlib
         from helpers import generate
-        raw = generate(days=420, seed=23)
+        # pinned: the generator counts back from "now", so an unpinned demo is different data every day
+        from datetime import datetime, timezone
+        raw = generate(days=420, seed=23, now=datetime(2026, 9, 23, 12, tzinfo=timezone.utc))
         with contextlib.redirect_stdout(io.StringIO()):
             shown = bd.build_summary(raw)['what_moves']['shown']
         self.assertNotIn('bedtime_offset_h', {r['key'] for r in shown})

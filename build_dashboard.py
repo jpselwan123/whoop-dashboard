@@ -817,7 +817,8 @@ def _sign_test(base_err, adj_err):
 
     A one-sided sign test (exact binomial, p = 0.5 per day): count the days the adjusted error is
     smaller ("wins") and larger ("losses"); days where they tie carry no information and are set
-    aside, as the test prescribes. A mean margin can be positive while the adjustment wins barely
+    aside, as the test prescribes. The errors are measured on the UNROUNDED percentile, so a tie means
+    the two forecasts really were equally good, not that both happened to round to the same point. A mean margin can be positive while the adjustment wins barely
     half the days — this asks whether it wins MORE days than a coin would.
     """
     wins = sum(1 for b, a in zip(base_err, adj_err) if a < b)
@@ -894,9 +895,12 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
             for d, x, _nz in test:
                 nxt = by_day[_date_minus(d, -1)]
                 cost = min(0.0, c_train * (strain_by_day[d] - rest_strain))
-                shown = max(1, min(99, round(normal_percentile(by_day[d]['z'] + cost))))
-                base_err.append(abs(by_day[d]['v'] - nxt['v']))
-                adj_err.append(abs(shown - nxt['v']))
+                # unrounded percentiles: rounding to whole points manufactured ties, and a sign test
+                # discards ties, so it was judging far fewer days than it had. The ties left are real:
+                # below a typical rest day's strain the cost is zero and both forecasts are the same.
+                actual = normal_percentile(nxt['z'])
+                base_err.append(abs(normal_percentile(by_day[d]['z']) - actual))
+                adj_err.append(abs(normal_percentile(by_day[d]['z'] + cost) - actual))
             sign = _sign_test(base_err, adj_err)
             improved = sign['passes']
             base_mae, adj_mae = round(mean(base_err), 1), round(mean(adj_err), 1)
@@ -984,7 +988,7 @@ def build_what_moves_features(sleep, naps, wo, strain_by_day, rest_days):
 def build_what_moves(readiness_series, features_by_day, today):
     """One univariate model per candidate; only those passing all three gates are returned."""
     by_day = {p['date']: p for p in readiness_series}
-    out = []
+    out, controls, tested = [], [], []
     for key, label, unit, step in WHAT_MOVES:
         src = features_by_day.get(key) or {}
         rows = []
@@ -995,15 +999,19 @@ def build_what_moves(readiness_series, features_by_day, today):
             if nxt not in by_day or by_day[nxt].get('z') is None:
                 continue
             rows.append((d, [1.0, by_day[d]['z'], float(src[d])], by_day[nxt]['z']))
-        result = _one_predictor(rows, by_day, src, key, label, unit, step)
+        result, report = _one_predictor(rows, by_day, src, key, label, unit, step)
+        tested.append(report)
         if result:
             out.append(result)
-    shown, dropped = _joint_gate(out, by_day, features_by_day, today)
+        elif report['significant']:
+            controls.append(key)        # failed a later gate, but may be the real cause of another
+    shown, dropped = _joint_gate(out, by_day, features_by_day, today, controls)
     shown.sort(key=lambda r: -abs(r['points']))
-    return {'date': today, 'candidates': len(WHAT_MOVES), 'shown': shown, 'dropped_jointly': dropped}
+    return {'date': today, 'candidates': len(WHAT_MOVES), 'shown': shown, 'dropped_jointly': dropped,
+            'tested': tested}
 
 
-def _joint_gate(passing, by_day, features_by_day, today):
+def _joint_gate(passing, by_day, features_by_day, today, controls=()):
     """Refit everything that passed on its own in ONE model, and drop what was only borrowing.
 
     Fitted one at a time, correlated candidates steal each other's effect: a late bedtime can look
@@ -1011,6 +1019,10 @@ def _joint_gate(passing, by_day, features_by_day, today):
     together (today's z + all passing candidates, Newey-West errors) and must keep its sign; one that
     keeps its sign but is no longer significant stays, and its sentence says so. The quoted effect is
     still the one-at-a-time number — the joint fit is a gate, not the headline.
+
+    The model also CONTROLS for every candidate that was significant on its own but failed a later
+    gate. Otherwise a real cause that happens to fail the out-of-sample test would be left out, and a
+    stand-in that merely tracks it would pass unchallenged — the very confounding this gate exists for.
 
     Candidates enter in WHAT_MOVES order — direct measures first, the derived day-count last — and one
     that is an exact linear combination of those already in carries no information of its own, so it
@@ -1023,13 +1035,14 @@ def _joint_gate(passing, by_day, features_by_day, today):
     days = [d for d in sorted(by_day)
             if d < today and by_day[d].get('z') is not None
             and _date_minus(d, -1) in by_day and by_day[_date_minus(d, -1)].get('z') is not None
-            and all(d in (features_by_day.get(r['key']) or {}) for r in passing)]
+            and all(d in (features_by_day.get(r['key']) or {}) for r in passing)
+            and all(d in (features_by_day.get(k) or {}) for k in controls)]
     if len(days) < MIN_GROUP:
         for r in passing:
             r['joint'] = None                        # not enough shared days to test them together
         return passing, []
     col = lambda key: [float(features_by_day[key][d]) for d in days]
-    base = [[1.0, by_day[d]['z']] for d in days]
+    base = [[1.0, by_day[d]['z']] + [float(features_by_day[k][d]) for k in controls] for d in days]
     y = [by_day[_date_minus(d, -1)]['z'] for d in days]
 
     entered, dropped = [], []
@@ -1051,8 +1064,9 @@ def _joint_gate(passing, by_day, features_by_day, today):
         return [], dropped + [{'key': r['key'], 'label': r['label'], 'reason': 'redundant'} for r in entered]
     beta, se, _r1 = fit
     shown = []
+    first = len(base[0])                       # coefficients after today's z and the controls
     for j, r in enumerate(entered):
-        c, e = beta[2 + j], se[2 + j]
+        c, e = beta[first + j], se[first + j]
         if (c > 0) != (r['coefficient'] > 0):
             dropped.append({'key': r['key'], 'label': r['label'], 'reason': 'flips'})
             continue
@@ -1064,12 +1078,16 @@ def _joint_gate(passing, by_day, features_by_day, today):
 
 
 def _one_predictor(rows, by_day, src, key, label, unit, step):
-    """Fit, gate, and convert to readiness points — or None if it fails any gate."""
+    """Fit, gate, and convert to readiness points.
+
+    Returns (result, report): result is None unless every gate passes; report records how the
+    candidate did on each gate either way, so a failure can be quoted and checked, not just hidden."""
+    report = {'key': key, 'label': label, 'days': len(rows), 'significant': False, 'passed': False}
     if len(rows) < MIN_GROUP:
-        return None
+        return None, report
     fit = _ols_newey_west([r[1] for r in rows], [r[2] for r in rows])
     if fit is None:
-        return None
+        return None, report
     beta, se, resid_r1 = fit
     coef, err = beta[2], se[2]
     p = _p_two_sided(coef, err, len(rows) - 3)
@@ -1093,31 +1111,33 @@ def _one_predictor(rows, by_day, src, key, label, unit, step):
             for d, x, _nz in test:
                 nxt = by_day[_date_minus(d, -1)]
                 shifted = by_day[d]['z'] + c_train * (float(src[d]) - typical)
-                base_err.append(abs(by_day[d]['v'] - nxt['v']))
-                adj_err.append(abs(max(1, min(99, round(normal_percentile(shifted)))) - nxt['v']))
+                actual = normal_percentile(nxt['z'])           # unrounded, as in the training cost
+                base_err.append(abs(normal_percentile(by_day[d]['z']) - actual))
+                adj_err.append(abs(normal_percentile(shifted) - actual))
             sign = _sign_test(base_err, adj_err)
             improved = sign['passes']
             mae = [round(mean(base_err), 2), round(mean(adj_err), 2)]
             margin = round(mean(base_err) - mean(adj_err), 3)
             held_out = len(test)
-    if not (significant and monotone and improved):
-        return None
-
     # fourth gate: the same sign and p < 0.05 in each half of the history, fitted separately
     halves = _split_half(rows)
     stable = bool(halves) and all(h['p'] < SIGNIFICANCE and (h['coefficient'] > 0) == (coef > 0) for h in halves)
-    if not stable:
-        return None
+    report.update({'coefficient': round(coef, 4), 'p': round(p, 4), 'significant': significant,
+                   'terciles': means, 'monotone': monotone, 'holdout_sign_test': sign,
+                   'holdout_days': held_out, 'halves': halves, 'stable': stable})
+    if not (significant and monotone and improved and stable):
+        return None, report
 
     # in readiness points: what one step does to a middling day, read off the same normal curve
     points = round(normal_percentile(coef * step) - normal_percentile(0.0))
     if points == 0:
-        return None                      # real but too small to state as a whole point
+        return None, report              # real but too small to state as a whole point
+    report['passed'] = True
     return {'key': key, 'label': label, 'unit': unit, 'points': points, 'days': len(rows),
             'coefficient': round(coef, 4), 'p': round(p, 4), 'terciles': means,
             'residual_autocorr': round(resid_r1, 2), 'holdout_mae': mae,
             'holdout_margin': margin, 'holdout_days': held_out, 'holdout_sign_test': sign,
-            'halves': halves}
+            'halves': halves}, report
 
 
 SRI_WINDOW_DAYS = 30          # the window Phillips et al. 2017 used
