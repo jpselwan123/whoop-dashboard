@@ -422,6 +422,33 @@ class SyntheticLabelTest(unittest.TestCase):
         self.assertLess(html.index('id="syntheticBadge"'), html.index('<script'))
 
 
+class TokenInPageTest(unittest.TestCase):
+    def page(self, synthetic, token):
+        tpl = open(os.path.join(ROOT, 'dashboard_template.html')).read()
+        return bd.render_page(tpl, {'synthetic': synthetic, 'x': 1}, token)
+
+    def test_a_real_build_carries_the_token(self):
+        self.assertIn('const DASHBOARD_TOKEN = "abc_DEF-123";', self.page(False, 'abc_DEF-123'))
+
+    def test_a_demo_build_never_does(self):
+        """Demo pages get shared, and have no server to talk to."""
+        html = self.page(True, 'abc_DEF-123')
+        self.assertNotIn('abc_DEF-123', html)
+        self.assertIn('const DASHBOARD_TOKEN = "";', html)
+
+    def test_a_malformed_token_file_cannot_break_out_of_the_string(self):
+        import tempfile
+        f = tempfile.NamedTemporaryFile('w', delete=False)
+        f.write('x"; alert(1); "')
+        f.close()
+        saved = bd.TOKEN_FILE
+        bd.TOKEN_FILE = f.name
+        try:
+            self.assertEqual(bd.read_token(), '')
+        finally:
+            bd.TOKEN_FILE = saved
+
+
 class MonotonyDisplayTest(unittest.TestCase):
     def test_monotony_is_shown_to_two_decimals(self):
         """At one decimal, 1.96 and 2.04 both read 2.0 while sitting either side of the line."""

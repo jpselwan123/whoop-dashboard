@@ -605,6 +605,11 @@
 
 <script>
 let DATA = __DATA__;
+// This run's token for the local server (chat_server.py), put here by the build and refreshed by the
+// server each time it starts. Every request sends it; without it the server answers 403, which is what
+// keeps other pages on this machine from reading the data. Empty on a demo build.
+const DASHBOARD_TOKEN = "__DASHBOARD_TOKEN__";
+const AUTH = {'X-Dashboard-Token': DASHBOARD_TOKEN};
 
 const $ = (id) => document.getElementById(id);
 const fmt1 = (n) => (Math.round(n*10)/10).toFixed(1).replace(/\.0$/,'');
@@ -2003,7 +2008,7 @@ function whatIfScore(W, hours){
 
     let res;
     try{
-      res = await fetch(REFRESH_URL, {method:'POST'});
+      res = await fetch(REFRESH_URL, {method:'POST', headers: AUTH});
     } catch(_){
       // fetch() itself rejecting always means a network-level failure (refused,
       // blocked, unreachable) — never a message worth showing the browser's own
@@ -2015,7 +2020,7 @@ function whatIfScore(W, hours){
     try{
       const data = await res.json();
       if(!res.ok || data.error) throw new Error(data.error || 'Refresh failed.');
-      const fresh = await (await fetch(DATA_URL, {cache:'no-store'})).json();
+      const fresh = await (await fetch(DATA_URL, {cache:'no-store', headers: AUTH})).json();
       DATA = fresh;
       renderAll();
     } catch(err){
@@ -2114,7 +2119,7 @@ function whatIfScore(W, hours){
     let reply = null, error = null;
     try{
       const res = await fetch(CHAT_URL, {
-        method:'POST', headers:{'content-type':'application/json'},
+        method:'POST', headers:{'content-type':'application/json', ...AUTH},
         body: JSON.stringify({messages: outgoing}), signal: ctrl.signal,
       });
       let data = {};

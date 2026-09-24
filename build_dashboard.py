@@ -5,7 +5,7 @@ Or just run refresh.sh, which does both.
 
 Usage: python3 build_dashboard.py [data_dir]   (default: current directory)
 """
-import json, math, os
+import json, math, os, re
 from datetime import datetime, timedelta, timezone
 from statistics import mean, pstdev, stdev, variance
 from collections import Counter, defaultdict
@@ -1607,12 +1607,32 @@ SYNTHETIC_BADGE = ('<span class="beyond-badge synthetic-badge" id="syntheticBadg
                    'Synthetic athlete · not real data</span>')
 
 
-def render_page(template, summary):
+TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.dashboard_token')
+
+
+def read_token():
+    """This run's local-server token (written by chat_server.py at start-up), or '' if none yet."""
+    try:
+        with open(TOKEN_FILE) as f:
+            token = f.read().strip()
+    except OSError:
+        return ''
+    # the token is only ever url-safe base64; anything else would break out of the JS string
+    return token if re.fullmatch(r'[A-Za-z0-9_-]+', token or '') else ''
+
+
+def render_page(template, summary, token=''):
     """The page with its data injected. A build from the synthetic generator is labelled in the
     header, in the HTML itself so it shows even if the page's JavaScript fails; a real export never
-    carries the generator's marker, so the label cannot appear on a real build."""
+    carries the generator's marker, so the label cannot appear on a real build.
+
+    The local-server token goes only into a REAL build: a demo page gets shared, and it has no
+    server to talk to."""
     badge = SYNTHETIC_BADGE if summary.get('synthetic') else ''
-    return template.replace('__SYNTHETIC_BADGE__', badge).replace('__DATA__', json.dumps(summary))
+    token = '' if summary.get('synthetic') else token
+    return (template.replace('__SYNTHETIC_BADGE__', badge)
+                    .replace('__DASHBOARD_TOKEN__', token)
+                    .replace('__DATA__', json.dumps(summary)))
 
 
 def main(data_dir='.'):
@@ -1627,7 +1647,7 @@ def main(data_dir='.'):
 
     with open(os.path.join(here, 'dashboard_template.html')) as f:
         template = f.read()
-    html = render_page(template, summary)
+    html = render_page(template, summary, read_token())
     atomic_write(os.path.join(data_dir, 'index.html'), html)
 
     print(f"Rebuilt {os.path.join(data_dir, 'index.html')} — {summary['n_days_total']} days, "
