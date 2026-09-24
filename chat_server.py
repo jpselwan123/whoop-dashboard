@@ -9,11 +9,12 @@ network unless the person using the dashboard asks it to:
 2. Manual data refresh — POST /refresh re-runs the same WHOOP fetch + rebuild
    that refresh.sh does on launch, triggered by the refresh button on the page.
 
-Binds to 127.0.0.1 only — never reachable from outside this machine.
+Binds to 127.0.0.1 only — never reachable from outside this machine — and every request must carry
+this run's token, which is what stops OTHER pages on this machine reading the data.
 
 Run standalone with `python3 chat_server.py`, or let the native app spawn it.
 """
-import json, os, subprocess, threading, urllib.error, urllib.request
+import hmac, json, os, re, secrets, subprocess, threading, urllib.error, urllib.request
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from env_config import load_env
@@ -23,6 +24,39 @@ load_env()
 
 HOST = "127.0.0.1"
 PORT = 8934
+
+# Binding to 127.0.0.1 keeps other DEVICES out, but not other web pages on this Mac: any site open in
+# the browser can send requests to 127.0.0.1. So every request must carry a token that only the real
+# page has. It is minted fresh each time the server starts, written to a git-ignored file (0600) that
+# the build reads, and injected into index.html. Origin checks cannot do this job — the page is
+# file://, so its Origin is "null", and a sandboxed iframe on any website sends "null" too.
+TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dashboard_token")
+INDEX_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+TOKEN_HEADER = "X-Dashboard-Token"
+TOKEN = None                       # set by issue_token() at start-up; tests set it directly
+_TOKEN_IN_PAGE = re.compile(r'const DASHBOARD_TOKEN = "[^"]*";')
+
+
+def issue_token():
+    """Mint this run's token, store it for the build, and put it into the page already on disk."""
+    token = secrets.token_urlsafe(32)
+    tmp = TOKEN_FILE + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(token)
+    os.replace(tmp, TOKEN_FILE)
+    # the page may have been built before this run (or a refresh may have failed): give it this token
+    try:
+        with open(INDEX_FILE) as f:
+            page = f.read()
+        if _TOKEN_IN_PAGE.search(page):
+            patched = _TOKEN_IN_PAGE.sub('const DASHBOARD_TOKEN = "%s";' % token, page, count=1)
+            with open(INDEX_FILE + ".tmp", "w") as f:
+                f.write(patched)
+            os.replace(INDEX_FILE + ".tmp", INDEX_FILE)
+    except FileNotFoundError:
+        pass
+    return token
 HERE = os.path.dirname(os.path.abspath(__file__))
 ENV_FILE = os.path.join(HERE, ".env")
 DATA_FILE = os.path.join(HERE, "dashboard_data.json")
@@ -293,11 +327,36 @@ class Handler(BaseHTTPRequestHandler):
         pass  # keep stdout quiet; nothing here is sensitive but it's also not useful
 
     def _cors(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "content-type")
+        # Never a wildcard. The real page is a file:// page, whose Origin is the literal "null", and
+        # without this one header WKWebView would not let it read the response. Echoing "null" is
+        # safe ONLY because the token is the real check: a sandboxed iframe elsewhere also sends
+        # "null", but it has no token, so all it can ever read is a 403.
+        if self.headers.get("Origin") == "null":
+            self.send_header("Access-Control-Allow-Origin", "null")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "content-type, x-dashboard-token")
+            self.send_header("Vary", "Origin")
+
+    def _host_ok(self):
+        """Only our own name for ourselves. A DNS-rebinding page reaches 127.0.0.1 under ITS hostname."""
+        port = self.server.server_address[1]
+        return self.headers.get("Host", "") in ("127.0.0.1:%d" % port, "localhost:%d" % port)
+
+    def _authorised(self):
+        """Host first, then the token — both before any work is done. False means already answered."""
+        if not self._host_ok():
+            self._json(403, {"error": "Unexpected host."})
+            return False
+        sent = self.headers.get(TOKEN_HEADER, "")
+        if not TOKEN or not hmac.compare_digest(sent.encode(), TOKEN.encode()):
+            self._json(403, {"error": "This page isn't authorised — reopen the dashboard from the app."})
+            return False
+        return True
 
     def do_OPTIONS(self):
+        # a preflight cannot carry the token, so it gets headers only — never data
+        if not self._host_ok():
+            return self._json(403, {"error": "Unexpected host."})
         self.send_response(204)
         self._cors()
         self.end_headers()
@@ -315,6 +374,8 @@ class Handler(BaseHTTPRequestHandler):
         # Serves dashboard_data.json over HTTP rather than the page fetching the
         # file:// path directly — WKWebView/Safari blocks fetch() to local files
         # even from a file:// page in many cases, so this is the reliable path.
+        if not self._authorised():
+            return
         if self.path.split("?")[0] != "/data":
             return self._json(404, {"error": "not found"})
         try:
@@ -331,6 +392,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
+        if not self._authorised():
+            return
         if self.path == "/refresh":
             return self._handle_refresh()
         if self.path != "/ask":
@@ -404,7 +467,9 @@ if __name__ == "__main__":
             f"that process, or change PORT in chat_server.py — and update the matching "
             f"CHAT_URL/REFRESH_URL/DATA_URL constants in dashboard_template.html to match."
         )
-    print(f"Chat server listening on http://{HOST}:{PORT} (local only)")
+    # the token file appearing is also the signal that the port is bound and ready
+    TOKEN = issue_token()
+    print(f"Chat server listening on http://{HOST}:{PORT} (local only, token-authenticated)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

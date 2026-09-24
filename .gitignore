@@ -30,3 +30,7 @@ venv/
 .idea/
 .claude/
 refresh.log
+
+# ---- per-run local-server token (chat_server.py) ----
+.dashboard_token
+.dashboard_token.tmp

@@ -2,7 +2,7 @@
 
 Checks every tracked file (or staged files with --staged) for:
 - any secret value from .env (API keys, WHOOP client secret, auth code)
-- WHOOP OAuth tokens from whoop_tokens.json
+- WHOOP OAuth tokens from whoop_tokens.json, and the local-server token from .dashboard_token
 - identifiers from your own WHOOP export (email, last name, user id)
 - absolute home-directory paths and common key/token formats
 
@@ -42,6 +42,10 @@ def local_secrets():
         for key in ("access_token", "refresh_token"):
             if tokens.get(key):
                 found.append((f"WHOOP {key}", tokens[key]))
+    if os.path.exists(".dashboard_token"):
+        value = open(".dashboard_token").read().strip()
+        if value:
+            found.append(("local-server token", value))
     if os.path.exists("whoop_data.json"):
         profile = json.load(open("whoop_data.json")).get("profile", {})
         for key in ("email", "last_name"):
@@ -74,7 +78,8 @@ def main():
             for m in re.finditer(pattern, text):
                 print(f"  ✗ {path}: {label} → {m.group(0)[:12]}…")
                 issues += 1
-    for ignored in (".env", "whoop_tokens.json", "whoop_data.json", "dashboard_data.json", "index.html"):
+    for ignored in (".env", "whoop_tokens.json", "whoop_data.json", "dashboard_data.json", "index.html",
+                    ".dashboard_token"):
         if subprocess.run(["git", "ls-files", "--error-unmatch", ignored], capture_output=True).returncode == 0:
             print(f"  ✗ {ignored} is tracked by git — it must never be committed")
             issues += 1
