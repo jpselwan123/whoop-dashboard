@@ -28,7 +28,7 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 | `ai_context.py` | full history → compact pipe tables for the model; never includes email/last name/ids |
 | `env_config.py` | `.env` loader, `atomic_write` (temp + `os.replace`) — use for every data write |
 | `scripts/generate_demo_data.py` | synthetic athlete "Alex" (seed 23) for demo, tests, screenshots |
-| `native_app/main.swift` | runs `refresh.sh`, loads `~/whoop/index.html`, spawns `chat_server.py` |
+| `native_app/main.swift` | starts `chat_server.py` (waits for its token), runs `refresh.sh`, loads `~/whoop/index.html` |
 
 ## Hard rules
 - **Python 3.9-compatible, standard library only, no third-party dependencies** (the system python
@@ -38,6 +38,12 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
   `dashboard_data.json`, `index.html`. Tests/screenshots/docs use synthetic data only.
   No personal names, emails, ids, or `/Users/...` paths in tracked files.
 - **API keys stay server-side** — never sent to the page, never logged, never pasted into chat.
+- **Every server request carries this run's token.** `chat_server.py` mints it at start-up
+  (`secrets.token_urlsafe`), writes the git-ignored `.dashboard_token` (0600) and patches it into `index.html`;
+  the build injects it too (real builds only, never demo). No token, wrong token or foreign `Host` → 403
+  before any work. Never add `Access-Control-Allow-Origin: *` — the only CORS header is `null`, sent only to
+  Origin `null` (the file:// page), and the token, not the Origin, is the check. The macOS app starts the
+  server BEFORE `refresh.sh` so the page is built with the live token.
 - **Never break the page.** Every render path must survive empty/new accounts, missing
   optional fields (`spo2`, `respiratory_rate`), zero workouts. A thrown error in one
   `renderX()` kills everything after it in `renderAll()` — guard, don't assume.
@@ -143,7 +149,7 @@ python3 scripts/privacy_scan.py [--staged]          # must be clean before any p
 `~/whoop-check/whoop_check.py [dir]` is a SECOND implementation of every displayed number, written
 to disagree: it reads the raw export and the built payload and recomputes from scratch, and
 deliberately never imports `build_dashboard`. Run it after any change to the maths
-(`python3 ~/whoop-check/whoop_check.py .` → 233 checks on real data, 212 on `demo`). It lives
+(`python3 ~/whoop-check/whoop_check.py .` → 233 checks on real data, ~200+ on `demo`, whose count moves with the date it is generated for). It lives
 outside the repo, with a copy at `~/Desktop/whoop-check-script.py` — it has been lost twice to
 `/tmp` being cleared. When it disagrees, find out which side is wrong before changing either.
 
