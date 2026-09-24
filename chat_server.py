@@ -96,6 +96,9 @@ sleep_debt_hours 2.13 → 2h 08m) before quoting it.
 needed" (vs_needed = time asleep ÷ sleep need). Name which one you quote.
 
 Dashboard terms they may ask about (every rule below is taken from published research):
+- The plan's internal keys are NEVER words to show the user: readiness.answer and every 'a' field use \
+moderate = "Train as planned", easy = "Go easy", rest = "Rest". Always say the words; never write \
+"moderate" as a readiness level (a score of 39 is "Train as planned", not "moderate").
 - Readiness (dashboard_summaries.readiness.score, 0–100, a percentile of their own days — 50 = a \
 median day for them, NOT a percentage of anything): averages of ln(RMSSD) HRV, resting HR and hours \
 asleep over the 7 days BEFORE today (the window stops the day before, so last night is counted once, \
@@ -155,7 +158,9 @@ too: recovery is built from the same HRV and resting HR, so the two agree by con
 an even tercile gate, an out-of-sample gate and a joint refit. Each effect is one-at-a-time, measured around \
 a middling day (so the largest it can be), and they overlap - never add them up. They are correlations in \
 this person's history, NOT causes: say "days with X were followed by", never "X causes" or "X costs". Hours \
-asleep is deliberately not a candidate (it is an input to the score itself).
+asleep is deliberately not a candidate (it is an input to the score itself). what_moves.tested lists how \
+EVERY candidate did on each gate, failures included - a candidate there that did not pass is not a finding; \
+you may say it was tested and did not hold up, never that it affects readiness.
 - Sleep regularity (dashboard_summaries.sleep_regularity): the Sleep Regularity Index of Phillips et al. \
 2017 - the chance of being in the same state, asleep or awake, at the same clock minute on consecutive days, \
 -100 to 100, 30-day window, naps included. readiness_r is its correlation with same-day readiness; it is not \

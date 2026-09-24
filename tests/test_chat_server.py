@@ -155,6 +155,13 @@ class ChatServerTest(unittest.TestCase):
 
 
 
+class PlanWordsTest(unittest.TestCase):
+    def test_the_prompt_maps_every_internal_plan_key_to_its_words(self):
+        """The chat once answered "readiness 39 (moderate)" — the code's key, not the plan's name."""
+        prompt = cs.SYSTEM_PROMPT if hasattr(cs, "SYSTEM_PROMPT") else open(cs.__file__).read()
+        for key, words in (("moderate", "Train as planned"), ("easy", "Go easy"), ("rest", "Rest")):
+            self.assertIn('%s = "%s"' % (key, words), prompt)
+
 class LocalAuthTest(unittest.TestCase):
     """Binding to 127.0.0.1 keeps other devices out, not other PAGES on this Mac. The token does that."""
 
