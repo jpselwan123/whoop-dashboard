@@ -7,6 +7,20 @@ import WebKit
 let refreshDir = NSHomeDirectory() + "/whoop"
 let dashboardPath = refreshDir + "/index.html"
 
+// Start the local server FIRST. It mints this run's token and writes it to .dashboard_token; the build
+// below injects that token into index.html, and every request from the page must carry it. The old
+// file is removed first so its reappearance means THIS server is up.
+let tokenPath = refreshDir + "/.dashboard_token"
+try? FileManager.default.removeItem(atPath: tokenPath)
+let chatServer = Process()
+chatServer.executableURL = URL(fileURLWithPath: "/bin/bash")
+chatServer.arguments = ["-c", "cd \(refreshDir) && exec python3 chat_server.py"]
+try? chatServer.run()
+for _ in 0..<50 {                                    // up to 5 s for the server to bind and write it
+    if FileManager.default.fileExists(atPath: tokenPath) { break }
+    Thread.sleep(forTimeInterval: 0.1)
+}
+
 // Refresh data synchronously before showing the window (a couple seconds' delay is fine).
 let task = Process()
 task.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -16,7 +30,6 @@ task.waitUntilExit()
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
-    var chatServer: Process?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let contentRect = NSRect(x: 0, y: 0, width: 1150, height: 880)
@@ -51,13 +64,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
 
-        // Chat backend for the "Ask about your data" popup — runs for the life of the
-        // window, holds the AI provider key, never reachable outside this machine.
-        let server = Process()
-        server.executableURL = URL(fileURLWithPath: "/bin/bash")
-        server.arguments = ["-c", "cd \(refreshDir) && python3 chat_server.py"]
-        try? server.run()
-        chatServer = server
+        // The chat/refresh server was started before the build (see the top of this file) and runs
+        // for the life of the window; it holds the AI provider key and answers only token-bearing
+        // requests from this page.
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -65,7 +74,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        chatServer?.terminate()
+        chatServer.terminate()
     }
 }
 
