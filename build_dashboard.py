@@ -470,7 +470,6 @@ READY_LINES = {'train': round(normal_percentile(-READY_SWC)),
 # Never more than two rest days in a row — "will not accumulate more than two consecutive rest
 # sessions" (Carrasco-Poyatos et al. 2020, a published trial protocol rather than a result).
 DAYS_LOW_TO_REST = 2
-MAX_REST_DAYS_IN_A_ROW = 2
 # Breathing rate is still measured and shown, but it no longer changes the plan. The "+3 breaths/min"
 # cut-off was attributed to Natarajan et al. 2021, which gives no such number — it detects illness with
 # a z-score against a rolling baseline, not a fixed rise — so the threshold was ours, not a source's.
@@ -831,26 +830,6 @@ def _sign_test(base_err, adj_err):
             'passes': p < SIGNIFICANCE}
 
 
-def _split_half(rows):
-    """Fit the same model on the first and the second half of the history, separately.
-
-    A real relationship should show up in both halves, with the same sign and p < 0.05 in each; one
-    that only exists across the whole run is often a single stretch of days carrying it. Same kind of
-    check as the hold-out, not a new threshold: the halves are just the history cut in two.
-    """
-    half = len(rows) // 2
-    out = []
-    for part in (rows[:half], rows[half:]):
-        if len(part) < MIN_GROUP:
-            return None
-        fit = _ols_newey_west([r[1] for r in part], [r[2] for r in part])
-        if fit is None:
-            return None
-        beta, se, _r1 = fit
-        out.append({'coefficient': round(beta[2], 4), 'p': round(_p_two_sided(beta[2], se[2], len(part) - 3), 4)})
-    return out
-
-
 def build_training_cost(readiness_series, strain_by_day, workout_days, today):
     by_day = {p['date']: p for p in readiness_series}
     rows = []
@@ -921,223 +900,10 @@ def build_training_cost(readiness_series, strain_by_day, workout_days, today):
             'after': None if cost_z is None else max(1, min(99, round(normal_percentile(z_today + cost_z))))}
 
 
-# What actually moves the next morning's score, if anything. Each candidate is fitted on its own,
-# controlling for the same day's score (the control build_training_cost already uses), with
-# Newey-West errors because consecutive days are dependent. The three gates are deliberately the
-# SAME ones the training-cost adjustment has to pass, for the same reason: on one person's history
-# a p-value alone will find something. A predictor is shown only if it is significant, moves the
-# next morning evenly across its own terciles rather than in one jump, and — fitted on the first
-# 70% of days — predicts the last 30% better than doing nothing at all. Most do not.
-WHAT_MOVES = (
-    # key, label, the unit a coefficient is quoted in, and how much of it makes one step.
-    # Hours asleep is deliberately NOT a candidate: it is one of the score's own inputs (today's
-    # last-night score) and sits inside tomorrow's 7-day window too, so regressing tomorrow on it
-    # while controlling for today measures the formula's weights, not sleep. On this history that
-    # came out as "an extra hour of sleep costs 2 points" — mechanical, and wrong to show.
-    ('bedtime_offset_h', 'going to bed an hour later than usual', 'hour', 1.0),
-    ('strain', 'each extra point of day strain', 'strain point', 1.0),
-    ('nap', 'a nap', 'nap', 1.0),
-    ('session_end_h', 'finishing training an hour later', 'hour', 1.0),
-    ('days_since_rest', 'each extra day since a rest day', 'day', 1.0),
-)
-
-
 def _local_hour(ts, offset):
     """Clock time as hours after midnight, in the record's own time zone (23:30 -> 23.5)."""
     t = parse(ts).astimezone(local_tz(offset))
     return t.hour + t.minute / 60 + t.second / 3600
-
-
-def build_what_moves_features(sleep, naps, wo, strain_by_day, rest_days):
-    """The five candidates, each as one number per day, in units a sentence can quote.
-
-    Bedtime is signed hours from this person's own median bedtime (so 0 is their usual night and the
-    sign means later), wrapped across midnight so 00:30 counts as late rather than as the small
-    hours of a new day. Session end is the hour the last session of the day finished.
-    """
-    bedtime_raw, session_end, nap_days = {}, {}, set()
-    for sl in sleep:
-        h = _local_hour(sl['start'], sl.get('timezone_offset'))
-        bedtime_raw[record_day(sl)] = h + 24 if h < 12 else h      # 00:30 is a LATE night, not an early one
-    for n in naps:
-        nap_days.add(record_day(n))
-    for w in wo:
-        d = record_day(w)
-        session_end[d] = max(session_end.get(d, 0.0), _local_hour(w['end'], w.get('timezone_offset')))
-    median_bed = None
-    if bedtime_raw:
-        vals = sorted(bedtime_raw.values())
-        median_bed = vals[len(vals) // 2] if len(vals) % 2 else mean(vals[len(vals) // 2 - 1:len(vals) // 2 + 1])
-
-    since_rest, last_rest = {}, None
-    for d in sorted(strain_by_day):
-        if d in rest_days:
-            last_rest = d
-            since_rest[d] = 0.0
-        elif last_rest is not None:
-            since_rest[d] = float((datetime.fromisoformat(d) - datetime.fromisoformat(last_rest)).days)
-    return {
-        'bedtime_offset_h': {} if median_bed is None else {d: v - median_bed for d, v in bedtime_raw.items()},
-        'strain': dict(strain_by_day),
-        'nap': {d: (1.0 if d in nap_days else 0.0) for d in strain_by_day},
-        'session_end_h': session_end,
-        'days_since_rest': since_rest,
-    }
-
-
-def build_what_moves(readiness_series, features_by_day, today):
-    """One univariate model per candidate; only those passing all three gates are returned."""
-    by_day = {p['date']: p for p in readiness_series}
-    out, controls, tested = [], [], []
-    for key, label, unit, step in WHAT_MOVES:
-        src = features_by_day.get(key) or {}
-        rows = []
-        for d in sorted(by_day):
-            nxt = _date_minus(d, -1)
-            if d >= today or d not in src or by_day[d].get('z') is None:
-                continue
-            if nxt not in by_day or by_day[nxt].get('z') is None:
-                continue
-            rows.append((d, [1.0, by_day[d]['z'], float(src[d])], by_day[nxt]['z']))
-        result, report = _one_predictor(rows, by_day, src, key, label, unit, step)
-        tested.append(report)
-        if result:
-            out.append(result)
-        elif report['significant']:
-            controls.append(key)        # failed a later gate, but may be the real cause of another
-    shown, dropped = _joint_gate(out, by_day, features_by_day, today, controls)
-    shown.sort(key=lambda r: -abs(r['points']))
-    return {'date': today, 'candidates': len(WHAT_MOVES), 'shown': shown, 'dropped_jointly': dropped,
-            'tested': tested}
-
-
-def _joint_gate(passing, by_day, features_by_day, today, controls=()):
-    """Refit everything that passed on its own in ONE model, and drop what was only borrowing.
-
-    Fitted one at a time, correlated candidates steal each other's effect: a late bedtime can look
-    like it helps when it is really standing in for fewer hard days. So every survivor is refitted
-    together (today's z + all passing candidates, Newey-West errors) and must keep its sign; one that
-    keeps its sign but is no longer significant stays, and its sentence says so. The quoted effect is
-    still the one-at-a-time number — the joint fit is a gate, not the headline.
-
-    The model also CONTROLS for every candidate that was significant on its own but failed a later
-    gate. Otherwise a real cause that happens to fail the out-of-sample test would be left out, and a
-    stand-in that merely tracks it would pass unchallenged — the very confounding this gate exists for.
-
-    Candidates enter in WHAT_MOVES order — direct measures first, the derived day-count last — and one
-    that is an exact linear combination of those already in carries no information of its own, so it
-    is dropped as redundant. (The tolerance below is numerical, not a modelling threshold.)
-    """
-    if not passing:
-        return [], []
-    order = {k: i for i, (k, *_rest) in enumerate(WHAT_MOVES)}
-    passing = sorted(passing, key=lambda r: order[r['key']])
-    days = [d for d in sorted(by_day)
-            if d < today and by_day[d].get('z') is not None
-            and _date_minus(d, -1) in by_day and by_day[_date_minus(d, -1)].get('z') is not None
-            and all(d in (features_by_day.get(r['key']) or {}) for r in passing)
-            and all(d in (features_by_day.get(k) or {}) for k in controls)]
-    if len(days) < MIN_GROUP:
-        for r in passing:
-            r['joint'] = None                        # not enough shared days to test them together
-        return passing, []
-    col = lambda key: [float(features_by_day[key][d]) for d in days]
-    base = [[1.0, by_day[d]['z']] + [float(features_by_day[k][d]) for k in controls] for d in days]
-    y = [by_day[_date_minus(d, -1)]['z'] for d in days]
-
-    entered, dropped = [], []
-    for r in passing:
-        x = col(r['key'])
-        X = [row + [col_vals[i] for col_vals in [col(e['key']) for e in entered]] for i, row in enumerate(base)]
-        fit = _ols_newey_west(X, x)
-        if fit is not None:
-            resid = [x[i] - sum(fit[0][a] * X[i][a] for a in range(len(X[0]))) for i in range(len(x))]
-            spread = sum((v - mean(x)) ** 2 for v in x)
-            if spread == 0 or sum(u * u for u in resid) <= 1e-9 * spread:
-                dropped.append({'key': r['key'], 'label': r['label'], 'reason': 'redundant'})
-                continue
-        entered.append(r)
-
-    X = [row + [col(e['key'])[i] for e in entered] for i, row in enumerate(base)]
-    fit = _ols_newey_west(X, y)
-    if fit is None:
-        return [], dropped + [{'key': r['key'], 'label': r['label'], 'reason': 'redundant'} for r in entered]
-    beta, se, _r1 = fit
-    shown = []
-    first = len(base[0])                       # coefficients after today's z and the controls
-    for j, r in enumerate(entered):
-        c, e = beta[first + j], se[first + j]
-        if (c > 0) != (r['coefficient'] > 0):
-            dropped.append({'key': r['key'], 'label': r['label'], 'reason': 'flips'})
-            continue
-        r['joint'] = {'coefficient': round(c, 4), 'p': round(_p_two_sided(c, e, len(days) - len(X[0])), 4),
-                      'days': len(days)}
-        r['joint']['significant'] = r['joint']['p'] < SIGNIFICANCE
-        shown.append(r)
-    return shown, dropped
-
-
-def _one_predictor(rows, by_day, src, key, label, unit, step):
-    """Fit, gate, and convert to readiness points.
-
-    Returns (result, report): result is None unless every gate passes; report records how the
-    candidate did on each gate either way, so a failure can be quoted and checked, not just hidden."""
-    report = {'key': key, 'label': label, 'days': len(rows), 'significant': False, 'passed': False}
-    if len(rows) < MIN_GROUP:
-        return None, report
-    fit = _ols_newey_west([r[1] for r in rows], [r[2] for r in rows])
-    if fit is None:
-        return None, report
-    beta, se, resid_r1 = fit
-    coef, err = beta[2], se[2]
-    p = _p_two_sided(coef, err, len(rows) - 3)
-    significant = p < SIGNIFICANCE
-
-    # evenness: the predictor's own terciles, on the same residualised outcome the fit explains
-    means = _tercile_means([float(src[d]) for d, _x, _nz in rows], _residualised(rows))
-    monotone = _is_monotone(means, rising=coef > 0)
-
-    # out of sample: fitted on the first 70%, does it beat doing nothing on MORE of the last 30% of days
-    # than chance would? A sign test — a positive mean margin alone can be a hair's breadth
-    cut = int(len(rows) * (1 - HOLDOUT))
-    train, test = rows[:cut], rows[cut:]
-    improved, mae, margin, held_out, sign = None, None, None, None, None
-    if len(train) >= MIN_GROUP and len(test) >= MIN_GROUP:
-        f2 = _ols_newey_west([r[1] for r in train], [r[2] for r in train])
-        if f2:
-            c_train = f2[0][2]
-            typical = mean(float(src[d]) for d, _x, _nz in train)
-            base_err, adj_err = [], []
-            for d, x, _nz in test:
-                nxt = by_day[_date_minus(d, -1)]
-                shifted = by_day[d]['z'] + c_train * (float(src[d]) - typical)
-                actual = normal_percentile(nxt['z'])           # unrounded, as in the training cost
-                base_err.append(abs(normal_percentile(by_day[d]['z']) - actual))
-                adj_err.append(abs(normal_percentile(shifted) - actual))
-            sign = _sign_test(base_err, adj_err)
-            improved = sign['passes']
-            mae = [round(mean(base_err), 2), round(mean(adj_err), 2)]
-            margin = round(mean(base_err) - mean(adj_err), 3)
-            held_out = len(test)
-    # fourth gate: the same sign and p < 0.05 in each half of the history, fitted separately
-    halves = _split_half(rows)
-    stable = bool(halves) and all(h['p'] < SIGNIFICANCE and (h['coefficient'] > 0) == (coef > 0) for h in halves)
-    report.update({'coefficient': round(coef, 4), 'p': round(p, 4), 'significant': significant,
-                   'terciles': means, 'monotone': monotone, 'holdout_sign_test': sign,
-                   'holdout_days': held_out, 'halves': halves, 'stable': stable})
-    if not (significant and monotone and improved and stable):
-        return None, report
-
-    # in readiness points: what one step does to a middling day, read off the same normal curve
-    points = round(normal_percentile(coef * step) - normal_percentile(0.0))
-    if points == 0:
-        return None, report              # real but too small to state as a whole point
-    report['passed'] = True
-    return {'key': key, 'label': label, 'unit': unit, 'points': points, 'days': len(rows),
-            'coefficient': round(coef, 4), 'p': round(p, 4), 'terciles': means,
-            'residual_autocorr': round(resid_r1, 2), 'holdout_mae': mae,
-            'holdout_margin': margin, 'holdout_days': held_out, 'holdout_sign_test': sign,
-            'halves': halves}, report
 
 
 SRI_WINDOW_DAYS = 30          # the window Phillips et al. 2017 used
@@ -1528,9 +1294,6 @@ def build_summary(d):
     # 'a' = the answer that day, so the page can show how often each one actually comes up
     full['readiness'] = [{'date': p['date'], 'v': p['v'], 'a': p['answer']} for p in readiness_series]
     training_cost = build_training_cost(readiness_series, strain_by_day, set(by_day_wo), record_day(cyc[-1]))
-    wm_features = build_what_moves_features(sleep, naps, wo, strain_by_day,
-                                            {d for d in strain_by_day if d not in by_day_wo})
-    what_moves = build_what_moves(readiness_series, wm_features, record_day(cyc[-1]))
     sleep_regularity = build_sleep_regularity(sleep, naps, readiness_series, record_day(cyc[-1]))
     bedtime_target = build_bedtime_target(sleep, record_day(cyc[-1]))
     if sleep_regularity:
@@ -1611,7 +1374,6 @@ def build_summary(d):
         'acwr': acwr,
         'load_today': load_today,
         'training_cost': training_cost,
-        'what_moves': what_moves,
         'sleep_regularity': sleep_regularity,
         'bedtime_target': bedtime_target,
         'monotony': monotony,

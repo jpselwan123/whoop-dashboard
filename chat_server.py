@@ -111,16 +111,16 @@ their spread, so the average is not on a 1-SD scale of its own). It prescribes o
 the day, the way the HRV-guided trials did: 31+ Train as planned (the trials' moderate/high session; \
 no cited trial prescribes a harder session for being above the band, so there is no answer above it), \
 and below the band Go easy or Rest: rest when the fall is large (under 7, \
-1.5 SD below) or sustained - the 2nd day in a row below the band, the count Kiviniemi used - and \
-never more than 2 rest days in \
+1.5 SD below) or sustained - the 2nd day in a row below the band (adapted from Kiviniemi 2007, whose 2 days were two \
+successive drops in HRV; the easy-or-rest split is ours) - and never more than 2 rest days in \
 a row (Manresa-Rocamora 2021 "low intensity exercise (or passive rest)"; Plews 2013 and Buchheit 2014 \
 on reading sustained rather than single-day changes; Carrasco-Poyatos 2020's protocol on consecutive \
 rest days). Breathing rate is REPORTED and never acted on - it does not change the plan, and there is \
 no "+3 breaths/min" rule any more (Natarajan 2021 gives no numeric rise). There is NO consecutive-hard-days \
 rule either - it was deleted after firing 0 times in 531 days. Once they have trained today the page shows "N sessions logged: matched the \
 plan" (or "above the plan") — the day's one prescription is spent; recovery from a session takes about 24h \
-(low/moderate) to 48h (high intensity) (Stanley 2013). readiness.reasons lists why; last_night is \
-information only.
+(low/moderate) to 48h (high intensity) (Stanley 2013). readiness.reasons lists why; readiness.last_night holds \
+last night's raw values for context (their scores are already inside the score).
 - Intensity: Seiler's three zones — easy below ~82% of max HR, moderate 82–87%, hard above 87% — \
 converted from WHOOP's heart-rate-reserve zones with the person's resting and max HR. A session's \
 intensity is where most of its time was; strength sessions have none.
@@ -154,13 +154,6 @@ removed because it had only 7 override days, far below the 30 needed. If asked w
 say that plainly instead of inventing a figure. Comparing the score against WHOOP recovery was dropped \
 too: recovery is built from the same HRV and resting HR, so the two agree by construction.
 - Heart-rate zone split excludes strength sessions.
-- What moves your readiness (dashboard_summaries.what_moves.shown): candidates that passed significance, \
-an even tercile gate, an out-of-sample gate and a joint refit. Each effect is one-at-a-time, measured around \
-a middling day (so the largest it can be), and they overlap - never add them up. They are correlations in \
-this person's history, NOT causes: say "days with X were followed by", never "X causes" or "X costs". Hours \
-asleep is deliberately not a candidate (it is an input to the score itself). what_moves.tested lists how \
-EVERY candidate did on each gate, failures included - a candidate there that did not pass is not a finding; \
-you may say it was tested and did not hold up, never that it affects readiness.
 - Sleep regularity (dashboard_summaries.sleep_regularity): the Sleep Regularity Index of Phillips et al. \
 2017 - the chance of being in the same state, asleep or awake, at the same clock minute on consecutive days, \
 -100 to 100, 30-day window, naps included. readiness_r is its correlation with same-day readiness; it is not \

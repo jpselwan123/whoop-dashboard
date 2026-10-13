@@ -76,12 +76,6 @@ def phi(z):
     return 100 * 0.5 * (1 + math.erf(z / math.sqrt(2)))
 
 
-def pearson(pairs):
-    mx, my = mean(x for x, _ in pairs), mean(y for _, y in pairs)
-    den = math.sqrt(sum((x - mx) ** 2 for x, _ in pairs) * sum((y - my) ** 2 for _, y in pairs))
-    return None if not den else sum((x - mx) * (y - my) for x, y in pairs) / den
-
-
 # ---- the day key ------------------------------------------------------------------------------
 def build_day_key(raw):
     """A cycle is the local date its own night sleep ended; everything else follows its cycle."""
@@ -160,7 +154,6 @@ def main(data_dir):
     load_checks(D, raw, workouts, strain, day_of)
     sleep_regularity_checks(D, nights, naps)
     bedtime_checks(D, nights)
-    what_moves_checks(D)
     records_checks(D, raw, workouts, strain, recovery, asleep_h, day_of)
     session_checks(D, raw, workouts, day_of)
     sport_checks(D, D['workout_log'], recovery)
@@ -402,50 +395,6 @@ def bedtime_checks(D, nights):
     target = (med - total) % 24
     check('bedtime: asleep by', B['asleep_by'], '%02d:%02d' % (int(target), round((target % 1) * 60) % 60))
     check('bedtime: wake spread', B['wake_spread_h'], round(sd(wakes, sample=False), 1), 0.05)
-
-
-def what_moves_checks(D):
-    W = D.get('what_moves')
-    if not W:
-        return
-    # hours asleep is excluded: it is one of the score's own inputs, so it would measure the formula
-    check('what moves: five candidates tested', W['candidates'], 5)
-    check('what moves: hours asleep is not a candidate',
-          'sleep_hours' in {r['key'] for r in W['shown']} | {r['key'] for r in W.get('dropped_jointly', [])}, False)
-    for r in W['shown']:
-        j = r.get('joint')
-        if j is not None:
-            check('what moves: %s keeps its sign jointly' % r['key'], (j['coefficient'] > 0) == (r['coefficient'] > 0), True)
-            check('what moves: %s joint significance flag' % r['key'], j['significant'], j['p'] < 0.05)
-    for t in W.get('tested', []):
-        st = t.get('holdout_sign_test')
-        if st:
-            n = st['wins'] + st['losses']
-            p_sign = sum(math.comb(n, k) for k in range(st['wins'], n + 1)) / 2 ** n if n else 1.0
-            check('what moves: %s tested sign test recomputed' % t['key'], round(p_sign, 4), st['p'])
-        if t.get('passed'):
-            check('what moves: %s passed means every gate passed' % t['key'],
-                  bool(t['significant'] and t['monotone'] and st and st['passes'] and t['stable']), True)
-    check('what moves: every candidate is reported', len(W.get('tested', [])), W['candidates'])
-    check('what moves: shown only from those that passed',
-          {r['key'] for r in W['shown']} <= {t['key'] for t in W.get('tested', []) if t.get('passed')}, True)
-    for r in W.get('dropped_jointly', []):
-        check('what moves: %s dropped for a stated reason' % r['key'], r['reason'] in ('flips', 'redundant'), True)
-    for r in W['shown']:
-        check('what moves: %s is significant' % r['key'], r['p'] < 0.05, True)
-        check('what moves: %s is even across terciles' % r['key'],
-              r['terciles'] == sorted(r['terciles'], reverse=r['coefficient'] < 0), True)
-        st = r.get('holdout_sign_test') or {}
-        n = st.get('wins', 0) + st.get('losses', 0)
-        p_sign = sum(math.comb(n, k) for k in range(st.get('wins', 0), n + 1)) / 2 ** n if n else 1.0
-        check('what moves: %s sign test recomputed' % r['key'], round(p_sign, 4), st.get('p'))
-        check('what moves: %s wins more days than chance' % r['key'], p_sign < 0.05, True)
-        halves = r.get('halves') or []
-        check('what moves: %s holds in both halves' % r['key'],
-              len(halves) == 2 and all(h['p'] < 0.05 and (h['coefficient'] > 0) == (r['coefficient'] > 0) for h in halves), True)
-        check('what moves: %s is a whole point' % r['key'], r['points'] != 0, True)
-        want = round(phi(r['coefficient']) - phi(0.0))
-        check('what moves: %s in readiness points' % r['key'], r['points'], want)
 
 
 def records_checks(D, raw, workouts, strain, recovery, asleep_h, day_of):

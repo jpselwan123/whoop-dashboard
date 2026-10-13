@@ -62,11 +62,6 @@ the dashboard says so rather than presenting one of ours as if it did.
   to your usual but never changes the plan (no study gives a numeric rise worth acting on).
 - **Today's plan** — training advice, sleep (nights with 7+ hours), the last day without a
   workout, and tonight's bedtime target from WHOOP's own sleep need.
-- **What moves your readiness** — patterns, not causes: five things about a day, each tested against
-  the next morning's score. One is shown only if it holds in both halves of your history and wins on
-  more held-out days than chance; on the owner's data none do.
-
-<img src="docs/screenshots/analysis.png" alt="What moves your readiness: each candidate tested against the next morning's score, with the ones that failed left out" width="880">
 
 ### Weekly — load and injury-risk signals
 
@@ -221,7 +216,6 @@ anything, and it is not comparable between people.
 | Through the day | Every refresh recomputes the load ratio with today's **training load** (Edwards TRIMP) so far, and the card says how much room is left before the caution line ("passes 1.3 if today's training load goes over 340") — the load that puts the ratio exactly on the line, solved from the same 7- and 28-day averages. **The ratio is reported and never acts on the plan.** It used to step the plan down to Go easy past 1.5; it no longer does. An acute:chronic ratio is a mean over calendar days, and this schedule has many days with no training at all, which swings the ratio far harder than it does for the near-daily squads Gabbett's bands were drawn from — here it sits above 1.5 on **15.8%** of days (median 1.01, highest 3.69). A nap changes readiness itself, because hours asleep count naps. "Today" is the current WHOOP day, from one sleep to the next | Load-ratio bands: [Gabbett, 2016](https://bjsm.bmj.com/content/50/5/273) — disputed as an injury predictor: [Impellizzeri et al., 2020](https://pubmed.ncbi.nlm.nih.gov/32502973/) |
 | After training | Readiness is an overnight measurement, so a session cannot change this morning's number — it lowers the next one. Measured on your own history: the next day's standardised composite regressed on today's score and today's strain (Newey-West errors, lag 7, because days are dependent). The effect is real — **−0.025 per strain point, p < 0.001, 527 day pairs** — and it is even across strain terciles (+0.058 / −0.069 / −0.159, judged on the next morning with today's score taken out — the same outcome the fit explains). But it **fails the third gate**: fitted on the first 70% of days, it beat doing nothing on only **58** of the held-out days and lost on **65** (36 ties; sign test p = 0.76), with a mean error of 12.0 against 11.4. **The adjusted score is not shown**, and turns itself on only if that reverses. Both the outcome and the control are the **standardised** composite, so the coefficient is in the unit it is later added to — regressing the raw night composite instead, as this did until recently, produced a number in one unit and applied it in another | Our own measurement, labelled as an extension — no published model prescribes this |
 | What the score would have been | A slider in the readiness panel for last night's hours asleep, from your own shortest to longest night of the last year. It re-evaluates **the same formula** — the same six standard scores, the same average, the same percentile step — with one input replaced, in the page, from figures already on it. Only last night's score moves: the 7-day part of the score stops at yesterday, which is why last night is counted once rather than twice. It is history, not a forecast: what today's score *would have been*, never what tomorrow will be | No new rule or threshold — `build_what_if` exports the existing baselines and `whatIfScore` re-runs `percentile_series`' arithmetic; a test asserts the slider at last night's real value returns the displayed score |
-| What moves your readiness | **Five** things about a day — bedtime against your own median, day strain, whether you napped, when the last session finished, days since a rest day — each fitted **on its own** against the next morning's standardised score, controlling for that day's score, with Newey-West errors (lag 7). Each must pass **the same three gates** as the training-cost adjustment: significant at p < 0.05; even across its own terciles, judged on the next morning **with today's score taken out** (the outcome the fit actually explains); fitted on the first 70% of days, better than doing nothing on **more of the last 30% of days than chance** (a one-sided sign test, p < 0.05 — a mean margin can be positive while the adjustment loses more days than it wins); and **the same sign with p < 0.05 in each half of the history**, fitted separately. Survivors are then **refitted together** in one model that also controls for every candidate significant on its own — so a real cause that fails a later gate still exposes a stand-in that merely tracks it: fitted one at a time, correlated candidates borrow each other's effect, so any that **flips sign** jointly is dropped, one that keeps its sign but loses significance says so, and one that is an exact linear combination of candidates already in (entered in the order above) is dropped as redundant. The quoted effect is still the one-at-a-time number; the joint fit is a gate. The candidates overlap, so their effects **do not add up**. **Hours asleep is not a candidate**: it is one of the score's own inputs (today's last-night score) and sits inside tomorrow's 7-day window, so regressing tomorrow on it while controlling for today measures the formula's weights, not sleep — on this history it came out as "an extra hour of sleep costs 2 points", which is mechanical. On this history **none of five** survive. Day strain came closest — significant, even, and stable in both halves — but on the 159 held-out days its adjustment won **76** and lost **83** (sign test p = 0.74). Errors are compared on the **unrounded** percentile: rounding to whole points manufactured ties, and a sign test discards ties. Points are read off the normal curve **around a middling day**, where it is steepest, so any effect shown is the largest it can be. On the synthetic athlete, bedtime — which the generator gives **no effect at all** — can pass the first three gates and the joint fit; the sign-test and split-half gates exist to stop it, and a test pins that on a fixed demo date (the demo counts back from the day it is generated, so its figures change daily and are not quoted). The gates reduce false findings; they cannot promise to eliminate them | Our own measurement, labelled as one. Gates and errors as in `build_training_cost`; nothing here is a published rule, and nothing acts on the plan |
 | Session today | The plan is **one session a day** — the trials read HRV each morning and set that day's session. Once you have trained, the card shows **“N sessions logged: matched the plan”** (or **“above the plan”**); recovery takes ~24 h after a low or moderate session and ~48 h after a hard one | Daily prescription: Kiviniemi 2007, Vesterinen 2016, Javaloyes 2019; recovery time: [Stanley, Peake & Buchheit, 2013](https://link.springer.com/article/10.1007/s40279-013-0083-4) |
 
 Last night is three of the six inputs and the previous 7 days are the other three, but **equal weights
@@ -274,7 +268,7 @@ the trials also used, isn't available from the WHOOP API.
 
 ### Settled decisions — do not reopen
 
-Two choices were reviewed at length and **closed by the owner**. They stay as they are; a future pass
+Three choices were reviewed at length and **closed by the owner**. They stay as they are; a future pass
 should not re-litigate them.
 
 1. **The rest rule.** Rest on a large fall (score under 7) or on the 2nd consecutive day below the band,
@@ -283,6 +277,11 @@ should not re-litigate them.
    literal two-drops reading was measured (it would disagree on a third of days) and not adopted.
 2. **The weights.** The six inputs keep equal weights. Measured variance shares: trend **61.6%**, last
    night **38.4%**; HRV and resting HR together 87%, sleep 13%. Documented, not reweighted.
+3. **No "what moves your readiness" panel.** It tested five things about a day (bedtime, day strain, naps,
+   when training finished, days since a rest day) against the next morning's score through four gates:
+   significance, even terciles, a sign test on held-out days, and the same sign in both halves of the
+   history. On the owner's data none survived, so the panel only ever said so, and it was removed rather
+   than left on the page as an empty box. The training-cost adjustment keeps the same checks.
 
 ### Choices that are ours
 
@@ -306,7 +305,6 @@ window, p < 0.05 with 30+ per group — are cited in the tables above.
 | Breathing baseline | nights **30–90** days back, **30**+ of them | Display only — breathing never changes the plan |
 | Strength sessions | weightlifting, powerlifting | Left out of the zone split: rest between sets reads as easy time |
 | Training-cost baseline | median day strain on rest days | The cost is only charged above a typical rest day, so doing less is never a bonus |
-| "What moves" display | at least **1** whole readiness point | A real but sub-point effect would read "0 points", which says nothing |
 
 ## Architecture
 
