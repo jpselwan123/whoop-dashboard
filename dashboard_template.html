@@ -1,4 +1,5 @@
 <!doctype html>
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Readiness Instrument</title>
@@ -240,8 +241,8 @@
   .rn-zone-legend .sw{width:8px;height:8px;border-radius:2px;}
 
   /* ---- records grid ---- */
-  .records-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
-  .record-tile{background:var(--surface);padding:15px 16px;display:flex;flex-direction:column;gap:3px;}
+  .records-grid{display:flex;flex-wrap:wrap;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+  .record-tile{flex:1 1 170px;min-width:0;background:var(--surface);padding:15px 16px;display:flex;flex-direction:column;gap:3px;}
   .record-tile .k{font-size:10.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-faint);}
   .record-tile .v{font-family:"Archivo",sans-serif;font-weight:800;font-size:21px;letter-spacing:-0.01em;}
   .record-tile .d{font-size:11px;color:var(--ink-muted);}
@@ -257,7 +258,8 @@
   }
   table.log td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--ink);}
   table.log tbody tr:hover{background:var(--surface-2);}
-  table.log td.num{text-align:right;font-family:"IBM Plex Mono",monospace;}
+  table.log th.num, table.log td.num{text-align:right;}
+  table.log td.num{font-family:"IBM Plex Mono",monospace;}
   table.log td.sport{color:var(--ink-muted);}
 
   /* ---- cadence group headers ---- */
@@ -440,13 +442,6 @@
     </div>
   </section>
 
-  <section class="card">
-    <div class="section-head"><h2>What moves your readiness</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub" id="whatMovesIntro">Patterns, not causes. Five things about a day — bedtime, strain, naps, when training finished, days since a rest day — each checked against the next morning's score. A pattern is shown only if it held in both halves of your history and on days it wasn't fitted to.</div>
-    <div class="section-sub" id="whatMovesOverlap">Each is measured on its own and they overlap, so the numbers don't add up.</div>
-    <div class="signal-grid" style="margin-top:12px;" id="whatMovesGrid"></div>
-  </section>
-
   <div class="group-header"><span class="glabel">Weekly</span><span class="grule"></span><span class="gcaption">load, patterns, injury-risk signals</span></div>
 
   <section class="card">
@@ -569,7 +564,7 @@
   <footer>
     <div class="grp">
       <b>Measured vs. modeled</b>
-      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines your 7-day HRV, resting HR and sleep, each against your previous 4 weeks (50 = a median day for you), with a limit of 2 hard days in a row. Breathing rate is shown but not acted on — no published threshold for a nightly rise. Click the orb for the numbers.</span>
+      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines HRV, resting HR and hours asleep, as 7-day averages and as last night alone, each against your previous 4 weeks (50 = a median day for you). Breathing rate is shown but not acted on — no published threshold for a nightly rise. Click the orb for the numbers.</span>
     </div>
     <div class="grp"><span id="baselineNote"></span></div>
     <div class="grp"><span id="coverageNote"></span></div>
@@ -873,7 +868,7 @@ function renderSuggestions(calc){
   if(tips.length === 0) tips.push(`Nothing unusual in your sleep or training pattern this week.`);
   const tEl = $('tipsSignal'), tTxt = $('tipsText');
   tEl.className = tips[0].startsWith('Nothing') ? 'signal ok' : 'signal warn';
-  tTxt.innerHTML = '<b>Recovery tips:</b><br>' + tips.map(t => '· ' + t).join('<br>');
+  tTxt.innerHTML = '<b>Recovery tips:</b><br>' + tips.map(t => tips.length > 1 ? '· ' + t : t).join('<br>');
 }
 
 // One-time count-up on first paint. The final value is written first, so if animation
@@ -1359,7 +1354,7 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
 
 /* ================= trend explorer ================= */
 const METRICS = [
-  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:[{v:DATA.constants.ready_lines.train,color:'var(--good)'},{v:DATA.constants.ready_lines.rest,color:'var(--critical)'}], bounds:[0,100], formula:'7-day HRV, resting HR and sleep vs your previous 4 weeks, averaged and placed among your own days: 50 = your median day.'},
+  {key:'readiness', label:'Readiness', unit:'', decimals:0, refLines:[{v:DATA.constants.ready_lines.train,color:'var(--good)'},{v:DATA.constants.ready_lines.rest,color:'var(--critical)'}], bounds:[0,100], formula:'7-day HRV, resting HR and sleep, plus last night alone, vs your previous 4 weeks, averaged and placed among your own days: 50 = your median day.'},
   {key:'recovery', label:'Recovery', unit:'', decimals:0, refLines:[{v:67,color:'var(--good)'},{v:34,color:'var(--critical)'}], bounds:[0,100], formula:'recovery.score.recovery_score, once per day, /v2/recovery.'},
   {key:'strain', label:'Strain', unit:'', decimals:1, formula:'cycle.score.strain — 0–21 cumulative daily exertion, /v2/cycle.'},
   {key:'sleep_performance', label:'Sleep perf.', unit:'%', decimals:0, bounds:[0,100], formula:"WHOOP's Sleep Performance. Since WHOOP's 2025 update it blends hours vs needed with consistency, efficiency and sleep stress; readiness uses hours vs needed on its own."},
@@ -1713,7 +1708,7 @@ function renderRecords(){
     ['Peak HRV', R.best_hrv.v+' ms', fmtDate(R.best_hrv.date)],
     ['Lowest resting HR', R.lowest_rhr.v+' bpm', fmtDate(R.lowest_rhr.date)],
     ['Biggest strain day', R.biggest_strain_day.v, fmtDate(R.biggest_strain_day.date)],
-    ...(R.biggest_strain_workout ? [['Biggest single session', R.biggest_strain_workout.v+' · '+R.biggest_strain_workout.sport, fmtDate(R.biggest_strain_workout.date)]] : []),
+    ...(R.biggest_strain_workout ? [['Biggest single session', R.biggest_strain_workout.v, R.biggest_strain_workout.sport+' · '+fmtDate(R.biggest_strain_workout.date)]] : []),
     ['Longest sleep', fmtHM(R.longest_sleep_h.v), fmtDate(R.longest_sleep_h.date)],
     ...(R.best_week_sessions ? [['Best week', R.best_week_sessions+' sessions', 'in one calendar week']] : []),
     ['Total training time', R.total_training_hours+' hrs', `${DATA.total_workouts} sessions`],
@@ -1785,37 +1780,6 @@ function renderCoverage(){
   $('totalDaysNote').textContent = `${DATA.n_days_total} days on record (${fmtDate(start)} → ${fmtDate(end)})`;
 }
 
-// Each candidate has to clear the same three gates the training-cost adjustment does: significant,
-// even across its own terciles, and better than doing nothing out of sample. Nearly everything fails,
-// which is the point — the panel says so rather than filling itself with plausible-sounding lines.
-const WORDS = {1:'one', 2:'two', 3:'three', 4:'four', 5:'five', 6:'six'};
-function renderWhatMoves(){
-  const W = DATA.what_moves, grid = $('whatMovesGrid');
-  if(!grid) return;
-  // Nothing survived: one plain line instead of a card of explanation around an empty box. The
-  // explanation only earns its space when there is a pattern to explain.
-  const empty = !W || !W.shown.length;
-  ['whatMovesIntro', 'whatMovesOverlap'].forEach(id => { const el = $(id); if(el) el.hidden = empty; });
-  grid.style.marginTop = empty ? '0' : '12px';
-  if(empty){
-    grid.innerHTML = `<div class="section-sub" style="margin:0">${
-      W ? `Patterns, not causes — and none held up: of the ${WORDS[W.candidates] || W.candidates} things tested (bedtime, strain, naps, when training finished, days since a rest day), none went with your next-morning score consistently enough to show.`
-        : 'Not enough history yet to look for patterns.'}</div>`;
-    return;
-  }
-  const failed = W.candidates - W.shown.length;
-  grid.innerHTML = W.shown.map(r => {
-    const n = Math.abs(r.points);
-    const label = r.label.charAt(0).toUpperCase() + r.label.slice(1);
-    // the held-out gain is stated as it is, never graded against a line of our own
-    const st = r.holdout_sign_test;
-    const gain = !st ? '' : ` On days it wasn't fitted to, it improved the forecast on ${st.wins} days and worsened it on ${st.losses}.`;
-    const joint = r.joint && !r.joint.significant
-      ? ' Measured alongside the others it keeps its direction, but is no longer clear on its own.' : '';
-    return `<div class="signal"><span class="dot"></span><span class="txt"><b>${label}</b> was followed by readiness about <b>${n} point${n === 1 ? '' : 's'} ${r.points > 0 ? 'higher' : 'lower'}</b> the next morning, around a middling day, over ${r.days} days.${gain}${joint}</span></div>`;
-  }).concat(failed ? [`<div class="signal"><span class="dot"></span><span class="txt">The other ${WORDS[failed] || failed} didn't hold up and aren't shown.</span></div>`] : []).join('');
-}
-
 // Sleep Regularity Index (Phillips et al. 2017). The correlation with readiness is shown because it
 // is the obvious question — and stated as a correlation on one person's history, which is all it is.
 function renderSleepRegularity(){
@@ -1853,7 +1817,6 @@ function renderAll(){
   renderStats();
   renderRightNow();
   renderTodaySignals();
-  renderWhatMoves();
   renderSleepRegularity();
   renderBedtime();
   renderACWR();

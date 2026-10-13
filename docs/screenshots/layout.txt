@@ -1,12 +1,9 @@
-fingerprint 50c4524fcceca2b0
+fingerprint 3f92de6a5b061809
 # the page layout these screenshots were taken from; regenerate both together
 group: Daily
 section: Right now
 section: Today's plan
   sub: What to do today and why, built from your own patterns rather than a generic tip list.
-section: What moves your readiness
-  sub: Patterns, not causes. Five things about a day — bedtime, strain, naps, when training finished, days since a rest day — each checked against the next morning's score. A pattern is shown only if it held in both halves of your history and on days it wasn't fitted to.
-  sub: Each is measured on its own and they overlap, so the numbers don't add up.
 group: Weekly
 section: Acute:Chronic Workload Ratio
   sub: Last 7 days of training load vs the last 28 — minutes in each heart-rate zone weighted by intensity, a linear load like the ones these bands were built on. A widely used injury-risk measure, though later research disputes how well the bands predict injury.
