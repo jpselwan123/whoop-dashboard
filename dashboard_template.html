@@ -169,11 +169,14 @@
   input[type="range"]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);cursor:pointer;}
 
   .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
-  .section-head h2{font-family:"Archivo",sans-serif;font-size:16px;font-weight:700;margin:0;letter-spacing:-0.01em;}
+  .section-head h2{font-family:"Archivo",sans-serif;font-size:17px;font-weight:700;margin:0;letter-spacing:-0.01em;}
   .section-head .n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-faint);}
+  /* a badge straight after the title sits beside it, the same on every card */
+  .section-head > h2 + .beyond-badge{margin-right:auto;}
   .section-sub{font-size:12.5px;color:var(--ink-muted);margin-top:2px;margin-bottom:10px;line-height:1.5;}
 
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow);}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 22px;box-shadow:var(--shadow);}
+  @media (max-width:680px){.card{padding:18px;}}
 
   /* ---- pill tabs ---- */
   .tabs{display:flex;gap:6px;flex-wrap:wrap;}
@@ -241,14 +244,17 @@
   .rn-zone-legend .sw{width:8px;height:8px;border-radius:2px;}
 
   /* ---- records grid ---- */
-  .records-grid{display:flex;flex-wrap:wrap;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
-  .record-tile{flex:1 1 170px;min-width:0;background:var(--surface);padding:15px 16px;display:flex;flex-direction:column;gap:3px;}
+  /* one card, no hairlines: a short last row leaves plain surface, never a grey block */
+  .records-grid{display:grid;grid-template-columns:repeat(5,1fr);background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
+  @media (max-width:860px){.records-grid{grid-template-columns:repeat(3,1fr);}}
+  @media (max-width:560px){.records-grid{grid-template-columns:repeat(2,1fr);}}
+  .record-tile{background:var(--surface);padding:16px 18px;display:flex;flex-direction:column;gap:3px;min-width:0;}
   .record-tile .k{font-size:10.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-faint);}
-  .record-tile .v{font-family:"Archivo",sans-serif;font-weight:800;font-size:21px;letter-spacing:-0.01em;}
+  .record-tile .v{font-family:"Archivo",sans-serif;font-weight:800;font-size:21px;letter-spacing:-0.01em;white-space:nowrap;}
   .record-tile .d{font-size:11px;color:var(--ink-muted);}
 
   /* ---- training log table ---- */
-  .log-scroll{max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:12px;}
+  .log-scroll{max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:var(--shadow);}
   table.log{width:100%;min-width:560px;border-collapse:collapse;font-size:12.5px;}
   table.log td, table.log th{white-space:nowrap;}
   table.log thead th{
@@ -271,9 +277,10 @@
   /* ---- signal callouts ---- */
   .signal-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   @media (max-width:680px){.signal-grid{grid-template-columns:1fr;}}
-  .signal{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);}
-  .signal.ok{border-color:var(--good);background:var(--good-bg);}
-  .signal.warn{border-color:var(--warn);background:var(--warn-bg);}
+  .signal{display:flex;gap:10px;align-items:flex-start;padding:13px 15px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);}
+  /* tinted tiles keep their colour but only half-strength edges, so four of them don't shout */
+  .signal.ok{border-color:var(--good);border-color:color-mix(in srgb, var(--good) 45%, var(--border));background:var(--good-bg);}
+  .signal.warn{border-color:var(--warn);border-color:color-mix(in srgb, var(--warn) 45%, var(--border));background:var(--warn-bg);}
   .signal .dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;background:var(--ink-faint);}
   .signal.ok .dot{background:var(--good);}
   .signal.warn .dot{background:var(--warn);}
@@ -563,7 +570,7 @@
 
   <footer>
     <div class="grp">
-      <b>Measured vs. modeled</b>
+      <b>About these numbers</b>
       <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines HRV, resting HR and hours asleep, as 7-day averages and as last night alone, each against your previous 4 weeks (50 = a median day for you). Breathing rate is shown but not acted on — no published threshold for a nightly rise. Click the orb for the numbers.</span>
     </div>
     <div class="grp"><span id="baselineNote"></span></div>
@@ -843,11 +850,10 @@ function renderSuggestions(calc){
       : 'Low-intensity sessions are usually recovered from within 24 hours — tomorrow’s score will show how you took it.');
   } else if(calc.action === 'rest'){
     sEl.className = 'signal warn';
-    sTxt.innerHTML = `<b>Rest today.</b> ${sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))))}`;
+    sTxt.innerHTML = `<b>Rest today</b> — no training session.`;
   } else if(calc.action === 'easy'){
     sEl.className = 'signal warn';
-    sTxt.innerHTML = `<b>Keep today easy.</b> ${sentence(listAnd(calc.reasons.map(k => reasonText(calc, k))))}`;
-
+    sTxt.innerHTML = `<b>Keep today easy</b> — low-intensity work, or rest.`;
   } else if(calc.action === 'moderate'){
     sEl.className = 'signal ok';
     sTxt.innerHTML = `<b>Train the session you had planned.</b> Readiness ${calc.R.score} is at or above ${calc.R.lines.train}, the line for training as planned.`;
@@ -862,13 +868,13 @@ function renderSuggestions(calc){
   const tips = [];
   const S = DATA.sleep_nights;
   if(S && S.nights && S.nights_7h < S.nights)
-    tips.push(`${S.nights_7h} of your last ${S.nights} nights had ${S.min_hours}+ hours asleep — adults need ${S.min_hours}+ hours regularly.`);
+    tips.push(`<b>${S.nights_7h} of your last ${S.nights} nights</b> had ${S.min_hours}+ hours asleep — adults need ${S.min_hours}+ hours regularly.`);
   const M = DATA.monotony.length ? DATA.monotony[DATA.monotony.length-1] : null;
-  if(M && M.high) tips.push(`${monotonyWeekName} had almost the same training load every day — plan lighter days in between.`);
-  if(tips.length === 0) tips.push(`Nothing unusual in your sleep or training pattern this week.`);
+  if(M && M.high) tips.push(`<b>${monotonyWeekName}</b> had almost the same training load every day — plan lighter days in between.`);
+  if(tips.length === 0) tips.push(`<b>Nothing unusual</b> in your sleep or training pattern this week.`);
   const tEl = $('tipsSignal'), tTxt = $('tipsText');
-  tEl.className = tips[0].startsWith('Nothing') ? 'signal ok' : 'signal warn';
-  tTxt.innerHTML = '<b>Recovery tips:</b><br>' + tips.map(t => tips.length > 1 ? '· ' + t : t).join('<br>');
+  tEl.className = tips[0].startsWith('<b>Nothing') ? 'signal ok' : 'signal warn';
+  tTxt.innerHTML = tips.join('<br>');
 }
 
 // One-time count-up on first paint. The final value is written first, so if animation
@@ -1577,7 +1583,7 @@ function renderSportCost(){
     return `<div class="div-row">
       <span class="name">${s.sport}<span class="sub">${s.n} ${s.n === 1 ? 'day' : 'days'} · ${INTENSITY_WORD[s.intensity] || s.intensity}</span></span>
       <span class="div-track"><span class="zero" style="left:50%"></span><span class="fill" style="left:${left}%;width:${pct}%;background:${color};"></span></span>
-      <span class="val tnum">${s.delta == null ? '—' : (s.significant ? '' : '~') + (s.delta>0?'+':'') + s.delta}</span>
+      <span class="val tnum">${s.delta == null ? '—' : (s.significant ? '' : '~') + (s.delta > 0 ? '+' : s.delta < 0 ? '\u2212' : '') + Math.abs(s.delta).toFixed(1)}</span>
     </div>`;
   };
   const top = sports.slice(0, 4), rest = sports.slice(4);
@@ -1737,7 +1743,7 @@ function renderLoad(){
         <div style="width:100%;max-width:26px;border-radius:4px 4px 2px 2px;background:var(--accent);opacity:${isNow?0.4:0.85};height:${h}px;"></div>
       </div>
       <div style="height:30px;margin-top:4px;display:flex;align-items:flex-start;justify-content:center;">
-        <span style="font-size:10px;color:var(--ink-faint);line-height:1.25;text-align:center;">${label}</span>
+        <span class="mono" style="font-size:10px;color:var(--ink-faint);line-height:1.25;text-align:center;">${label}</span>
       </div>`;
     bars.appendChild(col);
   });
@@ -1765,7 +1771,7 @@ function renderLog(){
     <td>${fmtDate(w.date)}</td>
     <td class="sport">${w.sport}</td>
     <td class="num tnum">${w.dur_min}m</td>
-    <td class="num tnum">${fmt1(w.strain)}</td>
+    <td class="num tnum">${w.strain == null ? '—' : one(w.strain)}</td>
     <td class="num tnum">${dash(w.avg_hr)}</td>
     <td class="num tnum">${dash(w.max_hr)}</td>
     <td class="num tnum">${dash(w.kcal)}</td>
@@ -1776,7 +1782,7 @@ function renderLog(){
 function renderCoverage(){
   const [start,end] = DATA.date_range;
   $('coverageNote').textContent = `Pulled from ${DATA.n_days_total} days of WHOOP history, ${fmtDate(start)} → ${fmtDate(end)}. Body stats on file: ${DATA.body.height_meter}m, ${DATA.body.weight_kilogram}kg.`;
-  $('baselineNote').textContent = `Readiness compares your last 7 days with your own previous 4 weeks, so it shows change, not fitness level. History-wide figures cover your ${DATA.monthly_count_with_data} tracked months, not every month since you started.`;
+  $('baselineNote').textContent = `Readiness compares you with your own previous 4 weeks, so it shows change, not fitness level. History-wide figures cover your ${DATA.monthly_count_with_data} tracked months, not every month since you started.`;
   $('totalDaysNote').textContent = `${DATA.n_days_total} days on record (${fmtDate(start)} → ${fmtDate(end)})`;
 }
 
