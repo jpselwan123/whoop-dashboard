@@ -117,7 +117,7 @@ a row (Manresa-Rocamora 2021 "low intensity exercise (or passive rest)"; Plews 2
 on reading sustained rather than single-day changes; Carrasco-Poyatos 2020's protocol on consecutive \
 rest days). Breathing rate is REPORTED and never acted on - it does not change the plan, and there is \
 no "+3 breaths/min" rule any more (Natarajan 2021 gives no numeric rise). There is NO consecutive-hard-days \
-rule either - it was deleted after firing 0 times in 531 days. Once they have trained today the page shows "N sessions logged: matched the \
+rule either - it was deleted after firing 0 times in 548 days. Once they have trained today the page shows "N sessions logged: matched the \
 plan" (or "above the plan") — the day's one prescription is spent; recovery from a session takes about 24h \
 (low/moderate) to 48h (high intensity) (Stanley 2013). readiness.reasons lists why; readiness.last_night holds \
 last night's raw values for context (their scores are already inside the score).
@@ -134,7 +134,7 @@ day. dashboard_summaries.load_today gives today's ratio and load_at = the TRAINI
 not strain) today at which the ratio would cross each band (algebra on the band, not a new threshold). The ratio is REPORTED and never acts on \
 the plan - it used to step it down past 1.5 and no longer does, because an acute:chronic ratio is a mean over \
 calendar days and this person has many days with no training, which swings it far harder than for the \
-near-daily squads the bands came from (above 1.5 on 15.8% of days here).
+near-daily squads the bands came from (above 1.5 on 15.6% of days here).
 - After a session the orb shows readiness after training (dashboard_summaries.training_cost): this \
 morning's score minus what today's strain costs by tomorrow morning, measured on their own history \
 (per_strain = readiness points per point of day strain, holding readiness constant; applied to strain \

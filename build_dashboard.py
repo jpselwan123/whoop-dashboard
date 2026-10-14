@@ -45,7 +45,7 @@ class DayKey:
     back to its own local date.
 
     The key is unique for every cycle on this history, where the UTC day of `created_at` collides
-    on one and the local date of the cycle start on five — a collision means one day's strain
+    on one and the local date of the cycle start on six — a collision means one day's strain
     silently overwrites another's, so the count is not left to a comment: run
     `scripts/check_doc_stats.py`, which recounts it (`key_collisions`) on the current data."""
 
@@ -166,12 +166,12 @@ def build_acwr(load_by_day):
 
     Load is Edwards TRIMP, not WHOOP day strain. Gabbett's 0.8 / 1.3 / 1.5 bands were derived on
     linear loads; averaging a logarithmic 0–21 strain compresses the ratio so far that the bands are
-    unreachable — over 568 days here the strain ratio never once passed 1.5 (highest 1.48, SD 0.17).
+    unreachable — over 585 days here the strain ratio never once passed 1.5 (highest 1.48, SD 0.17).
     Same reason strain is never summed across sessions.
 
     The ratio is REPORTED, never acted on. It is a mean over calendar days and this schedule has many
     days with no training, which swings it far harder than it does for the near-daily squads the
-    bands came from: on TRIMP it sits above 1.5 on 15.8% of days. Gabbett's bands are disputed as an
+    bands came from: on TRIMP it sits above 1.5 on 15.6% of days. Gabbett's bands are disputed as an
     injury predictor anyway (Impellizzeri et al. 2020), so the number and its bands are shown and
     nothing in the plan depends on them. Both figures are re-measured by scripts/check_doc_stats.py."""
     from datetime import date as _date
@@ -433,7 +433,7 @@ def build_sport_recovery_cost(day_sessions, recovery_by_day, all_sports=()):
 #     trial protocol rather than a result; detraining).
 #     One prescription per day: the trials read HRV each morning and set that day's session.
 #   - There is no consecutive-hard-days rule. Carrasco-Poyatos 2020's protocol caps them, but over
-#     531 days here only 2 days ever carried a streak of 2 (the rule counted moderate OR hard days,
+#     548 days here only 2 days ever carried a streak of 2 (the rule counted moderate OR hard days,
 #     of which there are 40 — consecutive ones are simply rare), and the check sat after the band
 #     rules, so it could only ever fire on a day already scoring 31+. On both those days the score
 #     was already below the band, so it never once changed an answer. Deleted rather than left in
@@ -473,7 +473,7 @@ DAYS_LOW_TO_REST = 2
 # Breathing rate is still measured and shown, but it no longer changes the plan. The "+3 breaths/min"
 # cut-off was attributed to Natarajan et al. 2021, which gives no such number — it detects illness with
 # a z-score against a rolling baseline, not a fixed rise — so the threshold was ours, not a source's.
-# It had also never fired: over the 493 nights with enough baseline to judge, the largest rise was
+# It had also never fired: over the 510 nights with enough baseline to judge, the largest rise was
 # +2.3/min (recomputed by scripts/check_doc_stats.py, which reports `breathing`).
 BREATHING_BASELINE = (30, 90)
 BREATHING_MIN_NIGHTS = 30

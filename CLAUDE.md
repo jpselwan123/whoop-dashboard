@@ -78,22 +78,22 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
   DROPS in HRV, not two days below the range, and he never chose between easy and rest — that split is
   ours. Breathing rate is reported, never acted on (Natarajan 2021 gives no numeric rise; the old +3/min
   was ours and never fired). There is **no consecutive-hard-days rule**: Carrasco-Poyatos 2020's protocol caps
-  them, but in 531 days only 2 days ever carried a streak of 2 (it counted moderate OR hard days, of which there
+  them, but in 548 days only 2 days ever carried a streak of 2 (it counted moderate OR hard days, of which there
   are 40 — consecutive ones are just rare), and the check sat after the band rules so it could only fire on a day
   already scoring 31+; on both those days the score was already below the band — deleted, like breathing. Once any
   session is logged today the pill reads "N sessions logged" and the headline "N sessions logged: matched
   the plan" / "above the plan" (plan spent) unless the plan was Rest. The load ratio
   (`build_acwr` / `build_load_today`) is **reported, never acted on** — it no longer steps the plan down. An
   acute:chronic ratio is a mean over calendar days and this schedule has many zero days, so it swings far harder
-  than for the near-daily squads Gabbett's bands came from (above 1.5 on 15.8% of days here; disputed anyway,
+  than for the near-daily squads Gabbett's bands came from (above 1.5 on 15.6% of days here; disputed anyway,
   Impellizzeri 2020). It runs on **Edwards TRIMP, never day strain** — Gabbett's bands are linear-load, and the
-  strain ratio never passed 1.5 in 568 days.
+  strain ratio never passed 1.5 in 585 days.
   `build_training_cost` measures what today's strain costs the NEXT NIGHT's composite (regression on the composite
   z, not the percentile; Newey-West lag 7; gates = significant & negative, monotone across strain terciles, and
   beats doing nothing on a held-out 30%). Outcome AND control are the **standardised** composite z, so the
   coefficient is in the unit it is added to. It is currently **not displayed** — it passes significance and the
-  tercile gate (+0.058 / −0.069 / −0.159 on the residualised outcome) but fails the hold-out sign test (58 wins / 65 losses,
-  p = 0.76). So the orb keeps the morning score. The tercile gate sorts the RESIDUALISED next-morning z
+  tercile gate (+0.067 / −0.080 / −0.168 on the residualised outcome) but fails the hold-out sign test (56 wins / 67 losses,
+  p = 0.86). So the orb keeps the morning score. The tercile gate sorts the RESIDUALISED next-morning z
   (today's z taken out), never the raw one — the fit controls for today, so the gate must too. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
   values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
   score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
@@ -141,9 +141,9 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.
 
 ## Settled decisions (closed by JP — do not reopen)
-- **Rest rule:** <7, or 2nd consecutive day below 31, max 2 rest days in a row. Fired over 531 days: large
-  fall 21, sustained fall 81, cap 34. Kiviniemi's literal reading was measured and not adopted.
-- **Weights:** equal. Variance shares trend 61.6% / last night 38.4%. Not reweighted.
+- **Rest rule:** <7, or 2nd consecutive day below 31, max 2 rest days in a row. Fired over 548 days: large
+  fall 21, sustained fall 83, cap 35. Kiviniemi's literal reading was measured and not adopted.
+- **Weights:** equal. Variance shares trend 61.1% / last night 38.9%. Not reweighted.
 - **Monotony:** two decimals everywhere (1.96 and 2.04 must not both read 2.0).
 - **Training-cost gate:** significance, residualised terciles, and a one-sided sign test on the 30% hold-out
   (errors on the UNROUNDED percentile — rounding manufactured ties).

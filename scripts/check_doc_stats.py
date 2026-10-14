@@ -518,9 +518,11 @@ def check_measured_docs(facts, root=HERE):
         ]
     if n and facts.get('effective_n'):
         expected.append((readme, 'README.md',
+                         '(day-to-day correlation %.2f), '
                          'so %d days behave like an effective **n ≈ %d** and the spread estimate is good to about '
                          '**±%d%%**; a 90-day window would be ±%d%%'
-                         % (n, facts['effective_n'], round(facts['sd_error_pct']), round(facts['sd_error_90d_pct'])),
+                         % (facts['autocorrelation'], n, facts['effective_n'], round(facts['sd_error_pct']),
+                            round(facts['sd_error_90d_pct'])),
                          'the effective sample size and the spread error'))
     if facts.get('collisions_if_utc_day') in words and facts.get('collisions_if_cycle_start') in words:
         expected.append((source, 'build_dashboard.py', 'collides\n    on %s and the local date of the cycle start on %s'
@@ -589,15 +591,15 @@ def check_measured_docs(facts, root=HERE):
         expected.append((readme, 'README.md',
                          '**\u2212%.3f per strain point, p < 0.001, %d day pairs**' % (abs(tc['per_strain']), tc['pairs']),
                          "the training cost's own figures"))
-        if tc.get('tercile_next_night'):
-            t3 = tc['tercile_next_night']
+        # the facts carry `terciles` and `holdout_mae_*`, not the payload's own key names
+        if tc.get('terciles'):
             fmt = lambda v: ('+' if v >= 0 else '\u2212') + '%.3f' % abs(v)
-            expected.append((readme, 'README.md', '%s / %s / %s' % tuple(fmt(v) for v in t3),
-                             "the training cost's terciles"))
-        if tc.get('holdout_mae'):
-            expected.append((readme, 'README.md',
-                             'doing nothing (mean error %.1f vs %.1f)' % (tc['holdout_mae'][1], tc['holdout_mae'][0]),
-                             'its hold-out errors'))
+            t3 = ' / '.join(fmt(v) for v in tc['terciles'])
+            expected.append((readme, 'README.md', '(%s, judged' % t3, "the training cost's terciles"))
+            expected.append((claude, 'CLAUDE.md', '(%s on the residualised' % t3, 'the same in CLAUDE.md'))
+        if tc.get('holdout_mae_null') is not None:
+            expected.append((readme, 'README.md', 'with a mean error of %.1f against %.1f'
+                             % (tc['holdout_mae_adjusted'], tc['holdout_mae_null']), 'its hold-out errors'))
     if vs:
         # the same measurement is quoted twice — in the weights paragraph and again in Limitations
         share = 'HRV %d%% / resting heart rate %d%% / sleep %d%% on the trend side, %d%% / %d%% / %d%% for last' % (
