@@ -26,6 +26,7 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
 |---|---|
 | `whoop.py` | OAuth (refresh tokens rotate — write before use), incremental sync (10-day lookback), `--auth-url` |
 | `build_dashboard.py` | every computed metric → `dashboard_data.json`; injects JSON into template at `__DATA__` |
+| `setup_page.py` | first-run checklist written as `index.html` only when there is no (scored) data; never over a real dashboard |
 | `dashboard_template.html` | whole UI: CSS tokens on `:root`, vanilla JS, hand-built SVG charts; `renderAll()` calls each `renderX()` |
 | `chat_server.py` | `/ask` (OpenAI Responses API default, Anthropic optional), `/refresh`, `/data`; `.env` re-read per request |
 | `ai_context.py` | full history → compact pipe tables for the model; never includes email/last name/ids |

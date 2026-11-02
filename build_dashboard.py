@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from statistics import mean, pstdev, stdev, variance
 from collections import Counter, defaultdict
 from env_config import atomic_write, atomic_write_json
+import setup_page
 
 def parse(s): return datetime.fromisoformat(s.replace('Z', '+00:00'))
 
@@ -1420,17 +1421,28 @@ def render_page(template, summary, token=''):
 def main(data_dir='.'):
     here = os.path.dirname(os.path.abspath(__file__))
     raw_path = os.path.join(data_dir, 'whoop_data.json')
+    page_path = os.path.join(data_dir, 'index.html')
+    # Nothing to show yet: write the setup checklist as the page (only ever when there is no usable
+    # data, so it can never replace a working dashboard), and still fail so refresh.sh reports it.
     if not os.path.exists(raw_path):
-        raise SystemExit(f"{raw_path} not found — run `python3 whoop.py` first to pull your WHOOP data.")
+        atomic_write(page_path, setup_page.render(data_dir, os.path.join(here, '.env')))
+        raise SystemExit(f"{raw_path} not found — run `python3 whoop.py` first to pull your WHOOP data. "
+                         f"{page_path} now shows the setup steps.")
     with open(raw_path) as f:
         raw = json.load(f)
-    summary = build_summary(raw)
+    try:
+        summary = build_summary(raw)
+    except RuntimeError as e:
+        if 'No scored WHOOP data' not in str(e):
+            raise
+        atomic_write(page_path, setup_page.render(data_dir, os.path.join(here, '.env')))
+        raise
     atomic_write_json(os.path.join(data_dir, 'dashboard_data.json'), summary)
 
     with open(os.path.join(here, 'dashboard_template.html')) as f:
         template = f.read()
     html = render_page(template, summary, read_token())
-    atomic_write(os.path.join(data_dir, 'index.html'), html)
+    atomic_write(page_path, html)
 
     print(f"Rebuilt {os.path.join(data_dir, 'index.html')} — {summary['n_days_total']} days, "
           f"{summary['total_workouts']} workouts, as of {summary['asOf']}")

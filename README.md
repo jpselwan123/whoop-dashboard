@@ -111,6 +111,10 @@ open demo/index.html
 
 ## Setup with your WHOOP
 
+You can also just run `./refresh.sh` (or open the macOS app) straight away: until there is
+data, `index.html` is a setup checklist that ticks off each step below as you finish it and
+shows the next command to run. It never replaces a dashboard that already has data.
+
 ### 1. Create a WHOOP developer app
 
 1. Sign in at [developer.whoop.com](https://developer.whoop.com) and create an app.
@@ -329,6 +333,7 @@ whoop-dashboard/
 ├── whoop.py                  # WHOOP OAuth + incremental data sync
 ├── build_dashboard.py        # all metrics; renders index.html from the template
 ├── dashboard_template.html   # the dashboard UI (vanilla JS + hand-built SVG charts)
+├── setup_page.py             # first-run checklist shown until there is data
 ├── chat_server.py            # local server: AI chat, refresh, data endpoint
 ├── ai_context.py             # full history → compact tables for the AI model
 ├── env_config.py             # .env loader + atomic file writes
