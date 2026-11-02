@@ -1,10 +1,7 @@
-fingerprint 3f92de6a5b061809
+fingerprint f46370f6ff33d569
 # the page layout these screenshots were taken from; regenerate both together
-group: Daily
 section: Right now
 section: Today's plan
-  sub: What to do today and why, built from your own patterns rather than a generic tip list.
-group: Weekly
 section: Acute:Chronic Workload Ratio
   sub: Last 7 days of training load vs the last 28 — minutes in each heart-rate zone weighted by intensity, a linear load like the ones these bands were built on. A widely used injury-risk measure, though later research disputes how well the bands predict injury.
 section: Training variety
@@ -12,16 +9,14 @@ section: Training variety
 section: Time in heart-rate zones
   sub: Easy is below about 82% of your max heart rate, moderate 82–87%, hard above 87% — the three zones used in endurance research, converted from WHOOP's zones with your own resting and max heart rate. Strength sessions are left out, since most of their time is rest between sets.
 section: Sessions per week
+section: Recovery cost by sport
+  sub: How your recovery the next morning compares after each sport, against your other training days. A ~ means the gap is approximate — it could still be chance.
+section: Sleep composition
 section: Sleep regularity
   sub: How often you are asleep — or awake — at the same time of day as you were the day before, over the last 30 days. 100 means identical sleep and wake times every day. Naps count.
-section: Sleep composition
-group: Monthly
 section: Trend explorer
-  sub: Every day WHOOP has scored, not just the last 30 — pick a metric and a window.
 section: Readiness, every day
   sub: The last year, one cell per day, coloured by the plan that day got.
 section: Recovery, every day
-section: Recovery cost by sport
-  sub: How your recovery the next morning compares after each sport, against your other training days. A ~ means the gap is approximate — it could still be chance.
 section: Personal records
 section: Full training log

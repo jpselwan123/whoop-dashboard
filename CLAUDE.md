@@ -119,8 +119,14 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
   `:root:not([data-theme="light"])`, and again under `:root[data-theme="dark"]`. The header toggle sets
   `data-theme` and stores it (`dashboard-theme`); a one-line head script restores it before paint. Every
   color is a token defined in BOTH blocks — never hardcode one. Canvas drawing (orb, chat button) can't
-  read CSS, so it listens for the `themechange` event. Effects (card spotlight, blur-in reveal, theme
-  fade) are decoration only and fail open.
+  read CSS, so it listens for the `themechange` event. Effects (reveal, theme fade) are decoration only and
+  fail open. No hover glows.
+- **Tabs, not one long scroll.** Five views (Today, Training, Sleep, Trends, Log), each a `.view` with a
+  plain `#link` tab, so with no script they all show stacked; `.views-on` (set by `showView`) hides the
+  rest. Charts size to their box, so opening a view calls `redrawCharts()`. Cards sit in `.grid-2`.
+- **Few words on screen.** A card's explanation is its `.section-sub`, shown behind an (i) button; a tip
+  shows its bold headline and opens the rest on click (`compactText`, run at the end of `renderAll`). Both
+  hide only under `.compact`, so a script failure shows all text. `tests/test_layout.py` guards this.
 - Must work at 390px wide with no horizontal page scroll; respect `prefers-reduced-motion`.
 
 ## Gotchas (learned the hard way)

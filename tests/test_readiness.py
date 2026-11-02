@@ -421,7 +421,7 @@ class SyntheticLabelTest(unittest.TestCase):
         html = self.page(True)
         # in the page's markup, ahead of the page's scripts (the only script before the markup is the
         # one-line theme restore in the head, which writes no content)
-        body = html.index('<div class="wrap">')
+        body = html.index('</style>')
         self.assertGreater(html.index('id="syntheticBadge"'), body)
         self.assertLess(html.index('id="syntheticBadge"'), html.index('<script', body))
 

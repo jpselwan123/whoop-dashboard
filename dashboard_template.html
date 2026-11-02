@@ -40,7 +40,6 @@
     --input-bg: rgba(12,12,24,0.03);
     --glow-1: rgba(84,87,232,0.10);
     --glow-2: rgba(18,161,80,0.05);
-    --spot: rgba(84,87,232,0.06);
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark){
@@ -73,7 +72,6 @@
       --input-bg: rgba(255,255,255,0.04);
       --glow-1: rgba(124,131,255,0.16);
       --glow-2: rgba(61,214,140,0.07);
-      --spot: rgba(124,131,255,0.09);
       color-scheme: dark;
     }
   }
@@ -106,7 +104,6 @@
     --input-bg: rgba(255,255,255,0.04);
     --glow-1: rgba(124,131,255,0.16);
     --glow-2: rgba(61,214,140,0.07);
-    --spot: rgba(124,131,255,0.09);
     color-scheme: dark;
   }
 
@@ -128,8 +125,8 @@
   .wrap, .chat-fab{animation:fade-in-once .5s ease forwards;}
   /* scroll reveal — hidden state only applies after JS adds .reveal-on to <html>,
      so with no JS (or a script error before that line) everything simply shows */
-  .reveal-on .rv{opacity:0;transform:translateY(18px);filter:blur(6px);transition:opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1), filter .6s ease;}
-  .reveal-on .rv.in{opacity:1;transform:none;filter:none;}
+  .reveal-on .rv{opacity:0;transform:translateY(12px);transition:opacity .5s ease, transform .5s cubic-bezier(.2,.7,.2,1);}
+  .reveal-on .rv.in{opacity:1;transform:none;}
   a{color:var(--accent);}
   button, input[type="range"]{ font-family:inherit; }
   :focus-visible{outline:none;box-shadow:var(--focus);border-radius:6px;}
@@ -371,7 +368,7 @@
   .signal .txt b{font-weight:600;}
 
   /* ---- zone badge ---- */
-  .zone-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:0.04em;padding:4px 10px;border-radius:100px;}
+  .zone-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-sans);font-size:12.5px;font-weight:500;padding:4px 10px;border-radius:100px;}
   .zone-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;}
   .metric-row{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:10px 0;}
   .metric-row .big{font-family:var(--font-sans);font-weight:600;font-size:28px;}
@@ -465,19 +462,42 @@
   .chat-send:disabled{opacity:.5;cursor:default;}
   .chat-send svg{width:16px;height:16px;}
 
-  /* ---- modern layer: glass header, theme toggle, card spotlight ---- */
+  /* ---- app layout: a top bar with section tabs, one view at a time, cards on a grid ---- */
   ::selection{background:var(--accent-soft);color:var(--ink);}
-  header{position:sticky;top:12px;z-index:40;padding:8px 8px 8px 20px;border-radius:999px;
-    background:var(--glass);border:1px solid var(--glass-border);box-shadow:var(--shadow);
-    -webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);}
-  /* on a phone the header wraps to three lines: pinned, it would cover too much of the screen */
-  @media (max-width:680px){header{position:static;border-radius:var(--radius-sm);padding:10px 10px 10px 14px;}}
-  .eyebrow{font-family:var(--font-sans);font-weight:500;font-size:14px;letter-spacing:-0.01em;color:var(--ink-muted);}
-  .eyebrow b{font-weight:600;color:var(--ink);}
-  .icon-btn, .refresh-btn{width:36px;height:36px;padding:0;border-radius:50%;border:1px solid var(--border);
+  body{padding:0 0 96px;}
+  .wrap{max-width:1180px;padding:24px max(20px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px));gap:20px;}
+  @media (max-width:560px){.wrap{padding:16px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));gap:16px;}}
+
+  .appbar{position:sticky;top:0;z-index:40;padding-top:env(safe-area-inset-top, 0px);
+    background:var(--glass);border-bottom:1px solid var(--border);
+    -webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%);}
+  .appbar-in{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:16px;
+    padding:10px max(20px, env(safe-area-inset-right, 0px)) 10px max(20px, env(safe-area-inset-left, 0px));}
+  .appbar .eyebrow{font-family:var(--font-sans);font-size:14px;font-weight:500;letter-spacing:-0.01em;color:var(--ink-muted);
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;}
+  .appbar .eyebrow b{font-weight:600;color:var(--ink);}
+  .appbar .beyond-badge.synthetic-badge{margin-left:0;}
+  .views-nav{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);}
+  .views-nav a{font-size:13.5px;font-weight:500;color:var(--ink-muted);text-decoration:none;padding:6px 16px;border-radius:999px;
+    white-space:nowrap;text-align:center;transition:color .15s ease, background-color .2s ease;}
+  .views-nav a:hover{color:var(--ink);}
+  .views-nav a[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--border), 0 1px 3px rgba(0,0,0,0.12);}
+  .appbar-actions{justify-self:end;display:flex;flex-direction:column;align-items:flex-end;}
+  .appbar .asof{font-family:var(--font-sans);font-size:12.5px;color:var(--ink-faint);}
+  @media (max-width:900px){
+    .appbar-in{grid-template-columns:minmax(0,1fr) auto;row-gap:10px;}
+    .views-nav{grid-column:1 / -1;grid-row:2;overflow-x:auto;scrollbar-width:none;}
+    .views-nav a{flex:1 0 auto;padding-inline:12px;}
+  }
+  @media (max-width:560px){
+    .appbar-in{padding-inline:max(16px, env(safe-area-inset-left, 0px));}
+    .appbar .asof{display:none;}
+  }
+
+  .icon-btn, .refresh-btn{width:34px;height:34px;padding:0;border-radius:50%;border:1px solid var(--border);
     background:var(--surface);color:var(--ink-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;
-    transition:color .15s ease, border-color .15s ease, transform .15s ease, background-color .3s ease;}
-  .icon-btn:hover, .refresh-btn:hover{color:var(--accent);border-color:var(--accent);}
+    transition:color .15s ease, border-color .15s ease, transform .15s ease;}
+  .icon-btn:hover, .refresh-btn:hover{color:var(--ink);border-color:var(--border-strong);}
   .icon-btn:active, .refresh-btn:active{transform:scale(.92);}
   .icon-btn svg, .refresh-btn svg{width:16px;height:16px;}
   .theme-btn .sun{display:none;}
@@ -486,30 +506,93 @@
     :root:not([data-theme="light"]) .theme-btn .sun{display:block;}
     :root:not([data-theme="light"]) .theme-btn .moon{display:none;}
   }
-  .group-header .glabel{font-size:12px;letter-spacing:0.14em;}
-  .card, .hero, .decision{position:relative;isolation:isolate;}
-  .card, .hero, .decision, .records-grid, .log-scroll, .signal, .rn-session{
-    transition:border-color .25s ease, box-shadow .25s ease, background-color .3s ease;}
-  .card::before, .hero::before, .decision::before{content:"";position:absolute;inset:0;border-radius:inherit;
-    pointer-events:none;z-index:-1;opacity:0;transition:opacity .35s ease;
-    background:radial-gradient(460px circle at var(--mx, 50%) var(--my, 0%), var(--spot), transparent 62%);}
-  .card:hover::before, .hero:hover::before, .decision:hover::before{opacity:1;}
-  .card:hover, .hero:hover{border-color:var(--border-strong);box-shadow:var(--shadow-hover);}
-  .tab.active{box-shadow:0 8px 20px -10px var(--accent);}
+
+  /* views: all of them show if the script never runs; the tabs only take over once it does */
+  .view{display:flex;flex-direction:column;gap:20px;scroll-margin-top:120px;}
+  .views-on .view{display:none;}
+  .views-on .view.active{display:flex;animation:view-in .25s ease both;}
+  @keyframes view-in{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .grid-2{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:20px;}
+  @media (max-width:900px){.grid-2{grid-template-columns:minmax(0,1fr);}}
+  @media (max-width:560px){.view, .grid-2{gap:16px;}}
+
+  .card{padding:22px 24px;}
+  @media (max-width:560px){.card{padding:18px 16px;}}
+  .section-head{justify-content:flex-start;align-items:center;gap:8px;margin-bottom:14px;}
+  .section-head h2{font-size:16px;font-weight:600;letter-spacing:-0.015em;}
+  .section-head > h2 + .beyond-badge{margin-right:0;}
+  .section-head .n, .section-head .range-tabs{margin-left:auto;}
+  .section-head .n{font-size:12.5px;}
+  .info-btn{width:20px;height:20px;padding:0;border-radius:50%;border:1px solid var(--border-strong);background:none;cursor:pointer;
+    color:var(--ink-faint);font:600 11px/1 var(--font-sans);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .info-btn:hover, .info-btn[aria-expanded="true"]{color:var(--ink);border-color:var(--ink-faint);}
+  .compact .section-sub{display:none;}
+  .compact .section-sub.open{display:block;margin:-4px 0 16px;padding:12px 14px;border-radius:var(--radius-sm);
+    background:var(--surface-2);font-size:13px;color:var(--ink-muted);max-width:none;}
+
+  /* today: the call and the orb in one card, the six numbers in a strip under them */
+  .hero{grid-template-columns:240px minmax(0,1fr);grid-template-areas:"orb decision" "stats stats" "legend legend";
+    column-gap:40px;row-gap:22px;padding:28px 32px 18px;align-items:center;}
+  .hero .orb-col{grid-area:orb;}
+  .hero .decision{grid-area:decision;background:none;border:none;box-shadow:none;padding:0;border-radius:0;gap:12px;}
+  .hero .decision h1{font-size:clamp(22px, 2.6vw, 30px);font-weight:600;letter-spacing:-0.03em;}
+  .hero .decision .why{font-size:14.5px;line-height:1.6;max-width:62ch;}
+  .hero-stats{grid-area:stats;display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:16px;padding-top:20px;border-top:1px solid var(--border);}
+  .hero-stats .flank{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:16px;}
+  .hero-stats .flank.right .stat{align-items:flex-start;text-align:left;}
+  .hero-stats .flank.right .stat .row{flex-direction:row;}
+  .hero-stats .stat .row{flex-wrap:wrap;column-gap:6px;row-gap:0;}
+  .hero-stats .stat .value{font-size:26px;}
+  .hero-legend{grid-area:legend;border-top:none;padding-top:0;justify-content:flex-start;}
+  @media (max-width:900px){
+    .hero{grid-template-columns:minmax(0,1fr);grid-template-areas:"orb" "decision" "stats" "legend";padding:22px 18px 16px;}
+    .hero-stats{grid-template-columns:minmax(0,1fr);}
+  }
+  @media (max-width:560px){.hero-stats .flank{gap:10px;} .hero-stats .stat .value{font-size:22px;}}
+
+  /* tips: a quiet list; each shows its headline, the rest opens on click */
+  .signal-grid{grid-template-columns:minmax(0,1fr);gap:0;}
+  .signal, .signal.ok, .signal.warn{background:none;border:none;border-radius:0;padding:13px 2px;border-bottom:1px solid var(--border);}
+  .signal:last-child{border-bottom:none;}
+  .signal .dot{margin-top:7px;}
+  .signal .txt{font-size:14px;line-height:1.55;}
+  .compact .signal .more{display:none;}
+  .compact .signal.open .more{display:inline;color:var(--ink-muted);}
+  .signal.has-more{cursor:pointer;}
+  .signal.has-more::after{content:"";flex-shrink:0;width:7px;height:7px;margin:6px 4px 0 auto;
+    border-right:1.5px solid var(--ink-faint);border-bottom:1.5px solid var(--ink-faint);transform:rotate(45deg);transition:transform .2s ease;}
+  .signal.has-more.open::after{transform:rotate(225deg);margin-top:10px;}
+
+  .tab.active{box-shadow:none;}
   .stat .value, .record-tile .v, .rn-stat .v, .explorer-stats .es .v, .orb-readout .num, .rn-strain-num, .metric-row .big{
     font-variant-numeric:tabular-nums;}
   .log-scroll, .heatmap-scroll, .chat-msgs{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;}
+
+  footer{border-top:none;padding-top:0;}
+  .about{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);padding:14px 18px;}
+  .about summary{cursor:pointer;list-style:none;font-weight:500;color:var(--ink);display:flex;justify-content:space-between;}
+  .about summary::-webkit-details-marker{display:none;}
+  .about summary::after{content:"+";color:var(--ink-faint);}
+  .about[open] summary::after{content:"–";}
+  .about .grp{margin-top:10px;}
+
   /* a theme switch eases colours over instead of snapping (added for a moment by the toggle) */
-  .theme-anim, .theme-anim *, .theme-anim *::before{transition:background-color .35s ease, border-color .35s ease, color .35s ease, fill .35s ease, stroke .35s ease !important;}
+  .theme-anim, .theme-anim *{transition:background-color .3s ease, border-color .3s ease, color .3s ease !important;}
 </style>
 
-<div class="wrap">
-
-  <header>
+<header class="appbar">
+  <div class="appbar-in">
     <div class="eyebrow">Readiness Instrument · <b id="athleteName">—</b> __SYNTHETIC_BADGE__</div>
-    <div>
+    <nav class="views-nav" id="viewTabs" aria-label="Sections">
+      <a href="#today" data-view="today">Today</a>
+      <a href="#training" data-view="training">Training</a>
+      <a href="#sleep" data-view="sleep">Sleep</a>
+      <a href="#trends" data-view="trends">Trends</a>
+      <a href="#log" data-view="log">Log</a>
+    </nav>
+    <div class="appbar-actions">
       <div class="asof-row">
-        <div class="asof mono tnum" id="lastRefreshed">—</div>
+        <div class="asof tnum" id="lastRefreshed">—</div>
         <button class="icon-btn theme-btn" id="themeBtn" aria-label="Switch between light and dark theme">
           <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -520,7 +603,10 @@
       </div>
       <div class="refresh-note" id="refreshNote"></div>
     </div>
-  </header>
+  </div>
+</header>
+
+<div class="wrap">
 
   <div class="daytype-panel" id="readyPanel">
     <div class="dt-title">Readiness <span class="tnum" id="rpScore"></span></div>
@@ -528,178 +614,191 @@
     <div id="rpRows"></div>
   </div>
 
-  <div class="group-header"><span class="glabel">Daily</span><span class="grule"></span><span class="gcaption">today's call</span></div>
-
-  <section class="decision" id="decisionCard">
-    <span class="state-pill" id="statePill">—</span>
-    <h1 id="decisionHeadline">Computing…</h1>
-    <div class="why" id="decisionWhy"></div>
-  </section>
-
-  <section class="hero" id="heroCard">
-    <div class="flank" id="flankBody"></div>
-    <div class="orb-col">
-      <div class="orb-stage" id="orbStage" role="button" tabindex="0" aria-haspopup="true" aria-label="How readiness is calculated">
-        <canvas id="orb" width="440" height="440"></canvas>
-        <div class="orb-readout"><div class="num tnum" id="orbNum">—</div><div class="cap" id="orbCap">Readiness</div></div>
+  <!-- ===== Today ===== -->
+  <div class="view" id="today" data-view="today">
+    <section class="hero" id="heroCard">
+      <div class="orb-col">
+        <div class="orb-stage" id="orbStage" role="button" tabindex="0" aria-haspopup="true" aria-label="How readiness is calculated">
+          <canvas id="orb" width="440" height="440"></canvas>
+          <div class="orb-readout"><div class="num tnum" id="orbNum">—</div><div class="cap" id="orbCap">Readiness</div></div>
+        </div>
+        <div class="ready-scale" id="readyScale" aria-hidden="true">
+          <div class="rs-track"><span class="rs-seg rest"></span><span class="rs-seg easy"></span><span class="rs-seg push"></span><span class="rs-marker" id="rsMarker"></span></div>
+        </div>
       </div>
-      <div class="ready-scale" id="readyScale" aria-hidden="true">
-        <div class="rs-track"><span class="rs-seg rest"></span><span class="rs-seg easy"></span><span class="rs-seg push"></span><span class="rs-marker" id="rsMarker"></span></div>
+      <div class="decision" id="decisionCard">
+        <span class="state-pill" id="statePill">—</span>
+        <h1 id="decisionHeadline">Computing…</h1>
+        <div class="why" id="decisionWhy"></div>
       </div>
+      <div class="hero-stats">
+        <div class="flank" id="flankBody"></div>
+        <div class="flank right" id="flankLoad"></div>
+      </div>
+      <div class="hero-legend"><span><b class="up">▲</b><b class="down">▼</b> vs your 30-day average</span></div>
+    </section>
+
+    <div class="grid-2">
+      <section class="card">
+        <div class="section-head"><h2>Right now</h2><span class="n" id="rightNowDate"></span></div>
+        <div class="rn-strain-row">
+          <span class="rn-strain-num tnum" id="rnStrainNum">—</span>
+          <span class="rn-strain-label" id="rnStrainLabel">strain so far today</span>
+        </div>
+        <div id="rightNowBody"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><h2>Today's plan</h2></div>
+        <div class="signal-grid">
+          <div class="signal" id="sportSuggestSignal"><span class="dot"></span><span class="txt" id="sportSuggestText">Checking…</span></div>
+          <div class="signal" id="tipsSignal"><span class="dot"></span><span class="txt" id="tipsText">Checking…</span></div>
+          <div class="signal" id="anomalySignal"><span class="dot"></span><span class="txt" id="anomalyText">Checking…</span></div>
+          <div class="signal" id="sportCostSignal"><span class="dot"></span><span class="txt" id="sportCostText">Checking…</span></div>
+          <div class="signal" id="restDaySignal"><span class="dot"></span><span class="txt" id="restDayText">Checking…</span></div>
+          <div class="signal" id="bedtimeSignal"><span class="dot"></span><span class="txt" id="bedtimeText">Checking…</span></div>
+        </div>
+      </section>
     </div>
-    <div class="flank right" id="flankLoad"></div>
-    <div class="hero-legend"><span><b class="up">▲</b><b class="down">▼</b> vs your 30-day average</span></div>
-  </section>
+  </div>
 
-  <section class="card">
-    <div class="section-head"><h2>Right now</h2><span class="n" id="rightNowDate"></span></div>
-    <div class="rn-strain-row">
-      <span class="rn-strain-num tnum" id="rnStrainNum">—</span>
-      <span class="rn-strain-label" id="rnStrainLabel">strain so far today</span>
+  <!-- ===== Training ===== -->
+  <div class="view" id="training" data-view="training">
+    <section class="card">
+      <div class="section-head"><h2>Acute:Chronic Workload Ratio</h2><span class="beyond-badge">Beyond WHOOP</span></div>
+      <div class="section-sub">Last 7 days of training load vs the last 28 — minutes in each heart-rate zone weighted by intensity, a linear load like the ones these bands were built on. A widely used injury-risk measure, though later research disputes how well the bands predict injury.</div>
+      <div class="metric-row">
+        <span class="big tnum" id="acwrValue">—</span>
+        <span class="zone-badge" id="acwrZone">—</span>
+      </div>
+      <div class="range-legend" id="acwrLegend"></div>
+      <div class="chart-wrap" id="acwrChartWrap"><div class="chart-tooltip" id="acwrTooltip"></div></div>
+    </section>
+
+    <div class="grid-2">
+      <section class="card">
+        <div class="section-head"><h2>Training variety</h2><span class="beyond-badge">Beyond WHOOP</span><span class="n" id="sportTotal"></span></div>
+        <div class="section-sub">Your strain each day, then how evenly the week's load was spread, then what you actually did. Training at the same effort every day has been linked to more illness than the same total with lighter days in between.</div>
+        <div class="chart-wrap" id="last7ChartWrap" style="margin-bottom:14px;"><div class="chart-tooltip" id="last7Tooltip"></div></div>
+        <div id="monotonyFlag"></div>
+        <div id="sportRows" style="margin-top:14px;"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><h2>Time in heart-rate zones</h2><span class="n" id="zoneTotal"></span></div>
+        <div class="section-sub">Easy is below about 82% of your max heart rate, moderate 82–87%, hard above 87% — the three zones used in endurance research, converted from WHOOP's zones with your own resting and max heart rate. Strength sessions are left out, since most of their time is rest between sets.</div>
+        <div class="explorer-stats" id="zoneSplitRow"></div>
+        <div class="chart-wrap" id="zoneChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="zoneTooltip"></div></div>
+        <div class="legend">
+          <div class="li"><span class="sw" style="background:var(--good)"></span>Easy</div>
+          <div class="li"><span class="sw" style="background:var(--warn)"></span>Moderate</div>
+          <div class="li"><span class="sw" style="background:var(--critical)"></span>Hard</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><h2>Sessions per week</h2><span class="n">last 8 weeks</span></div>
+        <div class="bars" id="barsRow" style="display:flex;align-items:stretch;gap:10px;height:132px;padding-top:6px;margin-top:14px;"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><h2>Recovery cost by sport</h2><span class="beyond-badge">Beyond WHOOP</span><span class="n" id="sportCostMonths"></span></div>
+        <div class="section-sub">How your recovery the next morning compares after each sport, against your other training days. A ~ means the gap is approximate — it could still be chance.</div>
+        <div id="sportCostRows" style="margin-top:6px;"></div>
+      </section>
     </div>
-    <div id="rightNowBody"></div>
-  </section>
+  </div>
 
-  <section class="card">
-    <div class="section-head"><h2>Today's plan</h2></div>
-    <div class="section-sub">What to do today and why, built from your own patterns rather than a generic tip list.</div>
-    <div class="signal-grid" style="margin-top:12px;">
-      <div class="signal" id="sportSuggestSignal"><span class="dot"></span><span class="txt" id="sportSuggestText">Checking…</span></div>
-      <div class="signal" id="tipsSignal"><span class="dot"></span><span class="txt" id="tipsText">Checking…</span></div>
-      <div class="signal" id="anomalySignal"><span class="dot"></span><span class="txt" id="anomalyText">Checking…</span></div>
-      <div class="signal" id="sportCostSignal"><span class="dot"></span><span class="txt" id="sportCostText">Checking…</span></div>
-      <div class="signal" id="restDaySignal"><span class="dot"></span><span class="txt" id="restDayText">Checking…</span></div>
-      <div class="signal" id="bedtimeSignal"><span class="dot"></span><span class="txt" id="bedtimeText">Checking…</span></div>
+  <!-- ===== Sleep ===== -->
+  <div class="view" id="sleep" data-view="sleep">
+    <div class="grid-2">
+      <section class="card">
+        <div class="section-head"><h2>Sleep composition</h2><span class="n">weekly avg, last 8 weeks</span></div>
+        <div class="chart-wrap" id="stageChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="stageTooltip"></div></div>
+        <div class="legend">
+          <div class="li"><span class="sw" style="background:var(--stage-rem)"></span>REM</div>
+          <div class="li"><span class="sw" style="background:var(--stage-deep)"></span>Deep (SWS)</div>
+          <div class="li"><span class="sw" style="background:var(--stage-light)"></span>Light</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><h2>Sleep regularity</h2><span class="beyond-badge">Beyond WHOOP</span></div>
+        <div class="section-sub">How often you are asleep — or awake — at the same time of day as you were the day before, over the last 30 days. 100 means identical sleep and wake times every day. Naps count.</div>
+        <div class="signal-grid" id="sriGrid"></div>
+      </section>
     </div>
-  </section>
+  </div>
 
-  <div class="group-header"><span class="glabel">Weekly</span><span class="grule"></span><span class="gcaption">load, patterns, injury-risk signals</span></div>
+  <!-- ===== Trends ===== -->
+  <div class="view" id="trends" data-view="trends">
+    <section class="card">
+      <div class="section-head">
+        <h2>Trend explorer</h2>
+        <div class="range-tabs" id="rangeTabs"></div>
+      </div>
+      <div class="tabs" id="metricTabs" style="margin-top:8px;"></div>
+      <div class="explorer-stats" id="explorerStats"></div>
+      <div class="chart-wrap" id="explorerChartWrap" style="margin-top:6px;">
+        <div class="chart-tooltip" id="explorerTooltip"></div>
+      </div>
+    </section>
 
-  <section class="card">
-    <div class="section-head"><h2>Acute:Chronic Workload Ratio</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">Last 7 days of training load vs the last 28 — minutes in each heart-rate zone weighted by intensity, a linear load like the ones these bands were built on. A widely used injury-risk measure, though later research disputes how well the bands predict injury.</div>
-    <div class="metric-row">
-      <span class="big tnum" id="acwrValue">—</span>
-      <span class="zone-badge" id="acwrZone">—</span>
-    </div>
-    <div class="range-legend" id="acwrLegend"></div>
-    <div class="chart-wrap" id="acwrChartWrap"><div class="chart-tooltip" id="acwrTooltip"></div></div>
-  </section>
+    <section class="card">
+      <div class="section-head"><h2>Readiness, every day</h2><span class="beyond-badge">Beyond WHOOP</span><span class="n" id="readyYearRange"></span></div>
+      <div class="section-sub">The last year, one cell per day, coloured by the plan that day got.</div>
+      <div class="heatmap-scroll" id="readyYearScroll" style="margin-top:10px;">
+        <div id="readyYearGrid" class="heatmap-grid"></div>
+        <div class="chart-tooltip" id="readyYearTooltip"></div>
+      </div>
+      <div class="legend" style="margin-top:10px;">
+        <div class="li"><span class="sw" style="background:var(--good)"></span>Train as planned</div>
+        <div class="li"><span class="sw" style="background:var(--warn)"></span>Go easy</div>
+        <div class="li"><span class="sw" style="background:var(--critical)"></span>Rest</div>
+      </div>
+    </section>
 
-  <section class="card">
-    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Training variety</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportTotal"></span></div>
-    <div class="section-sub">Your strain each day, then how evenly the week's load was spread, then what you actually did. Training at the same effort every day has been linked to more illness than the same total with lighter days in between.</div>
-    <div class="chart-wrap" id="last7ChartWrap" style="margin-bottom:14px;"><div class="chart-tooltip" id="last7Tooltip"></div></div>
-    <div id="monotonyFlag"></div>
-    <div id="sportRows" style="margin-top:14px;"></div>
-  </section>
+    <section class="card">
+      <div class="section-head"><h2>Recovery, every day</h2><span class="beyond-badge">Beyond WHOOP</span><span class="n" id="heatmapRange"></span></div>
+      <div class="heatmap-scroll" id="heatmapScroll">
+        <div id="heatmapGrid" class="heatmap-grid"></div>
+        <div class="chart-tooltip" id="heatmapTooltip"></div>
+      </div>
+      <div class="legend" style="margin-top:10px;">
+        <div class="li"><span class="sw" style="background:var(--critical)"></span>0–33</div>
+        <div class="li"><span class="sw" style="background:var(--warn)"></span>34–66</div>
+        <div class="li"><span class="sw" style="background:var(--good)"></span>67–100</div>
+        <div class="li"><span class="sw" style="background:var(--surface-2);border:1px solid var(--border);"></span>No data</div>
+      </div>
+    </section>
+  </div>
 
-  <section class="card">
-    <div class="section-head"><h2>Time in heart-rate zones</h2><span class="n" id="zoneTotal"></span></div>
-    <div class="section-sub">Easy is below about 82% of your max heart rate, moderate 82–87%, hard above 87% — the three zones used in endurance research, converted from WHOOP's zones with your own resting and max heart rate. Strength sessions are left out, since most of their time is rest between sets.</div>
-    <div class="explorer-stats" id="zoneSplitRow"></div>
-    <div class="chart-wrap" id="zoneChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="zoneTooltip"></div></div>
-    <div class="legend">
-      <div class="li"><span class="sw" style="background:var(--good)"></span>Easy</div>
-      <div class="li"><span class="sw" style="background:var(--warn)"></span>Moderate</div>
-      <div class="li"><span class="sw" style="background:var(--critical)"></span>Hard</div>
-    </div>
-  </section>
+  <!-- ===== Log ===== -->
+  <div class="view" id="log" data-view="log">
+    <section>
+      <div class="section-head"><h2>Personal records</h2><span class="n" id="recordsRange"></span></div>
+      <div class="records-grid" id="recordsGrid"></div>
+    </section>
 
-  <section class="card">
-    <div class="section-head"><h2>Sessions per week</h2><span class="n">last 8 weeks</span></div>
-    <div class="bars" id="barsRow" style="display:flex;align-items:stretch;gap:10px;height:132px;padding-top:6px;margin-top:14px;"></div>
-  </section>
+    <section>
+      <div class="section-head"><h2>Full training log</h2><span class="n" id="logCount"></span></div>
+      <div class="log-scroll">
+        <table class="log">
+          <thead><tr><th>Date</th><th>Sport</th><th class="num">Duration</th><th class="num">Strain</th><th class="num">Avg HR</th><th class="num">Max HR</th><th class="num">Cal</th><th class="num">Dist</th></tr></thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </section>
 
-  <section class="card">
-    <div class="section-head"><h2>Sleep regularity</h2><span class="beyond-badge">Beyond WHOOP</span></div>
-    <div class="section-sub">How often you are asleep — or awake — at the same time of day as you were the day before, over the last 30 days. 100 means identical sleep and wake times every day. Naps count.</div>
-    <div class="signal-grid" style="margin-top:12px;" id="sriGrid"></div>
-  </section>
-
-  <section class="card">
-    <div class="section-head"><h2>Sleep composition</h2><span class="n">weekly avg, last 8 weeks</span></div>
-    <div class="chart-wrap" id="stageChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="stageTooltip"></div></div>
-    <div class="legend">
-      <div class="li"><span class="sw" style="background:var(--stage-rem)"></span>REM</div>
-      <div class="li"><span class="sw" style="background:var(--stage-deep)"></span>Deep (SWS)</div>
-      <div class="li"><span class="sw" style="background:var(--stage-light)"></span>Light</div>
-    </div>
-  </section>
-
-  <div class="group-header"><span class="glabel">Monthly</span><span class="grule"></span><span class="gcaption">long-range trends &amp; all-time record</span></div>
-
-  <section class="card">
-    <div class="section-head">
-      <h2>Trend explorer</h2>
-      <div class="range-tabs" id="rangeTabs"></div>
-    </div>
-    <div class="section-sub">Every day WHOOP has scored, not just the last 30 — pick a metric and a window.</div>
-    <div class="tabs" id="metricTabs" style="margin-top:12px;"></div>
-    <div class="explorer-stats" id="explorerStats"></div>
-    <div class="chart-wrap" id="explorerChartWrap" style="margin-top:6px;">
-      <div class="chart-tooltip" id="explorerTooltip"></div>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Readiness, every day</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="readyYearRange"></span></div>
-    <div class="section-sub">The last year, one cell per day, coloured by the plan that day got.</div>
-    <div class="heatmap-scroll" id="readyYearScroll" style="margin-top:10px;">
-      <div id="readyYearGrid" class="heatmap-grid"></div>
-      <div class="chart-tooltip" id="readyYearTooltip"></div>
-    </div>
-    <div class="legend" style="margin-top:10px;">
-      <div class="li"><span class="sw" style="background:var(--good)"></span>Train as planned</div>
-      <div class="li"><span class="sw" style="background:var(--warn)"></span>Go easy</div>
-      <div class="li"><span class="sw" style="background:var(--critical)"></span>Rest</div>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery, every day</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="heatmapRange"></span></div>
-    <div class="heatmap-scroll" id="heatmapScroll">
-      <div id="heatmapGrid" class="heatmap-grid"></div>
-      <div class="chart-tooltip" id="heatmapTooltip"></div>
-    </div>
-    <div class="legend" style="margin-top:10px;">
-      <div class="li"><span class="sw" style="background:var(--critical)"></span>0–33</div>
-      <div class="li"><span class="sw" style="background:var(--warn)"></span>34–66</div>
-      <div class="li"><span class="sw" style="background:var(--good)"></span>67–100</div>
-      <div class="li"><span class="sw" style="background:var(--surface-2);border:1px solid var(--border);"></span>No data</div>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="section-head"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><h2>Recovery cost by sport</h2><span class="beyond-badge">Beyond WHOOP</span></div><span class="n" id="sportCostMonths"></span></div>
-    <div class="section-sub">How your recovery the next morning compares after each sport, against your other training days. A ~ means the gap is approximate — it could still be chance.</div>
-    <div id="sportCostRows" style="margin-top:14px;"></div>
-  </section>
-
-
-  <section>
-    <div class="section-head"><h2>Personal records</h2><span class="n" id="recordsRange"></span></div>
-    <div class="records-grid" id="recordsGrid" style="margin-top:10px;"></div>
-  </section>
-
-  <section>
-    <div class="section-head"><h2>Full training log</h2><span class="n" id="logCount"></span></div>
-    <div class="log-scroll" style="margin-top:10px;">
-      <table class="log">
-        <thead><tr><th>Date</th><th>Sport</th><th class="num">Duration</th><th class="num">Strain</th><th class="num">Avg HR</th><th class="num">Max HR</th><th class="num">Cal</th><th class="num">Dist</th></tr></thead>
-        <tbody id="logBody"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <footer>
-    <div class="grp">
-      <b>About these numbers</b>
-      <span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines HRV, resting HR and hours asleep, as 7-day averages and as last night alone, each against your previous 4 weeks (50 = a median day for you). Breathing rate is shown but not acted on — no published threshold for a nightly rise. Click the orb for the numbers.</span>
-    </div>
-    <div class="grp"><span id="baselineNote"></span></div>
-    <div class="grp"><span id="coverageNote"></span></div>
-  </footer>
+    <footer>
+      <details class="about">
+        <summary>About these numbers</summary>
+        <div class="grp"><span>Every number on this page is your WHOOP data or a direct calculation from it, across <span id="totalDaysNote">—</span>. Readiness combines HRV, resting HR and hours asleep, as 7-day averages and as last night alone, each against your previous 4 weeks (50 = a median day for you). Breathing rate is shown but not acted on — no published threshold for a nightly rise. Click the orb for the numbers.</span></div>
+        <div class="grp"><span id="baselineNote"></span></div>
+        <div class="grp"><span id="coverageNote"></span></div>
+      </details>
+    </footer>
+  </div>
 
 </div>
 
@@ -1454,9 +1553,12 @@ function stackedBarChart(wrapId, tooltipId, categories, series, colors, labels, 
   const bw = plotW/categories.length;
   const svg = svgEl('svg',{viewBox:`0 0 ${W} ${H}`, preserveAspectRatio:'none'});
   svg.appendChild(svgEl('line',{x1:padL,y1:padT+plotH,x2:W-padR,y2:padT+plotH,stroke:'var(--border-strong)','stroke-width':1}));
-  const nLabels = Math.min(W<480?3:8, categories.length);
+  // as many week labels as fit side by side without touching (axis text is ~6.2px a character)
+  const labelW = Math.max(...categories.map(c => String(c).length)) * 6.2 + 10;
+  const fit = Math.max(1, Math.floor(plotW / labelW));
+  const step = Math.ceil(categories.length / Math.min(8, fit));   // every step-th week, counted back from the latest
   const shownLabels = new Set();
-  for(let j=0;j<nLabels;j++) shownLabels.add(Math.round(j*(categories.length-1)/(nLabels-1||1)));
+  for(let i = categories.length - 1; i >= 0; i -= step) shownLabels.add(i);
   categories.forEach((cat,i)=>{
     let acc = 0;
     const bx = padL+i*bw+bw*0.15, bwid = bw*0.7;
@@ -1967,36 +2069,88 @@ function renderAll(){
   renderLog();
   renderCoverage();
   renderDecision();
+  try{ compactText(); }catch(e){}
 }
-/* ---------------- theme + card spotlight (decoration only: the page works without either) ---------------- */
+/* ---------------- theme ---------------- */
 (function(){
   const root = document.documentElement, btn = $('themeBtn');
   const systemDark = () => window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   const current = () => root.getAttribute('data-theme') || (systemDark() ? 'dark' : 'light');
   if(btn) btn.addEventListener('click', () => {
     const next = current() === 'dark' ? 'light' : 'dark';
-    if(!reduceMotion){ root.classList.add('theme-anim'); setTimeout(() => root.classList.remove('theme-anim'), 400); }
+    if(!reduceMotion){ root.classList.add('theme-anim'); setTimeout(() => root.classList.remove('theme-anim'), 350); }
     root.setAttribute('data-theme', next);
     try{ localStorage.setItem('dashboard-theme', next); }catch(e){}
     document.dispatchEvent(new Event('themechange'));
   });
   if(window.matchMedia){
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const onSys = () => { if(!root.getAttribute('data-theme')) document.dispatchEvent(new Event('themechange')); };
-    if(mq.addEventListener) mq.addEventListener('change', onSys);
+    if(mq.addEventListener) mq.addEventListener('change', () => { if(!root.getAttribute('data-theme')) document.dispatchEvent(new Event('themechange')); });
   }
-  document.addEventListener('pointermove', e => {
-    const el = e.target.closest && e.target.closest('.card, .hero, .decision');
-    if(!el) return;
-    const r = el.getBoundingClientRect();
-    el.style.setProperty('--mx', (e.clientX - r.left) + 'px');
-    el.style.setProperty('--my', (e.clientY - r.top) + 'px');
-  }, {passive:true});
 })();
+
+/* ---------------- views: one section at a time ----------------
+   Without this script every view shows, stacked (the tabs are plain #links to them). With it, only the
+   chosen one shows. Charts size themselves to their box, so a view's charts are redrawn when it opens. */
+const VIEWS = ['today', 'training', 'sleep', 'trends', 'log'];
+function redrawCharts(){
+  [renderExplorer, renderStageChart, renderACWR, renderMonotony, renderZoneDistribution].forEach(f => { try{ f(); }catch(e){} });
+}
+function showView(name, redraw){
+  if(VIEWS.indexOf(name) < 0) name = 'today';
+  document.documentElement.classList.add('views-on');
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === name));
+  document.querySelectorAll('#viewTabs a').forEach(a => {
+    if(a.dataset.view === name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  if(redraw) redrawCharts();
+}
+document.querySelectorAll('#viewTabs a').forEach(a => a.addEventListener('click', e => {
+  e.preventDefault();
+  try{ history.replaceState(null, '', '#' + a.dataset.view); }catch(_){}
+  showView(a.dataset.view, true);
+  window.scrollTo(0, 0);
+}));
+window.addEventListener('hashchange', () => showView(location.hash.slice(1), true));
+showView(location.hash.slice(1), false);
+
+/* ---------------- less text on screen ----------------
+   Each card's explanation sits behind an (i) button, and each tip shows its bold headline with the rest
+   a click away. Both are hidden only once this has run, so a script failure leaves all the text showing. */
+function compactText(){
+  document.documentElement.classList.add('compact');
+  document.querySelectorAll('.section-sub').forEach(sub => {
+    const head = sub.previousElementSibling;
+    if(!head || !head.classList.contains('section-head') || head.querySelector('.info-btn')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'info-btn'; btn.textContent = 'i';
+    btn.setAttribute('aria-label', 'What this shows'); btn.setAttribute('aria-expanded', 'false');
+    btn.addEventListener('click', () => btn.setAttribute('aria-expanded', String(sub.classList.toggle('open'))));
+    (head.querySelector('.beyond-badge') || head.querySelector('h2')).insertAdjacentElement('afterend', btn);
+  });
+  document.querySelectorAll('.signal').forEach(sig => {
+    const txt = sig.querySelector('.txt');
+    if(!txt || txt.querySelector('.more')) return;
+    const lead = txt.firstChild;
+    if(!lead || lead.nodeName !== 'B') return;            // only "<b>headline</b> the rest"
+    const rest = [];
+    for(let n = lead.nextSibling; n; n = n.nextSibling) rest.push(n);
+    if(!rest.some(n => (n.textContent || '').trim())) return;
+    const more = document.createElement('span');
+    more.className = 'more';
+    rest.forEach(n => more.appendChild(n));
+    txt.appendChild(more);
+    sig.classList.add('has-more');
+  });
+}
+document.addEventListener('click', e => {
+  const sig = e.target.closest && e.target.closest('.signal.has-more');
+  if(sig && !e.target.closest('a, button')) sig.classList.toggle('open');
+});
 
 renderAll();
 firstPaint = false;
-window.addEventListener('resize', ()=>{ renderExplorer(); renderStageChart(); renderACWR(); renderMonotony(); renderZoneDistribution(); });
+window.addEventListener('resize', redrawCharts);
 
 /* ---- "what the score would have been" ------------------------------------
    Not a model and not a prediction: the SAME six standard scores, the same average and the same

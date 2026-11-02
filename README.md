@@ -14,7 +14,7 @@ check line by line, and an AI chat that knows your entire history.
 ![macOS](https://img.shields.io/badge/app-macOS%2011%2B-000000?logo=apple&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 
-<img src="docs/screenshots/overview.png" alt="Daily view: training call, readiness orb with last night and recent week, recovery, strain, sleep" width="880">
+<img src="docs/screenshots/overview.png" alt="Today tab: readiness orb with the day's call, six key numbers, right now and today's plan" width="880">
 
 <sub>All screenshots use the built-in synthetic demo athlete — no real health data.</sub>
 
@@ -65,7 +65,7 @@ the dashboard says so rather than presenting one of ours as if it did.
 
 ### Weekly — load and injury-risk signals
 
-<img src="docs/screenshots/weekly.png" alt="Weekly view: acute:chronic workload ratio and training variety" width="880">
+<img src="docs/screenshots/weekly.png" alt="Training tab: workload ratio, training variety, heart-rate zones, sessions per week, recovery cost by sport" width="880">
 
 - **Acute:Chronic Workload Ratio** with its commonly used bands — shown, not acted on, and disputed
   as an injury predictor.
@@ -78,7 +78,7 @@ the dashboard says so rather than presenting one of ours as if it did.
 
 ### Monthly — long-range trends
 
-<img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap and recovery cost by sport at the same intensity" width="880">
+<img src="docs/screenshots/long-term.png" alt="Trends tab: trend explorer and the readiness and recovery calendars" width="880">
 
 - **Readiness, every day** — the last year as one cell per day, coloured by the plan that day
   actually got (the same three colours, no new ones). Calendar days, so the gap in the export
@@ -93,6 +93,7 @@ the dashboard says so rather than presenting one of ours as if it did.
 - **Manual refresh** button — nothing updates behind your back.
 - **AI chat** with full-history context (OpenAI or Claude), conversation memory,
   and a draggable panel.
+- Five tabs (Today, Training, Sleep, Trends, Log) instead of one long page; explanations sit behind (i) buttons.
 - Light and dark themes (follows your system; the header toggle overrides and remembers).
 - Works on phone-width screens, respects *Reduce Motion*, no external JS libraries.
 
