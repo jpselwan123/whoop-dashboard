@@ -93,6 +93,7 @@ the dashboard says so rather than presenting one of ours as if it did.
 - **Manual refresh** button — nothing updates behind your back.
 - **AI chat** with full-history context (OpenAI or Claude), conversation memory,
   and a draggable panel.
+- Light and dark themes (follows your system; the header toggle overrides and remembers).
 - Works on phone-width screens, respects *Reduce Motion*, no external JS libraries.
 
 Items marked **Beyond WHOOP** in the app are metrics the WHOOP app doesn't provide.

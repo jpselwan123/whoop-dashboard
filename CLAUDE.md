@@ -113,8 +113,14 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
 - Date ranges formatted like `24–30 Aug`; no "1 wk ago" labels.
 - Flat zone colors: recovery red 0–33 `--critical`, yellow 34–66 `--warn`, green 67–100 `--good`.
 - Metrics not in the WHOOP app get the `Beyond WHOOP` badge.
-- Fonts: Archivo (headings), IBM Plex Sans (body), IBM Plex Mono (numbers). Dark theme tokens
-  on `:root` — reuse them, don't hardcode colors.
+- Fonts: Geist (everything, numbers with tabular figures), Geist Mono only for chart axes and table
+  numbers. Labels are sentence case, never uppercase monospace (group headers excepted).
+- **Two themes.** Light tokens on `:root`, dark under `prefers-color-scheme: dark` guarded by
+  `:root:not([data-theme="light"])`, and again under `:root[data-theme="dark"]`. The header toggle sets
+  `data-theme` and stores it (`dashboard-theme`); a one-line head script restores it before paint. Every
+  color is a token defined in BOTH blocks — never hardcode one. Canvas drawing (orb, chat button) can't
+  read CSS, so it listens for the `themechange` event. Effects (card spotlight, blur-in reveal, theme
+  fade) are decoration only and fail open.
 - Must work at 390px wide with no horizontal page scroll; respect `prefers-reduced-motion`.
 
 ## Gotchas (learned the hard way)
@@ -138,7 +144,7 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
 - Sports are compared only within the same intensity (`build_sport_recovery_cost`), every sport listed; never
   recommend a specific sport. WHOOP strain is logarithmic — never add it across sessions (use Edwards TRIMP). Strength sessions are out of the zone split.
 - UI rules from the revision brief: no formulas/stat notation in the UI, net element count must not grow,
-  never shrink spacing to fit, one idea per card, no new colors.
+  never shrink spacing to fit, one idea per card, no colors outside the theme tokens.
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.
 
 ## Settled decisions (closed by JP — do not reopen)
