@@ -26,6 +26,7 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
 |---|---|
 | `whoop.py` | OAuth (refresh tokens rotate — write before use), incremental sync (10-day lookback), `--auth-url` |
 | `build_dashboard.py` | every computed metric → `dashboard_data.json`; injects JSON into template at `__DATA__` |
+| `setup_page.py` | first-run checklist written as `index.html` only when there is no (scored) data; never over a real dashboard |
 | `dashboard_template.html` | whole UI: CSS tokens on `:root`, vanilla JS, hand-built SVG charts; `renderAll()` calls each `renderX()` |
 | `chat_server.py` | `/ask` (OpenAI Responses API default, Anthropic optional), `/refresh`, `/data`; `.env` re-read per request |
 | `ai_context.py` | full history → compact pipe tables for the model; never includes email/last name/ids |
@@ -97,6 +98,12 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
   (today's z taken out), never the raw one — the fit controls for today, so the gate must too. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
   values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
   score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
+- **Beyond-WHOOP research metrics** (`polarization_index`, `build_who_minutes`, `build_body_clock`,
+  `build_sleep_hrv_link`): Treff 2019 PI (>2.00 polarized, a description never a grade); WHO 2020 150
+  moderate-equivalent min/week with vigorous ×2, vigorous = ACSM 60%+ HRR = WHOOP zone 2+, moderate = zone 1
+  only (40–50% HRR is inside zone 0 — undercount, by design); Wittmann 2006 social jetlag and Roenneberg 2012
+  MSFsc, free nights = waking Sat/Sun (we can't know work days), last 28 days, 3+ each; 7h+ vs shorter nights →
+  morning HRV/recovery, Welch, 30+ a side. Each is recomputed in `tools/whoop_check.py`.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
   (`intensity_minutes`, proportional split); session level = where most time was. Strength sessions: none.
 - Recovery keeps WHOOP zones 34/67. No sliders. Model changes need a cited source and tests.
@@ -112,8 +119,20 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
 - Date ranges formatted like `24–30 Aug`; no "1 wk ago" labels.
 - Flat zone colors: recovery red 0–33 `--critical`, yellow 34–66 `--warn`, green 67–100 `--good`.
 - Metrics not in the WHOOP app get the `Beyond WHOOP` badge.
-- Fonts: Archivo (headings), IBM Plex Sans (body), IBM Plex Mono (numbers). Dark theme tokens
-  on `:root` — reuse them, don't hardcode colors.
+- Fonts: Geist (everything, numbers with tabular figures), Geist Mono only for chart axes and table
+  numbers. Labels are sentence case, never uppercase monospace (group headers excepted).
+- **Two themes.** Light tokens on `:root`, dark under `prefers-color-scheme: dark` guarded by
+  `:root:not([data-theme="light"])`, and again under `:root[data-theme="dark"]`. The header toggle sets
+  `data-theme` and stores it (`dashboard-theme`); a one-line head script restores it before paint. Every
+  color is a token defined in BOTH blocks — never hardcode one. Canvas drawing (orb, chat button) can't
+  read CSS, so it listens for the `themechange` event. Effects (reveal, theme fade) are decoration only and
+  fail open. No hover glows.
+- **Tabs, not one long scroll.** Five views (Today, Training, Sleep, Trends, Log), each a `.view` with a
+  plain `#link` tab, so with no script they all show stacked; `.views-on` (set by `showView`) hides the
+  rest. Charts size to their box, so opening a view calls `redrawCharts()`. Cards sit in `.grid-2`.
+- **Few words on screen.** A card's explanation is its `.section-sub`, shown behind an (i) button; a tip
+  shows its bold headline and opens the rest on click (`compactText`, run at the end of `renderAll`). Both
+  hide only under `.compact`, so a script failure shows all text. `tests/test_layout.py` guards this.
 - Must work at 390px wide with no horizontal page scroll; respect `prefers-reduced-motion`.
 
 ## Gotchas (learned the hard way)
@@ -137,7 +156,7 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
 - Sports are compared only within the same intensity (`build_sport_recovery_cost`), every sport listed; never
   recommend a specific sport. WHOOP strain is logarithmic — never add it across sessions (use Edwards TRIMP). Strength sessions are out of the zone split.
 - UI rules from the revision brief: no formulas/stat notation in the UI, net element count must not grow,
-  never shrink spacing to fit, one idea per card, no new colors.
+  never shrink spacing to fit, one idea per card, no colors outside the theme tokens.
 - OpenAI long-context pricing doubles above 272K input tokens; the AI context is ~40–60K.
 
 ## Settled decisions (closed by JP — do not reopen)

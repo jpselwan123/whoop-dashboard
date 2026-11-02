@@ -14,7 +14,7 @@ check line by line, and an AI chat that knows your entire history.
 ![macOS](https://img.shields.io/badge/app-macOS%2011%2B-000000?logo=apple&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 
-<img src="docs/screenshots/overview.png" alt="Daily view: training call, readiness orb with last night and recent week, recovery, strain, sleep" width="880">
+<img src="docs/screenshots/overview.png" alt="Today tab: the readiness orb centred, six key numbers around it, the day's call, right now and today's plan" width="880">
 
 <sub>All screenshots use the built-in synthetic demo athlete — no real health data.</sub>
 
@@ -51,51 +51,73 @@ the dashboard says so rather than presenting one of ours as if it did.
 
 ## Features
 
-### Daily — today's call
-- **Readiness** — one score from your HRV, resting HR and sleep — last night and the last 7 days —
-  each against your previous 4 weeks and then placed among your own days (50 = your median day), with the day's plan:
-  **Train as planned · Go easy · Rest**. Once you have trained, the plan is spent and
-  the card says **"N sessions logged: matched the plan"** (or **"above the plan"**).
-- **Click the orb** to see every measure next to its normal range, the answer lines, and last
-  night's numbers as information.
-- **Warning signs** — HRV or resting HR outside your normal range. Breathing rate is shown next
-  to your usual but never changes the plan (no study gives a numeric rise worth acting on).
-- **Today's plan** — training advice, sleep (nights with 7+ hours), the last day without a
-  workout, and tonight's bedtime target from WHOOP's own sleep need.
+Five tabs — **Today · Training · Sleep · Trends · Log** — one screen each. Every card's explanation
+and source sits behind an (i) button, so the page shows numbers, not paragraphs.
 
-### Weekly — load and injury-risk signals
+### Today — the readiness instrument
+- **Readiness** — one 0–100 score from your HRV, resting HR and sleep, as last night and the last
+  7 days, each against your previous 4 weeks and placed among your own days (50 = your median day).
+  It sets the day's plan: **Train as planned · Go easy · Rest**. Once you have trained, the plan is
+  spent and the card says **"N sessions logged: matched the plan"** (or **"above the plan"**).
+- **Tap the orb** for every measure next to its normal range; **Why?** opens the reasoning.
+- **Six key numbers** around the orb — recovery, HRV, resting HR, sleep, sleep debt, 7-day strain —
+  each against your 30-day average.
+- **Right now** — today's strain and each session with its easy / moderate / hard minutes.
+- **Today's plan** — one line each: warning signs (HRV or resting HR outside your range), nights
+  with 7+ hours, the last day without a workout, and tonight's bedtime from WHOOP's own sleep need.
 
-<img src="docs/screenshots/weekly.png" alt="Weekly view: acute:chronic workload ratio and training variety" width="880">
+### Training — load, mix and what it costs you
 
-- **Acute:Chronic Workload Ratio** with its commonly used bands — shown, not acted on, and disputed
-  as an injury predictor.
-- **Training variety** — one section for both kinds: how evenly your load falls across the week
-  (Foster monotony, which warns when every day carried almost the same load) and what you actually
-  do, sport by sport. These were two overlapping sections and are now one.
-- Heart-rate zone time in research zones (strength sessions left out — their rest between sets
-  would count as easy), sessions per week, training mix, sleep composition — all on
-  Monday–Sunday weeks.
+<img src="docs/screenshots/weekly.png" alt="Training tab: workload ratio, training variety, heart-rate zones with polarization index, sessions per week with WHO activity minutes, recovery cost by sport" width="880">
 
-### Monthly — long-range trends
+- **Acute:Chronic Workload Ratio** on Edwards TRIMP with its usual bands — shown, never acted on,
+  and disputed as an injury predictor.
+- **Training variety** — Foster monotony (warns when every day carries the same load) and your
+  sports, side by side.
+- **Time in heart-rate zones** in Seiler's research zones, with the **polarization index**
+  (Treff 2019): one number for your easy/moderate/hard mix. `Beyond WHOOP`
+- **Sessions per week** with **activity minutes against the WHO guideline** (150 a week, vigorous
+  minutes counted twice; vigorous = ACSM's 60%+ of heart-rate reserve). `Beyond WHOOP`
+- **Recovery cost by sport** — next-morning recovery after each sport against your other training
+  days, compared only within the same intensity; gaps that could be chance say so. `Beyond WHOOP`
 
-<img src="docs/screenshots/long-term.png" alt="Long-term view: recovery calendar heatmap and recovery cost by sport at the same intensity" width="880">
+### Sleep — beyond stages
 
-- **Readiness, every day** — the last year as one cell per day, coloured by the plan that day
-  actually got (the same three colours, no new ones). Calendar days, so the gap in the export
-  shows as a gap; scrolls inside its own container.
-- **Recovery calendar heatmap** of every day on record.
-- **Recovery cost by sport** — one row per sport against your other training days, with your 4
-  most-played shown and the rest in a dropdown; gaps that could be chance say so.
-- Trend explorer for any metric including readiness, personal records, and the full training log.
+<img src="docs/screenshots/sleep.png" alt="Sleep tab: sleep composition, body clock with social jetlag and chronotype, sleep regularity, and HRV after 7h+ nights" width="880">
+
+- **Body clock** — your **social jetlag** (how far mid-sleep moves on weekends, Wittmann 2006) and
+  **natural mid-sleep**, the standard chronotype measure (Roenneberg 2012), with weekday and weekend
+  sleep windows on one axis. `Beyond WHOOP`
+- **Sleep and your next morning** — your HRV and recovery after 7h+ nights vs shorter ones, called
+  clear only with 30+ mornings a side and a gap too large to be chance. `Beyond WHOOP`
+- **Sleep regularity (SRI)**, Phillips 2017's minute-by-minute index, naps included. `Beyond WHOOP`
+- **Sleep composition** — weekly REM / deep / light.
+
+### Trends and Log — the long view
+
+<img src="docs/screenshots/long-term.png" alt="Trends tab: trend explorer and the readiness and recovery calendars" width="880">
+
+- **Trend explorer** for any metric, readiness included, over 30 days to all time.
+- **Readiness, every day** — the last year, one cell per day, coloured by the plan it got. `Beyond WHOOP`
+- **Recovery, every day** — every day on record as a calendar heatmap.
+- **Log** — personal records and the full training log.
 
 ### App experience
-- **Native macOS app** (Swift + WebKit) that refreshes on launch.
-- **Manual refresh** button — nothing updates behind your back.
-- **AI chat** with full-history context (OpenAI or Claude), conversation memory,
-  and a draggable panel.
-- Works on phone-width screens, respects *Reduce Motion*, no external JS libraries.
 
-Items marked **Beyond WHOOP** in the app are metrics the WHOOP app doesn't provide.
+<p align="center">
+  <img src="docs/screenshots/light.png" alt="Light theme: the readiness orb centred with six key numbers" width="640">
+  <img src="docs/screenshots/phone.png" alt="Phone width, dark theme: the readiness orb and key numbers" width="200">
+</p>
+
+- **Light and dark themes** — follows your system; the header toggle overrides and remembers.
+- **Works on a phone** (390px wide, no sideways scroll) and respects *Reduce Motion*.
+- **Native macOS app** (Swift + WebKit) that refreshes on launch; a **manual refresh** button —
+  nothing updates behind your back.
+- **AI chat** with full-history context (OpenAI or Claude), conversation memory, and a draggable panel.
+- **First-run checklist** — until there is data, the page walks you through setup step by step.
+- No external JS libraries, no Python packages.
+
+Items marked **Beyond WHOOP** are metrics the WHOOP app doesn't provide.
 
 ## Try it in 30 seconds (no WHOOP needed)
 
@@ -110,6 +132,10 @@ open demo/index.html
 ```
 
 ## Setup with your WHOOP
+
+You can also just run `./refresh.sh` (or open the macOS app) straight away: until there is
+data, `index.html` is a setup checklist that ticks off each step below as you finish it and
+shows the next command to run. It never replaces a dashboard that already has data.
 
 ### 1. Create a WHOOP developer app
 
@@ -242,6 +268,10 @@ WHOOP recovery are shown next to the score.
 | **Training variety** | Foster's monotony = a week's mean daily training load ÷ its SD, 0 on days without training, complete weeks only; above 2.0 flagged. Training load = Edwards' TRIMP (minutes at 50–60 / 60–70 / 70–80 / 80–90 / 90–100% of max HR × 1–5), because WHOOP doesn't record Foster's session RPE and strain (a logarithmic 0–21 scale) can't be added across sessions. The chart shows your WHOOP day strain. | [Foster et al., 2001](https://www.researchgate.net/publication/11645805_A_New_Approach_to_Monitoring_Exercise_Training); Edwards 1993 |
 | **Load ratio (ACWR)** | Average **Edwards TRIMP** over the last 7 calendar days ÷ last 28 (21+ days of data); bands 0.8 / 1.3 / 1.5. Not WHOOP day strain: Gabbett's bands were derived on linear loads, and over 585 days the strain ratio never once reached 1.5 (highest 1.48, SD 0.17), so the top band was unreachable | Gabbett 2016 — predictive value disputed by [Impellizzeri et al., 2020](https://www.researchgate.net/publication/341936245_AcuteChronic_Workload_Ratio_Conceptual_Issues_and_Fundamental_Pitfalls) |
 | **Sleep regularity (SRI)** | Phillips et al. define it exactly: *"SRI was computed as the likelihood that any two time-points (minute-by-minute) 24 h apart were the same sleep/wake state, across all days. The value could theoretically range 0 to 1, and was rescaled (y = 200 (x − 1/2)) to give a range of −100 to 100."* 100 = asleep and awake at identical clock times every day; 0 = no better than chance. Computed over their **30-day** window, minute by minute, in each sleep's own time zone. **Naps are included**: the index "does not require designation of a main daily sleep episode", which is precisely why it suits people with daytime sleep — so every scored episode counts. The first and last dates on record are dropped, being only partly observed (the night before the export starts, and the night still in progress). A pair of days counts only when both have sleep recorded, so a gap reads as missing rather than as time awake. Shown with its 30-day change and its correlation with same-day readiness — **r = 0.02 over 547 days here, which is no relationship at all**, and a correlation either way would not show cause | [Phillips et al., 2017](https://www.nature.com/articles/s41598-017-03171-4) (*Sci Rep* 7:3216) |
+| **Polarization index** | log10(Z1 ÷ Z2 × Z3 × 100) on the all-time easy / moderate / hard shares; above 2.00 = polarized. Not defined with more hard than easy time; 0 with no hard time; no moderate time → Z2 = 0.01 and 0.01 off Z3, as the 2023 commentary restates the rule. A description of the mix, never a grade: trials disagree on whether polarized beats pyramidal | [Treff et al., 2019](https://doi.org/10.3389/fphys.2019.00707); [Montenegro Arjona et al., 2023](https://pmc.ncbi.nlm.nih.gov/articles/PMC10639116/) |
+| **Activity minutes (WHO)** | Moderate-equivalent minutes per Mon–Sun week: WHOOP zone 1 (50–60% of heart-rate reserve) counts as moderate, zones 2–5 (60%+) as vigorous and count twice; 150+ meets the guideline. ACSM's moderate band starts at 40% HRR, but 40–50% sits inside WHOOP's zone 0 and can't be separated, so the count can only be low. Logged workouts only, strength sessions aside | [WHO 2020, Bull et al.](https://bjsm.bmj.com/content/54/24/1451); [ACSM, Garber et al., 2011](https://pubmed.ncbi.nlm.nih.gov/21694556/) |
+| **Body clock** | Social jetlag = \|mid-sleep on free nights − mid-sleep on work nights\|; natural mid-sleep (chronotype, MSFsc) = free-night mid-sleep − (SDf − SDweek) ÷ 2 when free-night sleep is longer than the week's average, SDweek = (5 SDw + 2 SDf) ÷ 7. Free nights are the ones ending on a Saturday or Sunday morning (the questionnaire asks; WHOOP can't know). Night sleeps, last 4 weeks, 3+ of each | [Wittmann et al., 2006](https://doi.org/10.1080/07420520500545979); [Roenneberg et al., 2012](https://doi.org/10.1016/j.cub.2012.03.038) |
+| **Sleep and your next morning** | Morning HRV and recovery after nights with 7+ hours asleep vs shorter nights, whole history, night sleep only. "Clear" = Welch's t-test p < 0.05 with 30+ mornings a side; otherwise shown as could-be-chance | Welch's test as everywhere here; 7 h from [Watson et al., 2015](http://jcsm.aasm.org/doi/10.5664/jcsm.4758) |
 | **Sleep** | Nights in the last 7 with 7+ hours asleep | [AASM & Sleep Research Society, Watson et al., 2015](http://jcsm.aasm.org/doi/10.5664/jcsm.4758) |
 | **Bedtime target** | Tonight's sleep need, **WHOOP's own figure** straight from the API (`sleep_needed` = baseline + sleep debt + recent strain + recent naps), and how much of it is repaying debt. The only arithmetic is usual wake time minus that need — so on a big-debt day the card says that clearing *all* of it in one night would mean being asleep by that time, rather than printing an early hour as if it were a normal bedtime. Usual wake time is the median of the last 30 nights, each in its own time zone, and its spread is **always stated** (±1h 54m here) — no study defines when a wake time is too variable to aim at, so no cut-off is applied | WHOOP's `sleep_needed`; median and spread are plain descriptive statistics |
 | **Rest day** | The last finished day with no logged workout — a fact, no threshold | — |
@@ -329,6 +359,7 @@ whoop-dashboard/
 ├── whoop.py                  # WHOOP OAuth + incremental data sync
 ├── build_dashboard.py        # all metrics; renders index.html from the template
 ├── dashboard_template.html   # the dashboard UI (vanilla JS + hand-built SVG charts)
+├── setup_page.py             # first-run checklist shown until there is data
 ├── chat_server.py            # local server: AI chat, refresh, data endpoint
 ├── ai_context.py             # full history → compact tables for the AI model
 ├── env_config.py             # .env loader + atomic file writes

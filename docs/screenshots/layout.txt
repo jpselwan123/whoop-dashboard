@@ -1,27 +1,27 @@
-fingerprint 3f92de6a5b061809
+fingerprint 93a374468fa45ad8
 # the page layout these screenshots were taken from; regenerate both together
-group: Daily
 section: Right now
 section: Today's plan
-  sub: What to do today and why, built from your own patterns rather than a generic tip list.
-group: Weekly
 section: Acute:Chronic Workload Ratio
   sub: Last 7 days of training load vs the last 28 — minutes in each heart-rate zone weighted by intensity, a linear load like the ones these bands were built on. A widely used injury-risk measure, though later research disputes how well the bands predict injury.
 section: Training variety
   sub: Your strain each day, then how evenly the week's load was spread, then what you actually did. Training at the same effort every day has been linked to more illness than the same total with lighter days in between.
 section: Time in heart-rate zones
-  sub: Easy is below about 82% of your max heart rate, moderate 82–87%, hard above 87% — the three zones used in endurance research, converted from WHOOP's zones with your own resting and max heart rate. Strength sessions are left out, since most of their time is rest between sets.
+  sub: Easy is below about 82% of your max heart rate, moderate 82–87%, hard above 87% — the three zones used in endurance research, converted from WHOOP's zones with your own resting and max heart rate. Strength sessions are left out, since most of their time is rest between sets. The polarization index (Treff et al. 2019) sums the mix in one number: above 2.00 it is polarized — mostly easy, some hard, little in between. It describes your mix; studies disagree on whether polarized training beats other mixes.
 section: Sessions per week
+  sub: Activity minutes count moderate time once and vigorous time twice, as the WHO guideline does: 150+ a week (WHO 2020). Vigorous is 60%+ of your heart-rate reserve (ACSM), which is WHOOP's zone 2 and up; moderate is zone 1. Only logged workouts count, strength sessions aside, and the easiest moderate minutes sit inside WHOOP's zone 0, so this can only come out low.
+section: Recovery cost by sport
+  sub: How your recovery the next morning compares after each sport, against your other training days. A ~ means the gap is approximate — it could still be chance.
+section: Sleep composition
+section: Body clock
+  sub: Social jetlag (Wittmann et al. 2006) is how far the middle of your sleep moves between work nights and weekend nights — like flying across time zones every weekend. Natural mid-sleep is the weekend middle corrected for catch-up sleep, the standard measure of chronotype (Roenneberg et al. 2012): earlier means more of a morning type. Weekend nights are the ones ending on Saturday or Sunday morning; last 4 weeks.
 section: Sleep regularity
   sub: How often you are asleep — or awake — at the same time of day as you were the day before, over the last 30 days. 100 means identical sleep and wake times every day. Naps count.
-section: Sleep composition
-group: Monthly
+section: Sleep and your next morning
+  sub: Your morning HRV and recovery after nights with 7+ hours asleep (the adult recommendation, Watson et al. 2015) against shorter nights, across your whole history. "Clear" means 30+ mornings on each side and a gap too large to be chance.
 section: Trend explorer
-  sub: Every day WHOOP has scored, not just the last 30 — pick a metric and a window.
 section: Readiness, every day
   sub: The last year, one cell per day, coloured by the plan that day got.
 section: Recovery, every day
-section: Recovery cost by sport
-  sub: How your recovery the next morning compares after each sport, against your other training days. A ~ means the gap is approximate — it could still be chance.
 section: Personal records
 section: Full training log

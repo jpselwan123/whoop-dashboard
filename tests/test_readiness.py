@@ -419,7 +419,11 @@ class SyntheticLabelTest(unittest.TestCase):
     def test_the_label_is_in_the_html_not_added_by_script(self):
         """It must show even if the page's JavaScript fails."""
         html = self.page(True)
-        self.assertLess(html.index('id="syntheticBadge"'), html.index('<script'))
+        # in the page's markup, ahead of the page's scripts (the only script before the markup is the
+        # one-line theme restore in the head, which writes no content)
+        body = html.index('</style>')
+        self.assertGreater(html.index('id="syntheticBadge"'), body)
+        self.assertLess(html.index('id="syntheticBadge"'), html.index('<script', body))
 
 
 class TokenInPageTest(unittest.TestCase):
