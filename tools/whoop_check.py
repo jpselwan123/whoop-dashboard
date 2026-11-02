@@ -159,6 +159,8 @@ def main(data_dir):
     sport_checks(D, D['workout_log'], recovery)
     sleep_night_checks(D, nights, lambda r: day_of_cycle.get(r.get('cycle_id'), day_of(r)), strain)
     training_cost_checks(D)
+    research_checks(D, raw, nights, workouts, hrv, recovery,
+                    lambda r: day_of_cycle.get(r.get('cycle_id'), day_of(r)), day_of, max(strain))
     per_day_checks(D, strain, recovery)
 
     print('%d checks passed, %d failed' % (len(PASS), len(FAIL)))
@@ -531,6 +533,118 @@ def training_cost_checks(D):
     check('training cost: shown only if all three pass', T['usable'],
           bool(T['significant'] and T['linear'] and T['holdout_better']))
     check('training cost: not shown means no adjusted score', T['after'] is None, not T['usable'])
+
+
+
+# ---- research metrics beyond the WHOOP app -----------------------------------------------------
+def t_two_sided(t, df):
+    """P(|T| > |t|) for Student's t by Simpson's rule on its density. The dashboard uses the
+    incomplete beta function instead, so the two cannot share a mistake."""
+    t = abs(t)
+    if t == 0:
+        return 1.0
+    c = math.exp(math.lgamma((df + 1) / 2) - math.lgamma(df / 2)) / math.sqrt(df * math.pi)
+    f = lambda x: c * (1 + x * x / df) ** (-(df + 1) / 2)
+    n = 4000
+    h = t / n
+    area = f(0) + f(t) + sum((4 if i % 2 else 2) * f(i * h) for i in range(1, n))
+    return max(0.0, 1 - 2 * area * h / 3)
+
+
+def welch(a, b):
+    va, vb = sd(a) ** 2 / len(a), sd(b) ** 2 / len(b)
+    t = (mean(a) - mean(b)) / math.sqrt(va + vb)
+    df = (va + vb) ** 2 / (va ** 2 / (len(a) - 1) + vb ** 2 / (len(b) - 1))
+    return t_two_sided(t, df)
+
+
+def research_checks(D, raw, nights, workouts, hrv, recovery, night_day, day_of, today):
+    # polarization index (Treff 2019) from an all-time zone split recomputed here
+    max_hr = raw['body']['max_heart_rate']
+    rhr_by_day = {day_of(r): r['score']['resting_heart_rate'] for r in raw['recovery'] if r.get('score')}
+    usual = mean(rhr_by_day.values())
+    tot = [0.0, 0.0, 0.0]
+    for w in workouts:
+        if w['sport_name'] in STRENGTH:
+            continue
+        mins = intensity_minutes(w['score'].get('zone_durations'), max_hr, rhr_by_day.get(day_of(w), usual))
+        for i in range(3):
+            tot[i] += (mins or [0, 0, 0])[i]
+    A = D['zone_distribution']['all_time']
+    T = sum(tot)
+    check('zones: easy share, all time', A['easy_pct'], round(100 * tot[0] / T, 1), 0.11)
+    check('zones: hard share, all time', A['hard_pct'], round(100 * tot[2] / T, 1), 0.11)
+    z1, z2, z3 = (x / T for x in tot)
+    if z3 > z1:
+        pi = None
+    elif z3 == 0:
+        pi = 0.0
+    else:
+        if z2 == 0:
+            z2, z3 = 0.01, z3 - 0.01
+        pi = round(math.log10(z1 * z3 * 100 / z2), 2) if z3 > 0 else 0.0
+    check('polarization index (Treff 2019)', A['polarization_index'], pi, 0.011)
+    check('polarized means above 2.00', A['polarized'], None if pi is None else pi > 2.0)
+
+    # WHO 2020 minutes: zone 1 moderate, zones 2-5 vigorous counted twice (ACSM 60% HRR line)
+    W = D['who_minutes']
+    weeks = defaultdict(float)
+    for w in workouts:
+        z = w['score'].get('zone_durations')
+        if not z or w['sport_name'] in STRENGTH:
+            continue
+        y, wk, _ = parse(w['created_at']).isocalendar()
+        vig = sum(z.get(k) or 0 for k in ('zone_two_milli', 'zone_three_milli', 'zone_four_milli', 'zone_five_milli'))
+        weeks['%d-W%02d' % (y, wk)] += ((z.get('zone_one_milli') or 0) + 2 * vig) / 60000
+    check('WHO minutes: 8 weeks', len(W['weekly']), 8)
+    check('WHO minutes: every week', [r['week'] for r in W['weekly']
+                                      if abs(r['equivalent_min'] - weeks.get(r['week'], 0)) > 1][:5], [])
+    full = [r for r in W['weekly'] if not r['is_current']]
+    check('WHO minutes: weeks at 150+', W['weeks_met'], sum(1 for r in full if weeks.get(r['week'], 0) >= 149.5))
+    check('WHO minutes: the line is 150', W['goal_min'], 150)
+
+    # body clock: Wittmann 2006 social jetlag, Roenneberg 2012 MSFsc
+    work, free = [], []
+    for s in nights:
+        d = night_day(s)
+        if not 0 <= (datetime.fromisoformat(today) - datetime.fromisoformat(d)).days < 28:
+            continue
+        a, b = local(s['start'], s.get('timezone_offset')), local(s['end'], s.get('timezone_offset'))
+        on = a.hour + a.minute / 60 + a.second / 3600
+        on = on + 24 if on < 12 else on
+        span = (b - a).total_seconds() / 3600
+        (free if datetime.fromisoformat(d).weekday() >= 5 else work).append((on, span))
+    B = D['body_clock']
+    if len(work) >= 3 and len(free) >= 3:
+        msw = mean(o + h / 2 for o, h in work)
+        msf = mean(o + h / 2 for o, h in free)
+        sdw, sdf = mean(h for _, h in work), mean(h for _, h in free)
+        sdweek = (5 * sdw + 2 * sdf) / 7
+        check('body clock: social jetlag', B and B['social_jetlag_h'], round(abs(msf - msw), 3), 0.002)
+        check('body clock: chronotype (MSFsc)', B and B['chronotype_h'],
+              round(msf - (sdf - sdweek) / 2 if sdf > sdweek else msf, 3), 0.002)
+        check('body clock: nights', B and (B['n_work'], B['n_free']), (len(work), len(free)))
+    else:
+        check('body clock: not shown on too few nights', B, None)
+
+    # 7h+ nights against shorter ones: morning HRV and recovery
+    L = D['sleep_hrv_link']
+    hours = {}
+    for s in nights:
+        st = s['score']['stage_summary']
+        hours[night_day(s)] = max(0, st['total_in_bed_time_milli'] - st['total_awake_time_milli']) / 3600000
+    for name, src in (('hrv', hrv), ('recovery', recovery)):
+        long_ = [src[d] for d, h in hours.items() if h >= 7 and src.get(d) is not None]
+        short = [src[d] for d, h in hours.items() if h < 7 and src.get(d) is not None]
+        got = L.get(name)
+        if not long_ or not short:
+            check('sleep link %s: not shown' % name, got, None)
+            continue
+        p = welch(long_, short)
+        check('sleep link %s: nights' % name, got and (got['n_long'], got['n_short']), (len(long_), len(short)))
+        check('sleep link %s: gap' % name, got and got['diff'], round(mean(long_) - mean(short), 1), 0.051)
+        check('sleep link %s: p' % name, got and got['p'], round(p, 4), 0.002)
+        check('sleep link %s: clear' % name, got and got['clear'], len(long_) >= 30 and len(short) >= 30 and p < 0.05)
 
 
 def per_day_checks(D, strain, recovery):

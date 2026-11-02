@@ -530,25 +530,65 @@
   .compact .section-sub.open{display:block;margin:-4px 0 16px;padding:12px 14px;border-radius:var(--radius-sm);
     background:var(--surface-2);font-size:13px;color:var(--ink-muted);max-width:none;}
 
-  /* today: the call and the orb in one card, the six numbers in a strip under them */
-  .hero{grid-template-columns:240px minmax(0,1fr);grid-template-areas:"orb decision" "stats stats" "legend legend";
-    column-gap:40px;row-gap:22px;padding:28px 32px 18px;align-items:center;}
-  .hero .orb-col{grid-area:orb;}
-  .hero .decision{grid-area:decision;background:none;border:none;box-shadow:none;padding:0;border-radius:0;gap:12px;}
-  .hero .decision h1{font-size:clamp(22px, 2.6vw, 30px);font-weight:600;letter-spacing:-0.03em;}
-  .hero .decision .why{font-size:14.5px;line-height:1.6;max-width:62ch;}
-  .hero-stats{grid-area:stats;display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:16px;padding-top:20px;border-top:1px solid var(--border);}
-  .hero-stats .flank{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:16px;}
-  .hero-stats .flank.right .stat{align-items:flex-start;text-align:left;}
-  .hero-stats .flank.right .stat .row{flex-direction:row;}
-  .hero-stats .stat .row{flex-wrap:wrap;column-gap:6px;row-gap:0;}
-  .hero-stats .stat .value{font-size:26px;}
-  .hero-legend{grid-area:legend;border-top:none;padding-top:0;justify-content:flex-start;}
+  /* today: the orb is the instrument — centred and large, three numbers either side, the call under it */
+  .hero{grid-template-columns:minmax(0,1fr) minmax(320px,440px) minmax(0,1fr);grid-template-areas:"left orb right" "legend legend legend";
+    column-gap:28px;row-gap:16px;padding:32px 40px 18px;align-items:center;}
+  .hero > .flank{grid-area:left;gap:30px;}
+  .hero > .flank.right{grid-area:right;}
+  .hero .orb-col{grid-area:orb;gap:14px;}
+  .hero .orb-stage{width:320px;height:320px;}
+  .hero .orb-readout .num{font-size:80px;font-weight:600;}
+  .hero .orb-readout .cap{font-size:13px;margin-top:2px;}
+  .hero .ready-scale{width:240px;}
+  .hero .decision{background:none;border:none;box-shadow:none;padding:0;border-radius:0;
+    align-items:center;text-align:center;gap:10px;margin-top:4px;}
+  .hero .decision h1{font-size:clamp(19px, 2vw, 24px);font-weight:600;letter-spacing:-0.025em;}
+  .hero .decision .why{font-size:14px;line-height:1.6;max-width:46ch;text-align:center;}
+  .compact .hero .decision .why{display:none;}
+  .compact .hero .decision .why.open{display:block;}
+  .why-btn{background:none;border:none;padding:2px 6px;cursor:pointer;font:500 13px var(--font-sans);color:var(--ink-faint);}
+  .why-btn:hover, .why-btn[aria-expanded="true"]{color:var(--ink);}
+  .hero .stat .value{font-size:30px;}
+  .hero-legend{grid-area:legend;}
   @media (max-width:900px){
-    .hero{grid-template-columns:minmax(0,1fr);grid-template-areas:"orb" "decision" "stats" "legend";padding:22px 18px 16px;}
-    .hero-stats{grid-template-columns:minmax(0,1fr);}
+    .hero{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"orb orb" "left right" "legend legend";
+      padding:24px 18px 16px;column-gap:14px;row-gap:22px;}
+    .hero > .flank{gap:20px;}
   }
-  @media (max-width:560px){.hero-stats .flank{gap:10px;} .hero-stats .stat .value{font-size:22px;}}
+  @media (max-width:560px){
+    .hero .orb-stage{width:260px;height:260px;}
+    .hero .orb-readout .num{font-size:64px;}
+    .hero .stat .value{font-size:23px;}
+  }
+
+  /* small fact tiles: a label, one number, one line under it */
+  .tile-row{display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:12px;margin-top:16px;}
+  @media (max-width:560px){.tile-row{grid-template-columns:repeat(auto-fit, minmax(92px, 1fr));gap:8px;} .tile{padding:10px 11px;} .tile .v{font-size:19px;}}
+  .tile{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;
+    display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .tile .k{font-size:12px;font-weight:500;color:var(--ink-faint);}
+  .tile .v{font-size:22px;font-weight:600;letter-spacing:-0.025em;font-variant-numeric:tabular-nums;color:var(--ink);}
+  .tile .v small{font-size:13px;font-weight:500;color:var(--ink-faint);margin-left:3px;letter-spacing:0;}
+  .tile .d{font-size:12px;color:var(--ink-muted);}
+  .tile .v.good{color:var(--good);} .tile .v.bad{color:var(--critical);}
+  .chip{display:inline-flex;align-items:center;font-size:12px;font-weight:500;padding:2px 9px;border-radius:999px;
+    background:var(--surface-2);border:1px solid var(--border);color:var(--ink-muted);white-space:nowrap;}
+  .chip.good{color:var(--good);border-color:color-mix(in srgb, var(--good) 30%, var(--border));}
+  .pi-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 4px;font-size:13.5px;color:var(--ink-muted);}
+  .pi-row b{font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .empty-note{font-size:13.5px;color:var(--ink-faint);padding:6px 0;}
+
+  /* body clock: weekday and weekend sleep on one evening-to-noon axis */
+  .clock-track{margin-top:18px;display:flex;flex-direction:column;gap:10px;}
+  .ct-row{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:10px;}
+  .ct-row .lab{font-size:12.5px;line-height:1.35;color:var(--ink);}
+  .ct-row .lab .tnum{font-size:11.5px;color:var(--ink-faint);}
+  .ct-bar{position:relative;height:14px;border-radius:7px;background:var(--surface-2);border:1px solid var(--border);}
+  .ct-fill{position:absolute;top:0;bottom:0;border-radius:6px;background:var(--stage-light);}
+  .ct-row.free .ct-fill{background:var(--stage-rem);}
+  .ct-mid{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;border-radius:1px;background:var(--ink);}
+  .ct-axis{position:relative;height:14px;margin-left:106px;}
+  .ct-axis span{position:absolute;transform:translateX(-50%);font:11px var(--font-mono);color:var(--ink-faint);white-space:nowrap;}
 
   /* tips: a quiet list; each shows its headline, the rest opens on click */
   .signal-grid{grid-template-columns:minmax(0,1fr);gap:0;}
@@ -617,25 +657,23 @@
   <!-- ===== Today ===== -->
   <div class="view" id="today" data-view="today">
     <section class="hero" id="heroCard">
+      <div class="flank" id="flankBody"></div>
       <div class="orb-col">
         <div class="orb-stage" id="orbStage" role="button" tabindex="0" aria-haspopup="true" aria-label="How readiness is calculated">
-          <canvas id="orb" width="440" height="440"></canvas>
+          <canvas id="orb" width="640" height="640"></canvas>
           <div class="orb-readout"><div class="num tnum" id="orbNum">—</div><div class="cap" id="orbCap">Readiness</div></div>
         </div>
         <div class="ready-scale" id="readyScale" aria-hidden="true">
           <div class="rs-track"><span class="rs-seg rest"></span><span class="rs-seg easy"></span><span class="rs-seg push"></span><span class="rs-marker" id="rsMarker"></span></div>
         </div>
+        <div class="decision" id="decisionCard">
+          <span class="state-pill" id="statePill">—</span>
+          <h1 id="decisionHeadline">Computing…</h1>
+          <div class="why" id="decisionWhy"></div>
+        </div>
       </div>
-      <div class="decision" id="decisionCard">
-        <span class="state-pill" id="statePill">—</span>
-        <h1 id="decisionHeadline">Computing…</h1>
-        <div class="why" id="decisionWhy"></div>
-      </div>
-      <div class="hero-stats">
-        <div class="flank" id="flankBody"></div>
-        <div class="flank right" id="flankLoad"></div>
-      </div>
-      <div class="hero-legend"><span><b class="up">▲</b><b class="down">▼</b> vs your 30-day average</span></div>
+      <div class="flank right" id="flankLoad"></div>
+      <div class="hero-legend"><span><b class="up">▲</b><b class="down">▼</b> vs your 30-day average · tap the orb for the details</span></div>
     </section>
 
     <div class="grid-2">
@@ -686,8 +724,9 @@
 
       <section class="card">
         <div class="section-head"><h2>Time in heart-rate zones</h2><span class="n" id="zoneTotal"></span></div>
-        <div class="section-sub">Easy is below about 82% of your max heart rate, moderate 82–87%, hard above 87% — the three zones used in endurance research, converted from WHOOP's zones with your own resting and max heart rate. Strength sessions are left out, since most of their time is rest between sets.</div>
+        <div class="section-sub">Easy is below about 82% of your max heart rate, moderate 82–87%, hard above 87% — the three zones used in endurance research, converted from WHOOP's zones with your own resting and max heart rate. Strength sessions are left out, since most of their time is rest between sets. The polarization index (Treff et al. 2019) sums the mix in one number: above 2.00 it is polarized — mostly easy, some hard, little in between. It describes your mix; studies disagree on whether polarized training beats other mixes.</div>
         <div class="explorer-stats" id="zoneSplitRow"></div>
+        <div class="pi-row" id="piRow"></div>
         <div class="chart-wrap" id="zoneChartWrap" style="margin-top:10px;"><div class="chart-tooltip" id="zoneTooltip"></div></div>
         <div class="legend">
           <div class="li"><span class="sw" style="background:var(--good)"></span>Easy</div>
@@ -698,7 +737,9 @@
 
       <section class="card">
         <div class="section-head"><h2>Sessions per week</h2><span class="n">last 8 weeks</span></div>
+        <div class="section-sub">Activity minutes count moderate time once and vigorous time twice, as the WHO guideline does: 150+ a week (WHO 2020). Vigorous is 60%+ of your heart-rate reserve (ACSM), which is WHOOP's zone 2 and up; moderate is zone 1. Only logged workouts count, strength sessions aside, and the easiest moderate minutes sit inside WHOOP's zone 0, so this can only come out low.</div>
         <div class="bars" id="barsRow" style="display:flex;align-items:stretch;gap:10px;height:132px;padding-top:6px;margin-top:14px;"></div>
+        <div class="tile-row" id="whoRow"></div>
       </section>
 
       <section class="card">
@@ -723,9 +764,22 @@
       </section>
 
       <section class="card">
+        <div class="section-head"><h2>Body clock</h2><span class="beyond-badge">Beyond WHOOP</span><span class="n" id="bodyClockRange"></span></div>
+        <div class="section-sub">Social jetlag (Wittmann et al. 2006) is how far the middle of your sleep moves between work nights and weekend nights — like flying across time zones every weekend. Natural mid-sleep is the weekend middle corrected for catch-up sleep, the standard measure of chronotype (Roenneberg et al. 2012): earlier means more of a morning type. Weekend nights are the ones ending on Saturday or Sunday morning; last 4 weeks.</div>
+        <div class="tile-row" id="bodyClockStats"></div>
+        <div class="clock-track" id="bodyClockTrack"></div>
+      </section>
+
+      <section class="card">
         <div class="section-head"><h2>Sleep regularity</h2><span class="beyond-badge">Beyond WHOOP</span></div>
         <div class="section-sub">How often you are asleep — or awake — at the same time of day as you were the day before, over the last 30 days. 100 means identical sleep and wake times every day. Naps count.</div>
         <div class="signal-grid" id="sriGrid"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><h2>Sleep and your next morning</h2><span class="beyond-badge">Beyond WHOOP</span></div>
+        <div class="section-sub">Your morning HRV and recovery after nights with 7+ hours asleep (the adult recommendation, Watson et al. 2015) against shorter nights, across your whole history. "Clear" means 30+ mornings on each side and a gap too large to be chance.</div>
+        <div class="tile-row" id="sleepLinkRows"></div>
       </section>
     </div>
   </div>
@@ -2050,6 +2104,73 @@ function renderBedtime(){
     `That counts back from your usual wake-up of ${B.wake}, which varies by about ${fmtHM(B.wake_spread_h)}.`;
 }
 
+/* ---------------- research metrics beyond the WHOOP app ---------------- */
+const clockHM = h => {
+  if(h == null || !isFinite(h)) return '—';
+  const m = Math.round((((h % 24) + 24) % 24) * 60) % 1440;
+  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+};
+const tileHTML = (k, v, d, cls) =>
+  `<div class="tile"><span class="k">${k}</span><span class="v${cls ? ' ' + cls : ''}">${v}</span>${d ? `<span class="d">${d}</span>` : ''}</div>`;
+
+function renderPolarization(){
+  const el = $('piRow'); if(!el) return;
+  const a = (DATA.zone_distribution || {}).all_time || {};
+  if(!a.total_h){ el.innerHTML = ''; return; }
+  el.innerHTML = a.polarization_index == null
+    ? `<span>Polarization index</span><span class="chip">not defined: more hard than easy time</span>`
+    : `<span>Polarization index</span><b>${a.polarization_index.toFixed(2)}</b>` +
+      `<span class="chip">${a.polarized ? 'Polarized' : 'Not polarized'}</span><span>polarized above 2.00</span>`;
+}
+
+function renderWho(){
+  const el = $('whoRow'), W = DATA.who_minutes; if(!el) return;
+  if(!W){ el.innerHTML = ''; return; }
+  const lw = W.last_full_week;
+  el.innerHTML =
+    tileHTML('Activity minutes, last full week', lw ? `${lw.equivalent_min}<small>/ ${W.goal_min}</small>` : '—',
+             lw ? `${lw.moderate_min} moderate + ${lw.vigorous_min} vigorous, counted twice` : '',
+             lw && lw.equivalent_min >= W.goal_min ? 'good' : '') +
+    tileHTML(`Weeks at ${W.goal_min}+`, `${W.weeks_met}<small>of ${W.full_weeks}</small>`, 'WHO guideline, full weeks');
+}
+
+function renderBodyClock(){
+  const B = DATA.body_clock, stats = $('bodyClockStats'), track = $('bodyClockTrack'); if(!stats || !track) return;
+  if(!B){
+    stats.innerHTML = '<div class="empty-note">Needs 3+ work nights and 3+ weekend nights in the last 4 weeks.</div>';
+    track.innerHTML = ''; return;
+  }
+  $('bodyClockRange').textContent = `${B.n_work + B.n_free} nights`;
+  const dur = h => fmtHM(Math.abs(h));
+  stats.innerHTML =
+    tileHTML('Social jetlag', dur(B.social_jetlag_h), 'mid-sleep shift on weekends') +
+    tileHTML('Natural mid-sleep', clockHM(B.chronotype_h), 'your chronotype') +
+    tileHTML('Weekend sleep', (B.catch_up_h < 0 ? '−' : '+') + dur(B.catch_up_h), B.catch_up_h < 0 ? 'shorter than weekdays' : 'longer than weekdays');
+  const lo = 20, hi = 38;                                  // 20:00 to 14:00 the next day
+  const pos = h => Math.max(0, Math.min(100, (h - lo) / (hi - lo) * 100));
+  const row = (lab, cls, on, wake, mid) =>
+    `<div class="ct-row ${cls}"><span class="lab">${lab}<br><span class="tnum">${clockHM(on)}–${clockHM(wake)}</span></span>` +
+    `<div class="ct-bar"><span class="ct-fill" style="left:${pos(on)}%;width:${Math.max(0, pos(wake) - pos(on))}%"></span>` +
+    `<span class="ct-mid" style="left:${pos(mid)}%" title="mid-sleep ${clockHM(mid)}"></span></div></div>`;
+  track.innerHTML =
+    row('Weekdays', 'work', B.onset_work_h, B.wake_work_h, B.mid_work_h) +
+    row('Weekends', 'free', B.onset_free_h, B.wake_free_h, B.mid_free_h) +
+    `<div class="ct-axis">${[22, 26, 30, 34].map(h => `<span style="left:${pos(h)}%">${clockHM(h)}</span>`).join('')}</div>`;
+}
+
+function renderSleepLink(){
+  const L = DATA.sleep_hrv_link, el = $('sleepLinkRows'); if(!el) return;
+  if(!L || (!L.hrv && !L.recovery)){ el.innerHTML = '<div class="empty-note">Needs nights both over and under 7 hours.</div>'; return; }
+  const one = (k, m, unit) => {
+    if(!m) return '';
+    const sign = m.diff > 0 ? '+' : m.diff < 0 ? '−' : '';
+    const cls = m.clear ? (m.diff > 0 ? 'good' : 'bad') : '';
+    return tileHTML(k, `${sign}${Math.abs(m.diff)}<small>${unit}</small>`,
+      `${m.long_mean} vs ${m.short_mean}${unit} · ${m.n_long} vs ${m.n_short} nights · ${m.clear ? 'clear' : 'could be chance'}`, cls);
+  };
+  el.innerHTML = one('Morning HRV after 7h+ nights', L.hrv, ' ms') + one('Recovery after 7h+ nights', L.recovery, '');
+}
+
 function renderAll(){
   renderStats();
   renderRightNow();
@@ -2064,6 +2185,7 @@ function renderAll(){
   renderHeatmap();
   renderReadinessYear();
   renderStageChart();
+  [renderPolarization, renderWho, renderBodyClock, renderSleepLink].forEach(f => { try{ f(); }catch(e){} });
   renderRecords();
   renderLoad();
   renderLog();
@@ -2128,6 +2250,13 @@ function compactText(){
     btn.addEventListener('click', () => btn.setAttribute('aria-expanded', String(sub.classList.toggle('open'))));
     (head.querySelector('.beyond-badge') || head.querySelector('h2')).insertAdjacentElement('afterend', btn);
   });
+  const why = $('decisionWhy');
+  if(why && why.textContent.trim() && !document.querySelector('.why-btn')){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'why-btn'; b.textContent = 'Why?'; b.setAttribute('aria-expanded', 'false');
+    b.addEventListener('click', () => b.setAttribute('aria-expanded', String(why.classList.toggle('open'))));
+    why.insertAdjacentElement('beforebegin', b);
+  }
   document.querySelectorAll('.signal').forEach(sig => {
     const txt = sig.querySelector('.txt');
     if(!txt || txt.querySelector('.more')) return;

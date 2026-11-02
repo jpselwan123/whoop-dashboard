@@ -1077,8 +1077,10 @@ def build_zone_distribution(wo, now, max_hr, rest_hr_for):
                'hard_h': round(week_totals[wk][2], 2), 'is_current': wk == current_key} for wk in weeks]
     total_h = sum(all_time)
     pct = lambda i: round(100 * all_time[i] / total_h, 1) if total_h else 0
+    pi = polarization_index(*all_time)
     return {'weekly': weekly, 'all_time': {'easy_pct': pct(0), 'mod_pct': pct(1), 'hard_pct': pct(2),
-                                           'total_h': round(total_h, 1)}}
+                                           'total_h': round(total_h, 1), 'polarization_index': pi,
+                                           'polarized': None if pi is None else pi > POLARIZED_ABOVE}}
 
 
 def build_rest_day_stat(cyc, workout_days):
@@ -1100,6 +1102,140 @@ def build_sleep_nights(sleep, today):
     recent = [s for s in sleep if 0 <= (datetime.fromisoformat(today) - datetime.fromisoformat(record_day(s))).days < 7]
     return {'nights_7h': sum(1 for s in recent if asleep_ms(s) >= SLEEP_MIN_HOURS * 3600000),
             'nights': len(recent), 'min_hours': SLEEP_MIN_HOURS}
+
+
+# ---- Polarization index (Treff et al. 2019) -----------------------------------------------
+# PI = log10(Z1 / Z2 x Z3 x 100), zones as fractions of training time; above 2.00 = polarized.
+# Not defined when there is more hard than easy time; 0 when there is no hard time; with no
+# moderate time Z2 is set to 0.01 and 0.01 taken off Z3 (as the 2023 commentary by Montenegro
+# Arjona et al. restates the rule). Polarized is a description, not a grade: trials disagree on
+# whether it beats a pyramidal mix, so the page names it and never scores it.
+POLARIZED_ABOVE = 2.0
+
+
+def polarization_index(easy, mod, hard):
+    total = easy + mod + hard
+    if total <= 0:
+        return None
+    z1, z2, z3 = easy / total, mod / total, hard / total
+    if z3 > z1:
+        return None
+    if z3 == 0:
+        return 0.0
+    if z2 == 0:
+        z2, z3 = 0.01, z3 - 0.01
+        if z3 <= 0:
+            return 0.0
+    return round(math.log10(z1 / z2 * z3 * 100), 2)
+
+
+# ---- Weekly activity against the WHO guideline -----------------------------------------------
+# WHO 2020 (Bull et al. 2020): adults 150-300 min of moderate activity a week, or 75-150 vigorous,
+# or an equivalent mix, one vigorous minute counting as two moderate. ACSM (Garber et al. 2011):
+# moderate is 40-59% of heart-rate reserve, vigorous 60% and up. WHOOP's zones are % of heart-rate
+# reserve and its zone 2 starts exactly at 60%, so zones 2-5 are vigorous and zone 1 (50-60%) is
+# moderate. Moderate time at 40-50% sits inside WHOOP's zone 0 (0-50%) and cannot be separated, so
+# it is left out: the count can only come out low, never high. Only logged workouts carry zone
+# minutes, and strength sessions are left out as everywhere else (WHO counts muscle strengthening
+# separately).
+WHO_WEEKLY_MIN = 150
+WHO_VIGOROUS_WEIGHT = 2
+
+
+def build_who_minutes(wo, now):
+    weeks = defaultdict(lambda: [0.0, 0.0])
+    for w in wo:
+        z = w['score'].get('zone_durations')
+        if not z or w['sport_name'] in STRENGTH_SPORTS:
+            continue
+        key = iso_week_key(parse(w['created_at']))
+        weeks[key][0] += (z.get('zone_one_milli') or 0) / 60000
+        weeks[key][1] += sum((z.get(k) or 0) for k in
+                             ('zone_two_milli', 'zone_three_milli', 'zone_four_milli', 'zone_five_milli')) / 60000
+    current_key = iso_week_key(now)
+    rows = []
+    for wk in last_n_iso_weeks(now.date(), 8):
+        mod, vig = weeks[wk] if wk in weeks else (0.0, 0.0)
+        rows.append({'week': wk, 'start': iso_week_monday(wk), 'moderate_min': round(mod),
+                     'vigorous_min': round(vig), 'equivalent_min': round(mod + WHO_VIGOROUS_WEIGHT * vig),
+                     'is_current': wk == current_key})
+    full = [r for r in rows if not r['is_current']]
+    return {'weekly': rows, 'goal_min': WHO_WEEKLY_MIN,
+            'last_full_week': full[-1] if full else None,
+            'weeks_met': sum(1 for r in full if r['equivalent_min'] >= WHO_WEEKLY_MIN),
+            'full_weeks': len(full)}
+
+
+# ---- Body clock: social jetlag and chronotype -------------------------------------------------
+# Social jetlag (Wittmann et al. 2006) = |mid-sleep on free days - mid-sleep on work days|.
+# Chronotype (MSFsc, Roenneberg et al. 2012): free-day mid-sleep corrected for catch-up sleep;
+# when free-day sleep is longer than the week's average, MSFsc = MSF - (SDf - SDweek) / 2 with
+# SDweek = (5 SDw + 2 SDf) / 7, otherwise MSFsc = MSF. The questionnaire asks which days are work
+# days; WHOOP cannot know, so free nights are the ones ending on a Saturday or Sunday morning and
+# work nights the other five. Night sleeps only, the last 4 weeks, at least 3 of each. A clock time
+# is kept as hours after the noon before waking (23:30 = 23.5, 02:00 = 26.0), so a night that
+# crosses midnight averages correctly.
+BODY_CLOCK_DAYS = 28
+BODY_CLOCK_MIN_NIGHTS = 3
+
+
+def _hours_after_noon(t):
+    h = t.hour + t.minute / 60 + t.second / 3600
+    return h + 24 if h < 12 else h
+
+
+def build_body_clock(sleep, today):
+    work, free = [], []
+    for s in sleep:
+        d = record_day(s)
+        if not 0 <= (datetime.fromisoformat(today) - datetime.fromisoformat(d)).days < BODY_CLOCK_DAYS:
+            continue
+        tz = local_tz(s.get('timezone_offset'))
+        start, end = parse(s['start']).astimezone(tz), parse(s['end']).astimezone(tz)
+        onset = _hours_after_noon(start)
+        span = (end - start).total_seconds() / 3600
+        row = (onset, span, onset + span / 2)
+        (free if datetime.fromisoformat(d).weekday() >= 5 else work).append(row)
+    if len(work) < BODY_CLOCK_MIN_NIGHTS or len(free) < BODY_CLOCK_MIN_NIGHTS:
+        return None
+    ms_w, ms_f = mean(r[2] for r in work), mean(r[2] for r in free)
+    sd_w, sd_f = mean(r[1] for r in work), mean(r[1] for r in free)
+    sd_week = (5 * sd_w + 2 * sd_f) / 7
+    msf_sc = ms_f - (sd_f - sd_week) / 2 if sd_f > sd_week else ms_f
+    on_w, on_f = mean(r[0] for r in work), mean(r[0] for r in free)
+    return {'mid_work_h': round(ms_w, 3), 'mid_free_h': round(ms_f, 3),
+            'social_jetlag_h': round(abs(ms_f - ms_w), 3), 'chronotype_h': round(msf_sc, 3),
+            'onset_work_h': round(on_w, 3), 'wake_work_h': round(on_w + sd_w, 3),
+            'onset_free_h': round(on_f, 3), 'wake_free_h': round(on_f + sd_f, 3),
+            'catch_up_h': round(sd_f - sd_w, 3),
+            'n_work': len(work), 'n_free': len(free), 'window_days': BODY_CLOCK_DAYS}
+
+
+# ---- Sleep and the next morning --------------------------------------------------------------
+# Morning HRV and recovery after a night of 7+ hours asleep (Watson et al. 2015) against shorter
+# nights, over the whole history. Night sleep only (a nap comes after the morning's reading).
+# Welch's t-test, p < 0.05, 30+ mornings a side, as for every comparison on the page; short of
+# that only the averages and counts are shown, marked as possibly chance.
+def build_sleep_hrv_link(sleep, hrv_by_day, recovery_by_day):
+    night_h = {record_day(s): asleep_ms(s) / 3600000 for s in sleep}
+    out = {'min_hours': SLEEP_MIN_HOURS, 'min_group': MIN_GROUP}
+    for name, src in (('hrv', hrv_by_day), ('recovery', recovery_by_day)):
+        long_, short = [], []
+        for d, h in night_h.items():
+            v = src.get(d)
+            if v is None:
+                continue
+            (long_ if h >= SLEEP_MIN_HOURS else short).append(v)
+        if not long_ or not short:
+            out[name] = None
+            continue
+        p = welch_p(long_, short)
+        enough = len(long_) >= MIN_GROUP and len(short) >= MIN_GROUP
+        out[name] = {'long_mean': round(mean(long_), 1), 'short_mean': round(mean(short), 1),
+                     'diff': round(mean(long_) - mean(short), 1), 'n_long': len(long_), 'n_short': len(short),
+                     'p': round(p, 4) if p is not None else None,
+                     'clear': bool(enough and p is not None and p < SIGNIFICANCE)}
+    return out
 
 
 def build_today_snapshot(cyc, wo, max_hr, rest_hr_for):
@@ -1381,6 +1517,9 @@ def build_summary(d):
         'sport_recovery_cost': sport_recovery_cost,
         'sleep_composition': sleep_composition,
         'zone_distribution': zone_distribution,
+        'who_minutes': build_who_minutes(wo, now),
+        'body_clock': build_body_clock(sleep, today),
+        'sleep_hrv_link': build_sleep_hrv_link(sleep, hrv_by_day, recovery_by_day),
         'rest_day_stat': rest_day_stat,
         'today_snapshot': today_snapshot,
     }

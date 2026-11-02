@@ -98,6 +98,12 @@ python3 scripts/screenshot_layout.py --write        # after regenerating README 
   (today's z taken out), never the raw one — the fit controls for today, so the gate must too. Do not re-enable it by hand: the `usable` flag decides. The panel's "last night" block is the raw
   values (HRV, resting HR, hours asleep), shown for context — the last-night *scores* are already inside the
   score itself. JP wants ONE score from all measures AND every rule sourced — keep both.
+- **Beyond-WHOOP research metrics** (`polarization_index`, `build_who_minutes`, `build_body_clock`,
+  `build_sleep_hrv_link`): Treff 2019 PI (>2.00 polarized, a description never a grade); WHO 2020 150
+  moderate-equivalent min/week with vigorous ×2, vigorous = ACSM 60%+ HRR = WHOOP zone 2+, moderate = zone 1
+  only (40–50% HRR is inside zone 0 — undercount, by design); Wittmann 2006 social jetlag and Roenneberg 2012
+  MSFsc, free nights = waking Sat/Sun (we can't know work days), last 28 days, 3+ each; 7h+ vs shorter nights →
+  morning HRV/recovery, Welch, 30+ a side. Each is recomputed in `tools/whoop_check.py`.
 - **Intensity** = Seiler zones (82% / 87% of max HR) converted from WHOOP heart-rate-reserve zones
   (`intensity_minutes`, proportional split); session level = where most time was. Strength sessions: none.
 - Recovery keeps WHOOP zones 34/67. No sliders. Model changes need a cited source and tests.

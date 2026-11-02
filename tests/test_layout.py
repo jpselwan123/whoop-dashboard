@@ -28,7 +28,7 @@ class LayoutTest(unittest.TestCase):
     def test_explanations_and_tip_details_hide_only_once_the_script_has_run(self):
         for rule in re.findall(r'([^{}]+)\{[^{}]*display:none', CSS):
             sel = rule.strip()
-            if re.search(r'\.(section-sub|more)(?![\w-])', sel):
+            if re.search(r'\.(section-sub|more|why)(?![\w-])', sel):
                 self.assertTrue(sel.startswith('.compact'), sel)
 
 
