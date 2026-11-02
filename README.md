@@ -14,7 +14,7 @@ check line by line, and an AI chat that knows your entire history.
 ![macOS](https://img.shields.io/badge/app-macOS%2011%2B-000000?logo=apple&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 
-<img src="docs/screenshots/overview.png" alt="Today tab: readiness orb with the day's call, six key numbers, right now and today's plan" width="880">
+<img src="docs/screenshots/overview.png" alt="Today tab: the readiness orb centred, six key numbers around it, the day's call, right now and today's plan" width="880">
 
 <sub>All screenshots use the built-in synthetic demo athlete — no real health data.</sub>
 
@@ -51,61 +51,73 @@ the dashboard says so rather than presenting one of ours as if it did.
 
 ## Features
 
-### Daily — today's call
-- **Readiness** — one score from your HRV, resting HR and sleep — last night and the last 7 days —
-  each against your previous 4 weeks and then placed among your own days (50 = your median day), with the day's plan:
-  **Train as planned · Go easy · Rest**. Once you have trained, the plan is spent and
-  the card says **"N sessions logged: matched the plan"** (or **"above the plan"**).
-- **Click the orb** to see every measure next to its normal range, the answer lines, and last
-  night's numbers as information.
-- **Warning signs** — HRV or resting HR outside your normal range. Breathing rate is shown next
-  to your usual but never changes the plan (no study gives a numeric rise worth acting on).
-- **Today's plan** — training advice, sleep (nights with 7+ hours), the last day without a
-  workout, and tonight's bedtime target from WHOOP's own sleep need.
+Five tabs — **Today · Training · Sleep · Trends · Log** — one screen each. Every card's explanation
+and source sits behind an (i) button, so the page shows numbers, not paragraphs.
 
-### Weekly — load and injury-risk signals
+### Today — the readiness instrument
+- **Readiness** — one 0–100 score from your HRV, resting HR and sleep, as last night and the last
+  7 days, each against your previous 4 weeks and placed among your own days (50 = your median day).
+  It sets the day's plan: **Train as planned · Go easy · Rest**. Once you have trained, the plan is
+  spent and the card says **"N sessions logged: matched the plan"** (or **"above the plan"**).
+- **Tap the orb** for every measure next to its normal range; **Why?** opens the reasoning.
+- **Six key numbers** around the orb — recovery, HRV, resting HR, sleep, sleep debt, 7-day strain —
+  each against your 30-day average.
+- **Right now** — today's strain and each session with its easy / moderate / hard minutes.
+- **Today's plan** — one line each: warning signs (HRV or resting HR outside your range), nights
+  with 7+ hours, the last day without a workout, and tonight's bedtime from WHOOP's own sleep need.
 
-<img src="docs/screenshots/weekly.png" alt="Training tab: workload ratio, training variety, heart-rate zones, sessions per week, recovery cost by sport" width="880">
+### Training — load, mix and what it costs you
 
-- **Acute:Chronic Workload Ratio** with its commonly used bands — shown, not acted on, and disputed
-  as an injury predictor.
-- **Training variety** — one section for both kinds: how evenly your load falls across the week
-  (Foster monotony, which warns when every day carried almost the same load) and what you actually
-  do, sport by sport. These were two overlapping sections and are now one.
-- Heart-rate zone time in research zones (strength sessions left out — their rest between sets
-  would count as easy) with the **polarization index** (Treff 2019), sessions per week with
-  **activity minutes against the WHO 150-minute guideline** — all on Monday–Sunday weeks.
+<img src="docs/screenshots/weekly.png" alt="Training tab: workload ratio, training variety, heart-rate zones with polarization index, sessions per week with WHO activity minutes, recovery cost by sport" width="880">
+
+- **Acute:Chronic Workload Ratio** on Edwards TRIMP with its usual bands — shown, never acted on,
+  and disputed as an injury predictor.
+- **Training variety** — Foster monotony (warns when every day carries the same load) and your
+  sports, side by side.
+- **Time in heart-rate zones** in Seiler's research zones, with the **polarization index**
+  (Treff 2019): one number for your easy/moderate/hard mix. `Beyond WHOOP`
+- **Sessions per week** with **activity minutes against the WHO guideline** (150 a week, vigorous
+  minutes counted twice; vigorous = ACSM's 60%+ of heart-rate reserve). `Beyond WHOOP`
+- **Recovery cost by sport** — next-morning recovery after each sport against your other training
+  days, compared only within the same intensity; gaps that could be chance say so. `Beyond WHOOP`
 
 ### Sleep — beyond stages
-- **Body clock** — your social jetlag (how far mid-sleep moves on weekends, Wittmann 2006) and
-  natural mid-sleep, the standard chronotype measure (Roenneberg 2012), with your weekday and
-  weekend sleep windows on one axis.
-- **Sleep and your next morning** — your HRV and recovery after 7h+ nights vs shorter ones, marked
-  clear only when it can't be chance.
-- Sleep regularity (SRI) and weekly sleep stages.
 
-### Monthly — long-range trends
+<img src="docs/screenshots/sleep.png" alt="Sleep tab: sleep composition, body clock with social jetlag and chronotype, sleep regularity, and HRV after 7h+ nights" width="880">
+
+- **Body clock** — your **social jetlag** (how far mid-sleep moves on weekends, Wittmann 2006) and
+  **natural mid-sleep**, the standard chronotype measure (Roenneberg 2012), with weekday and weekend
+  sleep windows on one axis. `Beyond WHOOP`
+- **Sleep and your next morning** — your HRV and recovery after 7h+ nights vs shorter ones, called
+  clear only with 30+ mornings a side and a gap too large to be chance. `Beyond WHOOP`
+- **Sleep regularity (SRI)**, Phillips 2017's minute-by-minute index, naps included. `Beyond WHOOP`
+- **Sleep composition** — weekly REM / deep / light.
+
+### Trends and Log — the long view
 
 <img src="docs/screenshots/long-term.png" alt="Trends tab: trend explorer and the readiness and recovery calendars" width="880">
 
-- **Readiness, every day** — the last year as one cell per day, coloured by the plan that day
-  actually got (the same three colours, no new ones). Calendar days, so the gap in the export
-  shows as a gap; scrolls inside its own container.
-- **Recovery calendar heatmap** of every day on record.
-- **Recovery cost by sport** — one row per sport against your other training days, with your 4
-  most-played shown and the rest in a dropdown; gaps that could be chance say so.
-- Trend explorer for any metric including readiness, personal records, and the full training log.
+- **Trend explorer** for any metric, readiness included, over 30 days to all time.
+- **Readiness, every day** — the last year, one cell per day, coloured by the plan it got. `Beyond WHOOP`
+- **Recovery, every day** — every day on record as a calendar heatmap.
+- **Log** — personal records and the full training log.
 
 ### App experience
-- **Native macOS app** (Swift + WebKit) that refreshes on launch.
-- **Manual refresh** button — nothing updates behind your back.
-- **AI chat** with full-history context (OpenAI or Claude), conversation memory,
-  and a draggable panel.
-- Five tabs (Today, Training, Sleep, Trends, Log) instead of one long page; explanations sit behind (i) buttons.
-- Light and dark themes (follows your system; the header toggle overrides and remembers).
-- Works on phone-width screens, respects *Reduce Motion*, no external JS libraries.
 
-Items marked **Beyond WHOOP** in the app are metrics the WHOOP app doesn't provide.
+<p align="center">
+  <img src="docs/screenshots/light.png" alt="Light theme: the readiness orb centred with six key numbers" width="640">
+  <img src="docs/screenshots/phone.png" alt="Phone width, dark theme: the readiness orb and key numbers" width="200">
+</p>
+
+- **Light and dark themes** — follows your system; the header toggle overrides and remembers.
+- **Works on a phone** (390px wide, no sideways scroll) and respects *Reduce Motion*.
+- **Native macOS app** (Swift + WebKit) that refreshes on launch; a **manual refresh** button —
+  nothing updates behind your back.
+- **AI chat** with full-history context (OpenAI or Claude), conversation memory, and a draggable panel.
+- **First-run checklist** — until there is data, the page walks you through setup step by step.
+- No external JS libraries, no Python packages.
+
+Items marked **Beyond WHOOP** are metrics the WHOOP app doesn't provide.
 
 ## Try it in 30 seconds (no WHOOP needed)
 
